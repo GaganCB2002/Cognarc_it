@@ -1,0 +1,69 @@
+import { Request, Response } from "express";
+import { PrismaClient } from "@prisma/client";
+import { getAggregatedStats } from "../services/analytics.service";
+
+const prisma = new PrismaClient();
+
+// POST /api/telemetry/browser
+export const logBrowserEvent = async (req: Request, res: Response) => {
+  try {
+    const { url, title, domain, duration, category } = req.body;
+    
+    // Ensure user is authenticated
+    const userId = (req as any).user?.id || "temp-user-id"; // Placeholder until auth middleware is ready
+
+    const event = await prisma.browserTelemetry.create({
+      data: {
+        userId,
+        url,
+        title,
+        domain,
+        duration,
+        category,
+      },
+    });
+
+    res.status(201).json({ success: true, data: event });
+  } catch (error) {
+    console.error("Browser telemetry error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+// POST /api/telemetry/desktop
+export const logDesktopEvent = async (req: Request, res: Response) => {
+  try {
+    const { activeApp, windowTitle, processName, duration, isIdle, category } = req.body;
+
+    const userId = (req as any).user?.id || "temp-user-id"; // Placeholder
+
+    const event = await prisma.desktopTelemetry.create({
+      data: {
+        userId,
+        activeApp,
+        windowTitle,
+        processName,
+        duration,
+        isIdle,
+        category,
+      },
+    });
+
+    res.status(201).json({ success: true, data: event });
+  } catch (error) {
+    console.error("Desktop telemetry error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+// GET /api/telemetry/stats
+export const getTelemetryStats = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id || "temp-user-id";
+    const stats = await getAggregatedStats(userId);
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    console.error("Stats error:", error);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};

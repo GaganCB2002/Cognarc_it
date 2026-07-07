@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StudyTrack Monitor</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      width: 250px;
+      padding: 16px;
+      margin: 0;
+      background-color: #0A0A0A;
+      color: #F5F5F5;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .logo {
+      width: 24px;
+      height: 24px;
+      background-color: #D4A043;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: black;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0;
+    }
+    .status-box {
+      background-color: #1A1A1A;
+      border: 1px solid #222222;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .status-row:last-child {
+      margin-bottom: 0;
+    }
+    .label {
+      color: #999999;
+      font-size: 12px;
+    }
+    .value {
+      font-size: 12px;
+      font-weight: 500;
+      color: #4ADE80; /* green for active */
+    }
+    .btn {
+      width: 100%;
+      padding: 8px;
+      background-color: transparent;
+      border: 1px solid #D4A043;
+      color: #D4A043;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background-color: rgba(212, 160, 67, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">S</div>
+    <h1>StudyTrack</h1>
+  </div>
+  
+  <div class="status-box">
+    <div class="status-row">
+      <span class="label">Status</span>
+      <span class="value" id="status-indicator">Monitoring Active</span>
+    </div>
+    <div class="status-row">
+      <span class="label">Domain</span>
+      <span class="value" style="color: #F5F5F5;" id="current-domain">Detecting...</span>
+    </div>
+  </div>
+
+  <button class="btn" id="btn-settings">Settings</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,591 @@
+# StudyTrack — AI Developer Learning OS Implementation Plan
+
+> **Product Name**: StudyTrack  
+> **Design**: Dark theme (#0A0A0A) with amber/orange (#D4A043) accents  
+> **Backend**: Node.js (Express + TypeScript) with Prisma ORM  
+> **Frontend**: Next.js 16 + React 19 + TypeScript + Tailwind CSS  
+> **Deployment**: Render.com  
+
+---
+
+## Current State Assessment
+
+The project is a **blank scaffold** with:
+- **Frontend**: Default Next.js 16 boilerplate (no custom pages/components)
+- **Backend**: Express + Prisma (no routes, no models, empty schema)
+- **No**: Authentication, database models, API routes, UI components, or business logic
+
+## Design System (from screenshots)
+
+The reference designs show a premium "StudyTrack" product with:
+- **Deep black background** (#0A0A0A / #111111)
+- **Amber/gold accent** (#D4A043 / #C8902E)
+- **Soft white text** for headings, muted gray for body
+- **Card-based UI** with subtle borders (#1A1A1A / #222222)
+- **Left sidebar navigation** with icon + label
+- **Premium, editorial typography** — clean, spacious, confident
+- **Features**: Dashboard, Curriculum, Calendar, Trends, Mentors, Deep Work Mode
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Scope Decision**: This is an enormous 26-module enterprise platform. Building everything at once is not realistic in a single session. I recommend a **phased approach** — delivering a fully working MVP first (Phase 1), then iterating.
+
+> [!IMPORTANT]
+> **Backend Simplification**: Your spec mentions Java Spring Boot + Python FastAPI + Node.js. However, you also stated **"Node.js for backend"**. I'll use **Node.js/Express** as the single backend, which simplifies deployment to Render significantly.
+
+> [!WARNING]
+> **AI Features**: Features like AI Tutor, Document Intelligence, and AI Learning Planner require an LLM API key (e.g., OpenAI, Google Gemini). You'll need to provide an API key. I'll build the integration layer, and you configure the key.
+
+> [!WARNING]
+> **Render Free Tier Limits**: Render's free tier has cold starts (~30s), 512MB RAM, and auto-sleep. The plan is designed to work within these limits, with Redis/background jobs added in later phases.
+
+---
+
+## Open Questions
+
+1. **AI Provider**: Which LLM API do you want to use? (OpenAI GPT-4, Google Gemini, or Anthropic Claude)
+2. **Database**: Should I use Render's managed PostgreSQL (free tier: 256MB, expires in 90 days) or do you have an external database (e.g., Supabase, Neon)?
+3. **File Storage**: For user uploads (PDFs, images, etc.) — should I use Cloudinary (free tier), or do you have an S3 bucket?
+4. **OAuth Credentials**: Do you have Google, GitHub, and Microsoft OAuth app credentials ready, or should I implement email/password auth first?
+5. **Domain**: Will you use a custom domain or Render's default `.onrender.com` subdomain?
+
+---
+
+## Phased Architecture
+
+### Phase 1 — Foundation MVP (Completed)
+Delivered a fully deployable, working application with the core experience (Express backend, Prisma schema, Next.js dashboard shell, UI components, landing page).
+
+### Phase 1.5 — Extended UI Implementation (Current Sprint)
+Implements the newly provided advanced UI designs: Onboarding, Live Curriculum State, and Mastery Analytics (Trends).
+
+### Phase 2 — AI Intelligence Layer
+Adds AI-powered features: Tutor, Document Intelligence, Learning Planner
+
+### Phase 3 — Productivity & Career
+Task management, Career Assistant, Job Tracker, Analytics
+
+### Phase 4 — Advanced Features
+Browser extension, Admin Panel, Spaced Repetition, Advanced Analytics
+
+---
+
+## Phase 1 — Foundation MVP
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "Render Deployment"
+        FE["Next.js Frontend<br/>(Static + SSR)"]
+        BE["Node.js Backend<br/>(Express API)"]
+        DB["PostgreSQL<br/>(Render Managed)"]
+    end
+    
+    FE -->|API Calls| BE
+    BE -->|Prisma ORM| DB
+    
+    style FE fill:#D4A043,color:#000
+    style BE fill:#1a1a1a,color:#D4A043
+    style DB fill:#1a1a1a,color:#D4A043
+```
+
+### Component Breakdown
+
+---
+
+### 1. Backend Foundation
+
+#### [MODIFY] [schema.prisma](file:///d:/Cognarc%20it/developer-learning-os/backend/prisma/schema.prisma)
+Complete database schema with models for:
+- **User**: id, email, name, password, avatar, role, emailVerified, provider, refreshToken, settings, createdAt, updatedAt
+- **Session**: id, userId, token, device, ip, lastActive, expiresAt
+- **LoginHistory**: id, userId, device, ip, browser, os, location, createdAt
+- **Profile**: userId, bio, targetRole, currentLevel, weeklyHours, careerGoals, skills, timezone
+- **LearningStreak**: userId, currentStreak, longestStreak, lastActiveDate
+- **StudySession**: id, userId, topic, duration, type, notes, createdAt
+- **Task**: id, userId, title, description, priority, status, dueDate, category, checklist, createdAt
+- **Note**: id, userId, title, content, tags, folderId, isPinned, createdAt
+- **Resource**: id, userId, title, type, url, fileKey, tags, collectionId, isFavorite
+- **Collection**: id, userId, name, description, color, icon
+- **Notification**: id, userId, title, body, type, isRead, actionUrl, createdAt
+- **ActivityLog**: id, userId, action, entity, entityId, metadata, createdAt
+
+#### [MODIFY] [package.json](file:///d:/Cognarc%20it/developer-learning-os/backend/package.json)
+Add dependencies:
+- `nodemon`, `ts-node-dev` (dev server)
+- `passport`, `passport-google-oauth20`, `passport-github2` (OAuth)
+- `express-rate-limit`, `helmet`, `express-validator` (security)
+- `nodemailer` (email)
+- `multer` (file uploads)
+- `uuid` (ID generation)
+- `cookie-parser` (JWT cookies)
+- `compression` (response compression)
+
+#### [NEW] `src/server.ts` — Express app entry point
+#### [NEW] `src/config/` — Database, auth, email configuration
+#### [NEW] `src/middleware/` — Auth, validation, error handling, rate limiting
+#### [NEW] `src/routes/` — Auth, users, tasks, notes, resources, sessions, notifications
+#### [NEW] `src/controllers/` — Business logic for each route
+#### [NEW] `src/services/` — Auth service, email service, file service
+#### [NEW] `src/utils/` — JWT helpers, password hashing, response formatters
+
+**API Routes (Phase 1):**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Email/password registration |
+| POST | `/api/auth/login` | Login with credentials |
+| POST | `/api/auth/refresh` | Refresh access token |
+| POST | `/api/auth/logout` | Logout & invalidate session |
+| POST | `/api/auth/forgot-password` | Send password reset email |
+| POST | `/api/auth/reset-password` | Reset password with token |
+| GET | `/api/auth/google` | Google OAuth redirect |
+| GET | `/api/auth/github` | GitHub OAuth redirect |
+| GET | `/api/users/me` | Get current user profile |
+| PUT | `/api/users/me` | Update profile |
+| GET | `/api/users/me/sessions` | Get active sessions |
+| DELETE | `/api/users/me/sessions/:id` | Revoke a session |
+| GET | `/api/users/me/login-history` | Login history |
+| CRUD | `/api/tasks` | Task management |
+| CRUD | `/api/notes` | Note management |
+| CRUD | `/api/resources` | Resource management |
+| CRUD | `/api/collections` | Collection management |
+| GET | `/api/notifications` | Get notifications |
+| PUT | `/api/notifications/:id/read` | Mark notification read |
+| GET | `/api/dashboard/stats` | Dashboard statistics |
+| POST | `/api/sessions/study` | Log study session |
+| GET | `/api/activity` | Activity feed |
+
+---
+
+### 2. Frontend — Design System & Landing Page
+
+#### [MODIFY] [globals.css](file:///d:/Cognarc%20it/developer-learning-os/frontend/src/app/globals.css)
+Complete design token system:
+```css
+/* StudyTrack Design Tokens */
+--st-bg-primary: #0A0A0A;
+--st-bg-secondary: #111111;
+--st-bg-card: #141414;
+--st-bg-elevated: #1A1A1A;
+--st-border: #222222;
+--st-accent: #D4A043;
+--st-accent-hover: #E5B254;
+--st-text-primary: #F5F5F5;
+--st-text-secondary: #999999;
+--st-text-muted: #666666;
+--st-success: #4ADE80;
+--st-warning: #FBBF24;
+--st-danger: #F87171;
+```
+
+#### [MODIFY] [layout.tsx](file:///d:/Cognarc%20it/developer-learning-os/frontend/src/app/layout.tsx)
+- Add Inter/Outfit font from Google Fonts
+- Update metadata for StudyTrack SEO
+- Add dark mode class to html
+
+#### [MODIFY] [page.tsx](file:///d:/Cognarc%20it/developer-learning-os/frontend/src/app/page.tsx)
+Complete landing page matching the "StudyTrack" design reference:
+- **Navbar**: Logo, navigation links (Curriculum, Modules, Mastery, Forum), CTA button
+- **Hero**: "Forge your path to Senior Developer" with animated terminal/code preview
+- **Memory Models & Mastery**: Stats showcase (94%, 9.2 rating, 2x)
+- **Science of Recall**: Spaced repetition explanation with dynamic scheduling
+- **Automated Insight**: PDF document intelligence demo
+- **Market Intelligence**: Career trend cards (DevOps, System Design)
+- **Testimonial**: Social proof quote
+- **Mastery Protocol**: Pricing section ($49/mo)
+- **Footer**: Links, legal, social
+
+#### [MODIFY] [package.json](file:///d:/Cognarc%20it/developer-learning-os/frontend/package.json)
+Add dependencies:
+- `framer-motion` (animations)
+- `lucide-react` (icons)
+- `recharts` (charts)
+- `zustand` (state management)
+- `@tanstack/react-query` (data fetching)
+- `react-hot-toast` (notifications)
+- `date-fns` (date formatting)
+- `clsx`, `tailwind-merge` (utility classnames)
+
+---
+
+### 3. Frontend — Auth Pages
+
+#### [NEW] `src/app/(auth)/login/page.tsx` — Login page with email/password + OAuth buttons
+#### [NEW] `src/app/(auth)/register/page.tsx` — Registration page
+#### [NEW] `src/app/(auth)/forgot-password/page.tsx` — Password reset request
+#### [NEW] `src/app/(auth)/reset-password/page.tsx` — Password reset form
+#### [NEW] `src/app/(auth)/layout.tsx` — Auth layout (centered card on dark background)
+
+---
+
+### 4. Frontend — Dashboard (App Shell)
+
+#### [NEW] `src/app/(dashboard)/layout.tsx`
+App shell with sidebar navigation:
+- **Sidebar**: StudyTrack logo, "DEEP WORK MODE" label, nav links (Dashboard, Curriculum, Calendar, Trends, Mentors), "Start Session" CTA, Help, Logout
+- **Main content area** with top bar (breadcrumb, notifications, user avatar)
+
+#### [NEW] `src/app/(dashboard)/dashboard/page.tsx`
+Main dashboard with:
+- Personalized greeting & daily motivation
+- Learning streak counter with flame icon
+- Today's learning plan cards
+- Quick stats (study hours, tasks done, streak days)
+- Pomodoro timer widget
+- Recent activity feed
+- Upcoming tasks/reminders
+- Progress chart (weekly study hours)
+
+#### [NEW] `src/app/(dashboard)/curriculum/page.tsx`
+Curriculum/document viewer matching the reference:
+- PDF viewer panel (left)
+- AI Summary panel (right) with Summary, Quiz, Notes tabs
+- Key Topics tags
+- Generated Quiz with Mark Confused/Confident buttons
+
+#### [NEW] `src/app/(dashboard)/calendar/page.tsx`
+Calendar view matching the reference:
+- Week view with day columns
+- Revision cycle header ("15-Day Revision Cycle, Phase: Memory Consolidation")
+- Session cards with priority tags (CRITICAL, etc.)
+- Current Focus panel (Deep Session timer)
+- Preparation Material sidebar
+
+#### [NEW] `src/app/(dashboard)/tasks/page.tsx`
+Task management with Kanban board:
+- Todo / In Progress / Done columns
+- Drag and drop
+- Priority badges
+- Due date indicators
+
+#### [NEW] `src/app/(dashboard)/notes/page.tsx`
+Note-taking interface:
+- Rich text editor
+- Folder/tag organization
+- Search
+
+#### [NEW] `src/app/(dashboard)/resources/page.tsx`
+Resource library:
+- Grid/list view toggle
+- File type indicators
+- Collection filters
+- Upload modal
+
+#### [NEW] `src/app/(dashboard)/settings/page.tsx`
+User settings:
+- Profile editing
+- Password change
+- Session management
+- Notification preferences
+
+---
+
+### 5. Frontend — Shared Components
+
+#### [NEW] `src/components/ui/` — Reusable UI primitives
+- `Button.tsx` — Primary, secondary, ghost, danger variants
+- `Card.tsx` — Dark card with border
+- `Input.tsx` — Form input with label & error
+- `Modal.tsx` — Overlay dialog
+- `Badge.tsx` — Status/priority badges
+- `Avatar.tsx` — User avatar with fallback
+- `Sidebar.tsx` — App sidebar navigation
+- `Toast.tsx` — Notification toasts
+- `Dropdown.tsx` — Dropdown menu
+- `Tabs.tsx` — Tab navigation
+- `ProgressBar.tsx` — Skill/task progress
+- `Chart.tsx` — Recharts wrapper
+- `Timer.tsx` — Pomodoro/study timer
+
+#### [NEW] `src/lib/` — Utilities
+- `api.ts` — Axios/fetch API client with auth interceptors
+- `auth.ts` — Auth context/store (Zustand)
+- `utils.ts` — Utility functions (cn, formatDate, etc.)
+- `constants.ts` — App constants
+
+---
+
+### Phase 1.5 — Extended UI Implementation
+
+#### [MODIFY] `src/app/(auth)/register/page.tsx`
+Update to match the "Begin Your Journey" design:
+- Split layout: Background graphic (left) and form (right)
+- Role selection cards (Learner vs Mentor)
+- Form inputs (Full Name, Academic Email, Secure Key)
+- "Initialize Profile" button
+- Terminal-style status footer ("SYSTEM READY: GLOBAL KNOWLEDGE GRAPH LIVE")
+
+#### [MODIFY] `src/app/(dashboard)/curriculum/page.tsx`
+Implement the "Live Curriculum State" design:
+- Dark theme layout matching dashboard
+- "In Progress" section (Systems Architecture, Caching Layers, Load Balancing)
+- "Upcoming Sessions" section with dates
+- Hardware Acceleration Week hero graphic
+
+#### [MODIFY] `src/app/(dashboard)/trends/page.tsx`
+Implement the "Mastery Analytics" (Trends) design:
+- Top stats: Session Intensity (High 89%) and Deep Hours
+- "The Scholar-Practitioner" profile card with core proficiency tags
+- "Activity Pulse" (GitHub-style contribution graph for 28 days history)
+- Top sessions highlight cards (Docker, Java)
+- "Self-Examination / Knowledge Synthesis" section with AI-generated predicted technical questions in an accordion format.
+
+---
+
+### 6. Render Deployment Configuration
+
+#### [NEW] `render.yaml` (root) — Render Blueprint
+```yaml
+services:
+  - type: web
+    name: studytrack-api
+    runtime: node
+    buildCommand: cd backend && npm install && npx prisma generate && npx tsc
+    startCommand: cd backend && node dist/server.js
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: studytrack-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: studytrack-web
+    runtime: node
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://studytrack-api.onrender.com
+
+databases:
+  - name: studytrack-db
+    plan: free
+    databaseName: studytrack
+```
+
+#### [MODIFY] [tsconfig.json](file:///d:/Cognarc%20it/developer-learning-os/backend/tsconfig.json)
+Configure for proper compilation:
+- Set `rootDir: "./src"`, `outDir: "./dist"`
+- Enable `"lib": ["esnext"]`, `"types": ["node"]`
+- Set `module: "commonjs"` for Node.js compatibility
+
+#### [MODIFY] [.env](file:///d:/Cognarc%20it/developer-learning-os/backend/.env)
+Add all required environment variables template:
+- `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`
+- `FRONTEND_URL`, `PORT`
+
+---
+
+## Phase 2 — AI Intelligence Layer (Future)
+
+### AI Tutor Chat
+- Chat interface with conversation history
+- Topic-specific prompts (Java, Python, React, etc.)
+- Code block rendering with syntax highlighting
+- Follow-up question suggestions
+
+### Document Intelligence
+- PDF upload & text extraction
+- AI summary generation
+- Flashcard generation
+- Quiz generation
+- Document Q&A (RAG)
+
+### Learning Planner
+- Goal-based plan generation
+- Daily/weekly/monthly plans
+- Progress-based dynamic updates
+
+> Requires: LLM API key (OpenAI/Gemini), PDF parsing library
+
+---
+
+## Phase 3 — Productivity & Career (Future)
+
+- Career Assistant with trend data
+- Job Tracker board
+- Resume/Portfolio Builder
+- Skill Tracker with radar charts
+- Interview Prep module
+- Learning Journal with heatmap
+- Analytics dashboards with export
+
+---
+
+## Phase 4 — Advanced (Future)
+
+- Browser extension (Chrome/Edge)
+- Admin Panel
+- Spaced Repetition Engine
+- Smart Revision scheduling
+- WebSocket real-time notifications
+- Email notifications (Nodemailer)
+- Report export (PDF/CSV/Excel)
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+# Backend
+cd backend && npm test
+
+# Frontend
+cd frontend && npm run build  # Verifies no build errors
+```
+
+### Manual Verification
+1. **Landing Page**: Visually matches design reference with animations
+2. **Auth Flow**: Register → Login → Access Dashboard → Logout
+3. **Dashboard**: Displays stats, timer, tasks, activity
+4. **CRUD Operations**: Create/read/update/delete tasks, notes, resources
+5. **Responsive**: Works on mobile, tablet, desktop
+6. **Render Deployment**: Deploy using `render.yaml` blueprint
+
+### Render Deployment Steps
+1. Push to GitHub
+2. Connect repository to Render
+3. Render auto-detects `render.yaml`
+4. Database, API, and Frontend services spin up
+5. Run Prisma migrations: `npx prisma migrate deploy`
+6. Verify all services are healthy
+
+---
+
+## File Structure (Phase 1)
+
+```
+developer-learning-os/
+├── render.yaml
+├── backend/
+│   ├── src/
+│   │   ├── server.ts
+│   │   ├── config/
+│   │   │   ├── database.ts
+│   │   │   ├── auth.ts
+│   │   │   └── cors.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts
+│   │   │   ├── validate.ts
+│   │   │   ├── errorHandler.ts
+│   │   │   └── rateLimiter.ts
+│   │   ├── routes/
+│   │   │   ├── auth.routes.ts
+│   │   │   ├── user.routes.ts
+│   │   │   ├── task.routes.ts
+│   │   │   ├── note.routes.ts
+│   │   │   ├── resource.routes.ts
+│   │   │   ├── notification.routes.ts
+│   │   │   ├── session.routes.ts
+│   │   │   └── dashboard.routes.ts
+│   │   ├── controllers/
+│   │   │   ├── auth.controller.ts
+│   │   │   ├── user.controller.ts
+│   │   │   ├── task.controller.ts
+│   │   │   ├── note.controller.ts
+│   │   │   ├── resource.controller.ts
+│   │   │   ├── notification.controller.ts
+│   │   │   └── dashboard.controller.ts
+│   │   ├── services/
+│   │   │   ├── auth.service.ts
+│   │   │   ├── email.service.ts
+│   │   │   └── file.service.ts
+│   │   └── utils/
+│   │       ├── jwt.ts
+│   │       ├── password.ts
+│   │       ├── response.ts
+│   │       └── validators.ts
+│   ├── prisma/
+│   │   └── schema.prisma
+│   ├── .env
+│   ├── package.json
+│   └── tsconfig.json
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx                    (Landing)
+│   │   │   ├── (auth)/
+│   │   │   │   ├── layout.tsx
+│   │   │   │   ├── login/page.tsx
+│   │   │   │   ├── register/page.tsx
+│   │   │   │   ├── forgot-password/page.tsx
+│   │   │   │   └── reset-password/page.tsx
+│   │   │   └── (dashboard)/
+│   │   │       ├── layout.tsx
+│   │   │       ├── dashboard/page.tsx
+│   │   │       ├── curriculum/page.tsx
+│   │   │       ├── calendar/page.tsx
+│   │   │       ├── tasks/page.tsx
+│   │   │       ├── notes/page.tsx
+│   │   │       ├── resources/page.tsx
+│   │   │       └── settings/page.tsx
+│   │   ├── components/
+│   │   │   ├── ui/
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── Card.tsx
+│   │   │   │   ├── Input.tsx
+│   │   │   │   ├── Modal.tsx
+│   │   │   │   ├── Badge.tsx
+│   │   │   │   ├── Avatar.tsx
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   ├── Dropdown.tsx
+│   │   │   │   ├── Tabs.tsx
+│   │   │   │   ├── ProgressBar.tsx
+│   │   │   │   └── Timer.tsx
+│   │   │   ├── landing/
+│   │   │   │   ├── Navbar.tsx
+│   │   │   │   ├── Hero.tsx
+│   │   │   │   ├── Features.tsx
+│   │   │   │   ├── ScienceOfRecall.tsx
+│   │   │   │   ├── DocumentIntel.tsx
+│   │   │   │   ├── MarketIntel.tsx
+│   │   │   │   ├── Testimonials.tsx
+│   │   │   │   ├── Pricing.tsx
+│   │   │   │   └── Footer.tsx
+│   │   │   └── dashboard/
+│   │   │       ├── StatsCards.tsx
+│   │   │       ├── PomodoroTimer.tsx
+│   │   │       ├── ActivityFeed.tsx
+│   │   │       ├── TaskList.tsx
+│   │   │       ├── ProgressChart.tsx
+│   │   │       └── StreakCounter.tsx
+│   │   └── lib/
+│   │       ├── api.ts
+│   │       ├── auth.ts
+│   │       ├── utils.ts
+│   │       └── constants.ts
+│   ├── package.json
+│   └── next.config.ts
+```
+
+---
+
+## Estimated Effort
+
+| Phase | Scope | Files | Estimated |
+|-------|-------|-------|-----------|
+| Phase 1 | Foundation MVP | ~60 files | Completed |
+| Phase 1.5| Extended UI | ~10 files | Current Sprint |
+| Phase 2 | AI Features | ~20 files | Next sprint |
+| Phase 3 | Career/Productivity | ~25 files | Future |
+| Phase 4 | Advanced | ~15 files | Future |
+
+---
+
+> [!TIP]
+> I recommend we proceed with **Phase 1.5** now to implement the stunning UI designs you just provided for Onboarding, Curriculum, and Trends. Once this is complete, we will have a fully polished frontend matching all your mockups.

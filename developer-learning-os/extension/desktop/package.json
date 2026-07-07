@@ -1,0 +1,14 @@
+{
+  "name": "studytrack-desktop-agent",
+  "version": "1.0.0",
+  "description": "Desktop Activity Monitor for StudyTrack",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "active-win": "^3.0.0",
+    "axios": "^1.6.2"
+  }
+}
