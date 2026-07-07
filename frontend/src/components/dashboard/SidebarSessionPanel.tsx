@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/Button';
-import { Play, Pause, Square, Activity, MapPin } from 'lucide-react';
+import { Play, Pause, Square, Activity, MapPin, Loader2 } from 'lucide-react';
 
 function formatDuration(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -16,8 +16,7 @@ function formatDuration(seconds: number) {
 export function SidebarSessionPanel() {
   const { session, startSession, pauseSession, resumeSession, stopSession } = useSession();
   const { isAuthenticated } = useAuth();
-  const [showReport, setShowReport] = useState(false);
-  const [lastReport, setLastReport] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleStart = async () => {
@@ -26,60 +25,29 @@ export function SidebarSessionPanel() {
       return;
     }
     setError("");
+    setLoading(true);
     try {
       await startSession();
     } catch (err: any) {
       setError(err.message || "Failed to start session");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleStop = async () => {
-    const report = await stopSession();
-    if (report) {
-      setLastReport(report);
-      setShowReport(true);
-    }
+    await stopSession();
   };
 
   if (session.status === 'IDLE') {
     return (
-      <>
-        <Button onClick={handleStart} variant="primary" className="w-full justify-center">
-          <Play className="w-4 h-4 mr-2" />
-          START SESSION
+      <div>
+        <Button onClick={handleStart} disabled={loading} variant="primary" className="w-full justify-center">
+          {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+          {loading ? "Starting..." : "START SESSION"}
         </Button>
         {error && <p className="text-xs text-st-danger text-center mt-1">{error}</p>}
-
-        {/* Temporary overlay just to show the generated report for demonstration */}
-        {showReport && lastReport && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-st-bg-primary border border-st-border rounded-xl p-6 max-w-lg w-full shadow-2xl">
-              <h3 className="text-xl font-bold text-st-text-primary mb-2">Session Completed</h3>
-              <p className="text-sm text-st-text-secondary mb-4">AI generated summary of your deep work session.</p>
-              
-              <div className="space-y-4 text-sm">
-                <div className="flex justify-between bg-st-bg-elevated p-3 rounded-lg border border-st-border">
-                  <span className="text-st-text-muted">Duration</span>
-                  <span className="font-mono text-st-accent font-bold">{formatDuration(lastReport.durationSeconds || 0)}</span>
-                </div>
-                
-                <div className="bg-st-bg-elevated p-4 rounded-lg border border-st-border space-y-2">
-                  <p className="text-st-text-primary font-medium flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-st-accent" /> AI Insights
-                  </p>
-                  <p className="text-st-text-secondary text-xs leading-relaxed">
-                    {lastReport.summary || "You maintained a strong focus during this session. Good job engaging with the learning materials and tracking your progress."}
-                  </p>
-                </div>
-              </div>
-
-              <Button onClick={() => setShowReport(false)} className="w-full mt-6" variant="outline">
-                Close Report
-              </Button>
-            </div>
-          </div>
-        )}
-      </>
+      </div>
     );
   }
 

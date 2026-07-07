@@ -9,7 +9,7 @@ export type SessionStatus = 'IDLE' | 'ACTIVE' | 'PAUSED';
 interface SessionState {
   status: SessionStatus;
   sessionId: string | null;
-  duration: number; // in seconds
+  duration: number;
   projectName: string;
   location: { lat: number; lng: number } | null;
   focusScore: number;
@@ -40,17 +40,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Poll for location when starting
   const getLocation = (): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          (err) => {
-            console.warn('Geolocation failed or denied:', err);
-            resolve(null);
-          },
-          { timeout: 5000 }
+          () => resolve(null),
+          { timeout: 3000 }
         );
       } else {
         resolve(null);
@@ -58,7 +54,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  // Timer interval
   useEffect(() => {
     if (session.status === 'ACTIVE') {
       timerRef.current = setInterval(() => {
@@ -72,10 +67,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [session.status]);
 
-  // Track page navigation when active
   useEffect(() => {
     if (session.status === 'ACTIVE' && session.sessionId && pathname) {
-      // Extract module from pathname (e.g. "/dashboard" -> "dashboard")
       const module = pathname.split('/')[1] || 'home';
       api.post(`/tracking/sessions/${session.sessionId}/activities`, {
         trackingSessionId: session.sessionId,
@@ -83,35 +76,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         category: 'LEARNING',
         module,
         label: `Viewed ${module}`
-      }).catch(err => console.error('Failed to log navigation', err));
+      }).catch(() => {});
     }
   }, [pathname, session.status, session.sessionId]);
 
   const startSession = async (projectName: string = 'General Deep Work') => {
-    try {
-      const loc = await getLocation();
-      // Add a realistic mock device name
-      const deviceName = typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown Device';
-      
-      const res = (await api.post('/tracking/sessions/start', {
-        deviceId: 'web-client',
-        deviceName,
-        projectName,
-      })) as any;
+    const loc = await getLocation();
+    const deviceName = typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown Device';
 
-      setSession({
-        status: 'ACTIVE',
-        sessionId: res.data.id,
-        duration: 0,
-        projectName,
-        location: loc,
-        focusScore: 100,
-        productivityScore: 100,
-      });
-    } catch (error) {
-      console.error('Failed to start session', error);
-      alert('Failed to start session. Check console for details.');
-    }
+    const res = (await api.post('/tracking/sessions/start', {
+      deviceId: 'web-client',
+      deviceName,
+      projectName,
+    })) as any;
+
+    setSession({
+      status: 'ACTIVE',
+      sessionId: res.data.id,
+      duration: 0,
+      projectName,
+      location: loc,
+      focusScore: 100,
+      productivityScore: 100,
+    });
   };
 
   const pauseSession = async () => {
@@ -147,7 +134,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         focusScore: 100,
         productivityScore: 100,
       });
-      return res.data; // Return the report payload for the UI to display
+      const reportData = res.data?.report || res.data;
+      return reportData;
     } catch (error) {
       console.error('Failed to stop session', error);
       return null;
