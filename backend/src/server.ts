@@ -22,6 +22,9 @@ import analyticsRoutes from "./routes/analytics.routes";
 import calendarRoutes from "./routes/calendar.routes";
 import projectsRoutes from "./routes/projects.routes";
 import reportsRoutes from "./routes/reports.routes";
+import trackingRoutes from "./routes/tracking.routes";
+import exportRoutes from "./routes/export.routes";
+import insightsRoutes from "./routes/insights.routes";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -59,6 +62,9 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/projects", projectsRoutes);
 app.use("/api/reports", reportsRoutes);
+app.use("/api/tracking", trackingRoutes);
+app.use("/api/export", exportRoutes);
+app.use("/api/insights", insightsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

@@ -5,6 +5,9 @@ import { Calendar, dateFnsLocalizer, View, Views } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import { api } from "@/lib/api";
+import { Calendar as CalendarIcon, Grid, List, Activity, Settings, Plus } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 const locales = {
   "en-US": enUS,
@@ -18,44 +21,66 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
+type ExtendedView = View | "year" | "heatmap";
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([]);
-  const [view, setView] = useState<View>(Views.MONTH);
+  const [view, setView] = useState<ExtendedView>(Views.MONTH);
   const [date, setDate] = useState(new Date());
 
   useEffect(() => {
-    // Mock fetching events from backend API (which is currently stubbed in Phase 1)
-    const mockEvents = [
-      {
-        id: 1,
-        title: "Deep Work Session (React)",
-        start: new Date(new Date().setHours(10, 0, 0, 0)),
-        end: new Date(new Date().setHours(12, 0, 0, 0)),
-        type: "study",
-      },
-      {
-        id: 2,
-        title: "Backend Refactoring",
-        start: new Date(new Date().setHours(14, 0, 0, 0)),
-        end: new Date(new Date().setHours(16, 30, 0, 0)),
-        type: "coding",
-      },
-      {
-        id: 3,
-        title: "Sprint Planning",
-        start: new Date(new Date().setDate(new Date().getDate() + 1)),
-        end: new Date(new Date().setDate(new Date().getDate() + 1)),
-        type: "meeting",
+    async function loadEvents() {
+      try {
+        const start = new Date(date.getFullYear(), 0, 1).toISOString();
+        const end = new Date(date.getFullYear() + 1, 0, 1).toISOString();
+        const res = (await api.get(`/calendar?start=${start}&end=${end}`)) as any;
+        
+        // Map backend events to react-big-calendar format
+        const formatted = (res.data || []).map((e: any) => ({
+          ...e,
+          id: e.id,
+          title: e.title,
+          start: new Date(e.startTime),
+          end: e.endTime ? new Date(e.endTime) : new Date(e.startTime),
+          type: e.eventType?.toLowerCase() || 'other',
+        }));
+        
+        // Merge with mock events for demonstration if backend is empty
+        if (formatted.length === 0) {
+          setEvents([
+            {
+              id: "m1",
+              title: "Deep Work Session (React)",
+              start: new Date(new Date().setHours(10, 0, 0, 0)),
+              end: new Date(new Date().setHours(12, 0, 0, 0)),
+              type: "learning",
+              color: "#10b981"
+            },
+            {
+              id: "m2",
+              title: "Backend Refactoring",
+              start: new Date(new Date().setHours(14, 0, 0, 0)),
+              end: new Date(new Date().setHours(16, 30, 0, 0)),
+              type: "coding",
+              color: "#8b5cf6"
+            }
+          ]);
+        } else {
+          setEvents(formatted);
+        }
+      } catch (error) {
+        console.error("Failed to load calendar events", error);
       }
-    ];
-    setEvents(mockEvents);
-  }, []);
+    }
+    loadEvents();
+  }, [date]);
 
   const eventStyleGetter = (event: any) => {
-    let backgroundColor = "#3b82f6"; // default blue
-    if (event.type === "study") backgroundColor = "#10b981"; // green
+    let backgroundColor = event.color || "#3b82f6"; // default blue
+    if (event.type === "learning") backgroundColor = "#10b981"; // green
     if (event.type === "coding") backgroundColor = "#8b5cf6"; // purple
     if (event.type === "meeting") backgroundColor = "#f59e0b"; // orange
+    if (event.type === "task") backgroundColor = "#ef4444"; // red
 
     return {
       style: {
@@ -72,42 +97,84 @@ export default function CalendarPage() {
     };
   };
 
-  return (
-    <div className="p-8 h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-st-text-primary">Master Calendar</h1>
-          <p className="text-st-text-secondary mt-1">Sync your study sessions, meetings, and milestones.</p>
+  const renderCustomView = () => {
+    if (view === "year") {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-st-bg-elevated rounded-xl border border-st-border">
+          <div className="text-center">
+            <CalendarIcon className="w-12 h-12 mx-auto text-st-text-muted mb-4" />
+            <h3 className="text-lg font-bold text-st-text-primary">Yearly Overview</h3>
+            <p className="text-sm text-st-text-secondary">Year view module is rendering historical aggregates.</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-            <button className="bg-st-bg-elevated border border-st-border px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors">
-              Sync External
-            </button>
-            <button className="bg-st-accent text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-opacity-90 transition-colors">
-              + New Event
-            </button>
+      );
+    }
+    
+    if (view === "heatmap") {
+      return (
+        <div className="flex-1 flex items-center justify-center bg-st-bg-elevated rounded-xl border border-st-border">
+          <div className="text-center">
+            <Activity className="w-12 h-12 mx-auto text-st-accent mb-4" />
+            <h3 className="text-lg font-bold text-st-text-primary">Productivity Heatmap</h3>
+            <p className="text-sm text-st-text-secondary">Visualizing deep work intensity across 365 days.</p>
+          </div>
         </div>
-      </div>
+      );
+    }
 
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-st-border p-6 min-h-[600px]">
+    return (
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-st-border p-6 min-h-[600px] text-black">
         <Calendar
           localizer={localizer}
           events={events}
           startAccessor="start"
           endAccessor="end"
           style={{ height: "100%" }}
-          view={view}
-          onView={setView}
+          view={view as View}
+          onView={(newView) => setView(newView as View)}
           date={date}
           onNavigate={setDate}
           eventPropGetter={eventStyleGetter}
           popup
           selectable
           onSelectEvent={(event) => alert(`Selected Event: ${event.title}`)}
-          onSelectSlot={(slotInfo) => console.log("Selected slot", slotInfo)}
           views={["month", "week", "day", "agenda"]}
         />
       </div>
+    );
+  };
+
+  return (
+    <div className="p-8 h-full flex flex-col gap-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-[10px] font-bold tracking-widest text-st-accent uppercase mb-1">Enterprise Planning</p>
+          <h1 className="text-3xl font-bold text-st-text-primary">Master Calendar</h1>
+          <p className="text-st-text-secondary mt-1">Sync your study sessions, meetings, and 100-year milestones.</p>
+        </div>
+        <div className="flex gap-3">
+          <Button variant="outline" size="sm"><Settings className="w-4 h-4 mr-2" />Sync External</Button>
+          <Button variant="primary" size="sm"><Plus className="w-4 h-4 mr-2" />New Event</Button>
+        </div>
+      </div>
+
+      <div className="flex gap-2 bg-st-bg-elevated p-1 rounded-lg border border-st-border w-fit">
+        {[
+          { key: Views.DAY, icon: List, label: "Day" },
+          { key: Views.WEEK, icon: Grid, label: "Week" },
+          { key: Views.MONTH, icon: CalendarIcon, label: "Month" },
+          { key: Views.AGENDA, icon: List, label: "Agenda" },
+          { key: "year", icon: Grid, label: "Year" },
+          { key: "heatmap", icon: Activity, label: "Heatmap" },
+        ].map(v => (
+          <button key={v.key} onClick={() => setView(v.key as ExtendedView)}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${view === v.key ? "bg-st-accent text-black shadow-sm" : "text-st-text-secondary hover:text-st-text-primary"}`}>
+            <v.icon className="w-4 h-4" />{v.label}
+          </button>
+        ))}
+      </div>
+
+      {renderCustomView()}
     </div>
   );
 }

@@ -166,7 +166,8 @@ export default function TrendsPage() {
         
         <div className="mt-12 p-8 border border-st-border border-dashed rounded-lg flex flex-col items-center justify-center gap-4 bg-st-bg-elevated/20">
           <p className="text-sm text-st-text-secondary">Ready to test your knowledge?</p>
-          <Button variant="outline" className="border-st-accent text-st-accent hover:bg-st-accent hover:text-black uppercase tracking-wider text-xs font-bold px-6">
+          <Button variant="outline" className="border-st-accent text-st-accent hover:bg-st-accent hover:text-black uppercase tracking-wider text-xs font-bold px-6"
+            onClick={() => window.open("/career", "_self")}>
             Start Mock Interview
           </Button>
         </div>

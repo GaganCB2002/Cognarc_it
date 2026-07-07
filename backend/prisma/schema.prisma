@@ -22,20 +22,26 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  sessions       Session[]
-  loginHistory   LoginHistory[]
-  profile        Profile?
-  learningStreak LearningStreak?
-  studySessions  StudySession[]
-  tasks          Task[]
-  notes          Note[]
-  resources      Resource[]
-  documents      Document[]
-  collections    Collection[]
-  notifications  Notification[]
-  activityLogs   ActivityLog[]
-  browserEvents  BrowserTelemetry[]
-  desktopEvents  DesktopTelemetry[]
+  sessions             Session[]
+  loginHistory         LoginHistory[]
+  profile              Profile?
+  learningStreak       LearningStreak?
+  studySessions        StudySession[]
+  tasks                Task[]
+  notes                Note[]
+  resources            Resource[]
+  documents            Document[]
+  collections          Collection[]
+  notifications        Notification[]
+  notificationPrefs    NotificationPreference[]
+  activityLogs         ActivityLog[]
+  activityEvents       ActivityEvent[]
+  trackingSessions     TrackingSession[]
+  calendarEvents       CalendarEvent[]
+  reports              Report[]
+  exportLogs           ExportLog[]
+  browserEvents        BrowserTelemetry[]
+  desktopEvents        DesktopTelemetry[]
 }
 
 model Session {
@@ -180,6 +186,207 @@ model ActivityLog {
   metadata  Json?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TrackingSessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum EventCategory {
+  LEARNING
+  CODING
+  READING
+  VIDEO
+  QUIZ
+  TASK
+  NOTE
+  AI_ASSISTANT
+  DOCUMENT
+  RESOURCE
+  CALENDAR
+  MEETING
+  BREAK
+  IDLE
+  OTHER
+}
+
+enum CalendarViewType {
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+  MULTI_YEAR
+  TIMELINE
+  AGENDA
+  HEATMAP
+}
+
+enum RecurrenceType {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
+
+enum ReportType {
+  SESSION_SUMMARY
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+enum ExportFormat {
+  PDF
+  EXCEL
+  CSV
+  JSON
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+model TrackingSession {
+  id            String                @id @default(uuid())
+  userId        String
+  status        TrackingSessionStatus @default(ACTIVE)
+  deviceId      String?               // client-generated device identifier
+  deviceName    String?               // "Chrome on Windows", "Safari on iPhone", etc.
+  projectName   String?               // optional project context
+  startTime     DateTime
+  endTime       DateTime?
+  pausedAt      DateTime?
+  totalPauseMs  Int                   @default(0) // accumulated pause duration in ms
+  lastActivity  DateTime              @default(now())
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities    ActivityEvent[]
+  reports       Report[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, startTime])
+  @@index([deviceId])
+}
+
+model ActivityEvent {
+  id              String       @id @default(uuid())
+  trackingSessionId String
+  userId          String
+  eventType       String       // PAGE_VIEW, TASK_DONE, NOTE_CREATED, VIDEO_WATCHED, etc.
+  category        EventCategory @default(OTHER)
+  module          String?      // "dashboard", "curriculum", "tasks", "notes", etc.
+  entityId        String?      // UUID of related entity (task id, note id, etc.)
+  entityType      String?      // "Task", "Note", "StudySession", etc.
+  label           String?      // human-readable description
+  duration        Int          @default(0) // time spent in seconds
+  metadata        Json?        // arbitrary event-specific data
+  createdAt       DateTime     @default(now())
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackingSession TrackingSession @relation(fields: [trackingSessionId], references: [id], onDelete: Cascade)
+
+  @@index([trackingSessionId])
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([userId, category])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model CalendarEvent {
+  id            String          @id @default(uuid())
+  userId        String
+  title         String
+  description   String?
+  eventType     String          // "LEARNING", "CODING", "TASK", "MEETING", "REVISION", "GOAL", etc.
+  color         String?         // hex color for display
+  startTime     DateTime
+  endTime       DateTime?
+  isAllDay      Boolean         @default(false)
+  isRecurring   Boolean         @default(false)
+  recurrenceType RecurrenceType?
+  recurrenceRule Json?          // RFC 5545 RRULE or custom JSON
+  recurrenceEnd  DateTime?
+  timezone      String?         // IANA timezone (e.g. "America/New_York")
+  location      String?
+  tags          String[]
+  metadata      Json?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, startTime])
+  @@index([userId, eventType])
+  @@index([startTime, endTime])
+}
+
+model Report {
+  id            String     @id @default(uuid())
+  userId        String
+  trackingSessionId String? // null for daily/weekly/monthly reports
+  type          ReportType
+  title         String
+  summary       String?    // natural-language AI summary
+  durationSeconds Int      @default(0)
+  productivityScore Float? // 0-100
+  focusScore    Float?     // 0-100
+  metrics       Json?      // { learningTime, codingTime, taskTime, etc. }
+  chartData     Json?      // pre-computed chart data
+  recommendations Json?   // AI-generated recommendations
+  insights      Json?      // AI-generated insights
+  technologies  String[]   // technologies covered
+  topics        String[]   // topics learned
+  createdAt     DateTime   @default(now())
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([trackingSessionId])
+}
+
+model ExportLog {
+  id            String       @id @default(uuid())
+  userId        String
+  format        ExportFormat
+  entityType    String       // "report", "activity", "calendar", etc.
+  entityId      String?
+  fileName      String
+  fileSize      Int?
+  storageKey    String?      // path to exported file
+  createdAt     DateTime     @default(now())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id            String               @id @default(uuid())
+  userId        String               @unique
+  studyReminders Boolean             @default(true)
+  revisionReminders Boolean          @default(true)
+  taskReminders  Boolean             @default(true)
+  meetingReminders Boolean           @default(true)
+  goalReminders  Boolean             @default(true)
+  channels      NotificationChannel[] @default([IN_APP])
+  quietHoursStart String?            // "22:00" format
+  quietHoursEnd  String?             // "07:00" format
+  timezone      String?
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum Role {

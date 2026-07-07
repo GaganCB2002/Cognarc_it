@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs/promises";
 import { prisma } from "../server";
 import { getFileType } from "../middleware/upload";
-import { saveFile, getFile, deleteFile as deleteStorageFile, getLocalPath } from "../services/storage.service";
+import { saveFile, getFile as getStorageFile, deleteFile as deleteStorageFile, getLocalPath } from "../services/storage.service";
 
 interface AuthRequest extends Request {
   user?: { userId: string };
@@ -18,7 +18,7 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
@@ -78,7 +78,7 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
 export const getFile = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -116,7 +116,7 @@ export const getFile = async (req: AuthRequest, res: Response) => {
     }
 
     // Serve via storage service
-    const data = await getFile(document.storageKey);
+    const data = await getStorageFile(document.storageKey);
     if (!data) {
       res.status(404).json({ error: "File data not found on storage" });
       return;
@@ -135,7 +135,7 @@ export const getFile = async (req: AuthRequest, res: Response) => {
 export const deleteFile = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -196,7 +196,7 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
 // GET /api/upload/my-files - list all documents for the current user
 export const getMyFiles = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
@@ -271,7 +271,7 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
 export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });

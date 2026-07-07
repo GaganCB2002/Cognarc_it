@@ -65,7 +65,7 @@ export const getResourceById = async (req: AuthRequest, res: Response) => {
 
 export const createResource = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;

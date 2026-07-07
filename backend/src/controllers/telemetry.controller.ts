@@ -6,7 +6,7 @@ import { getAggregatedStats } from "../services/analytics.service";
 export const logBrowserEvent = async (req: Request, res: Response) => {
   try {
     const { url, title, domain, duration, category } = req.body;
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ success: false, error: "Authentication required" });
@@ -28,7 +28,7 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
 export const logDesktopEvent = async (req: Request, res: Response) => {
   try {
     const { activeApp, windowTitle, processName, duration, isIdle, category } = req.body;
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ success: false, error: "Authentication required" });
@@ -49,7 +49,7 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
 // GET /api/telemetry/stats
 export const getTelemetryStats = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
 
     if (!userId) {
       res.status(401).json({ success: false, error: "Authentication required" });

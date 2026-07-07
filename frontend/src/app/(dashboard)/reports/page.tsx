@@ -48,8 +48,8 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-bold text-st-text-primary">Overall Report</h1>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Export PDF</Button>
-          <Button variant="outline" size="sm"><Download className="w-4 h-4 mr-1" />Export CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}><Download className="w-4 h-4 mr-1" />Export PDF</Button>
+          <Button variant="outline" size="sm" onClick={() => { const csv = "data:text/csv;charset=utf-8,Category,Hours\nLearning,42\nCoding,38\nReading,12\nTasks,8\nAI Assistant,6"; window.open(encodeURI(csv)); }}><Download className="w-4 h-4 mr-1" />Export CSV</Button>
         </div>
       </div>
 

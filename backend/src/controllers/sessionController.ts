@@ -3,7 +3,7 @@ import { prisma } from '../server';
 
 export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { startDate, endDate, page = '1', limit = '20' } = req.query;
@@ -31,7 +31,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
 
 export async function getTodaySessions(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const todayStart = new Date();
@@ -53,7 +53,7 @@ export async function getTodaySessions(req: Request, res: Response): Promise<voi
 
 export async function getSessionById(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -72,7 +72,7 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
 
 export async function createSession(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { topic, duration, type, notes } = req.body;
@@ -94,7 +94,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
 
 export async function updateSession(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -122,7 +122,7 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
 
 export async function deleteSession(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
