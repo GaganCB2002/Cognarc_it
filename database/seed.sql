@@ -137,5 +137,27 @@ VALUES
   ('u1000000-0000-0000-0000-000000000003', 'Code - Insiders','index.ts - backend',                  'Code - Insiders',5400, FALSE, 'IDE',      CURRENT_TIMESTAMP - INTERVAL '1 day');
 
 -- =============================================================================
+-- DOCUMENTS (long-term file storage records)
+-- =============================================================================
+INSERT INTO "Document" (userId, originalName, mimeType, size, storageProvider, storageKey, resourceType, status, folder, tags, resourceId)
+VALUES
+  ('u1000000-0000-0000-0000-000000000002', 'designing-data-intensive-applications.pdf', 'application/pdf', 5242880, 'LOCAL',
+   'users/u1/u1000000-0000-0000-0000-000000000002/pdfs/550e8400-e29b-41d4-a716-446655440001.pdf', 'PDF', 'READY', 'Books',
+   ARRAY['system-design','distributed-systems','book'],
+   (SELECT id FROM "Resource" WHERE title='Designing Data-Intensive Applications' LIMIT 1)),
+
+  ('u1000000-0000-0000-0000-000000000002', 'kafka-architecture-overview.pdf', 'application/pdf', 2097152, 'LOCAL',
+   'users/u1/u1000000-0000-0000-0000-000000000002/pdfs/550e8400-e29b-41d4-a716-446655440002.pdf', 'PDF', 'READY', 'System Design',
+   ARRAY['kafka','streaming','architecture'], NULL),
+
+  ('u1000000-0000-0000-0000-000000000002', 'react-server-components.mp4', 'video/mp4', 15728640, 'LOCAL',
+   'users/u1/u1000000-0000-0000-0000-000000000002/videos/550e8400-e29b-41d4-a716-446655440003.mp4', 'VIDEO', 'READY', 'Tutorials',
+   ARRAY['react','frontend','video'], NULL),
+
+  ('u1000000-0000-0000-0000-000000000003', 'mentorship-slides-q3.pptx', 'application/pdf', 1048576, 'LOCAL',
+   'users/u1/u1000000-0000-0000-0000-000000000003/other/550e8400-e29b-41d4-a716-446655440004.pdf', 'OTHER', 'READY', 'Mentoring',
+   ARRAY['slides','mentorship'], NULL);
+
+-- =============================================================================
 -- END OF SEED DATA
 -- =============================================================================

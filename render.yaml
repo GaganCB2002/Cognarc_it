@@ -15,6 +15,10 @@ services:
         value: production
       - key: FRONTEND_URL
         value: https://studytrack-web.onrender.com
+      - key: STORAGE_PROVIDER
+        value: LOCAL
+      - key: LOCAL_STORAGE_PATH
+        value: ./uploads
 
   - type: web
     name: studytrack-web

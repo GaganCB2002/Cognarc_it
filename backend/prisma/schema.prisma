@@ -30,6 +30,7 @@ model User {
   tasks          Task[]
   notes          Note[]
   resources      Resource[]
+  documents      Document[]
   collections    Collection[]
   notifications  Notification[]
   activityLogs   ActivityLog[]
@@ -122,19 +123,27 @@ model Note {
 }
 
 model Resource {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   userId       String
   title        String
   type         ResourceType
   url          String?
   fileKey      String?
+  fileSize     Int?       // in bytes
+  mimeType     String?    // MIME type of the file
   tags         String[]
   collectionId String?
-  isFavorite   Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isFavorite   Boolean    @default(false)
+  isUpload     Boolean    @default(false) // true if this is an uploaded file
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  document     Document?  // link to Document for uploaded files
+
+  @@index([userId])
+  @@index([userId, type])
+  @@index([userId, isFavorite])
 }
 
 model Collection {
@@ -217,6 +226,44 @@ enum ResourceType {
   CODE
   IMAGE
   OTHER
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+  CLOUDINARY
+}
+
+enum DocumentStatus {
+  UPLOADING
+  READY
+  FAILED
+  DELETED
+}
+
+model Document {
+  id              String         @id @default(uuid())
+  userId          String
+  originalName    String
+  mimeType        String
+  size            Int            // in bytes
+  storageProvider StorageProvider @default(LOCAL)
+  storageKey      String         @unique // relative path or S3 key
+  publicUrl       String?        // cached public URL if available
+  resourceType    ResourceType
+  status          DocumentStatus @default(READY)
+  folder          String?        // user-defined folder path
+  tags            String[]
+  metadata        Json?          // EXIF, PDF page count, video duration, etc.
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resourceId      String?        @unique
+  resource        Resource?      @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, resourceType])
+  @@index([storageKey])
 }
 
 enum NotificationType {

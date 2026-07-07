@@ -23,10 +23,11 @@ psql -U postgres -d studytrack -f seed.sql
 ## Schema Overview
 
 - **7 Enums** — Role, AuthProvider, SessionType, Priority, TaskStatus, ResourceType, NotificationType
-- **15 Tables** — User, Profile, LearningStreak, Session, LoginHistory, ActivityLog, StudySession, Task, Note, Resource, Collection, Notification, BrowserTelemetry, DesktopTelemetry
+- **16 Tables** — User, Profile, LearningStreak, Session, LoginHistory, ActivityLog, StudySession, Task, Note, Resource, Collection, Notification, Document, BrowserTelemetry, DesktopTelemetry
+- **7 Enums** — Role, AuthProvider, SessionType, Priority, TaskStatus, ResourceType, NotificationType, StorageProvider, DocumentStatus
 - **5 Auto-update Triggers** — For `updatedAt` timestamp columns
 - **3 Views** — UserDashboard, DailyStudySummary, TelemetryInsights
-- **27+ Indexes** — Optimized for query performance on foreign keys, status fields, and JSON arrays
+- **30+ Indexes** — Optimized for query performance on foreign keys, status fields, and JSON arrays
 
 ## Entity Groups
 
