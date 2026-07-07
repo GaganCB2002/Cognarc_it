@@ -13,8 +13,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
 
   const handleAutoFill = () => {
-    setEmail("test@studytrack.dev");
-    setPassword("password123");
+    setEmail(process.env.NEXT_PUBLIC_TEST_EMAIL || "test@studytrack.dev");
+    setPassword(process.env.NEXT_PUBLIC_TEST_PASSWORD || "password123");
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -27,15 +27,17 @@ export default function LoginPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-semibold text-st-text-primary">Sign in to your account</h3>
-        <Button 
-          type="button"
-          variant="outline" 
-          size="sm" 
-          onClick={handleAutoFill}
-          className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10"
-        >
-          <Beaker size={14} className="mr-1" /> Auto Fill Test
-        </Button>
+        {process.env.NEXT_PUBLIC_ENABLE_TEST_AUTH === "true" && (
+          <Button 
+            type="button"
+            variant="outline" 
+            size="sm" 
+            onClick={handleAutoFill}
+            className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10"
+          >
+            <Beaker size={14} className="mr-1" /> Auto Fill Test
+          </Button>
+        )}
       </div>
       
       <form className="space-y-6" onSubmit={handleLogin}>

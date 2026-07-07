@@ -13,7 +13,8 @@ VALUES
   ('u1000000-0000-0000-0000-000000000001', 'admin@studytrack.dev',  'Admin User',   '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXmxFkEVsjBK7Fh8nJ3v7xkBkXm5xKae', 'ADMIN',  'LOCAL'),
   ('u1000000-0000-0000-0000-000000000002', 'test@studytrack.dev',   'Test User',    '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXmxFkEVsjBK7Fh8nJ3v7xkBkXm5xKae', 'STUDENT', 'LOCAL'),
   ('u1000000-0000-0000-0000-000000000003', 'mentor@studytrack.dev', 'Mentor User',  '$2a$12$LJ3m4ys3Lk0TSwHnbfOMiOXmxFkEVsjBK7Fh8nJ3v7xkBkXm5xKae', 'MENTOR',  'LOCAL');
--- Password for all users: "password123"
+-- Password for all seed users: password123 (bcrypt hash above)
+-- IMPORTANT: Change these credentials before deploying to production.
 
 -- =============================================================================
 -- PROFILES
