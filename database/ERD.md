@@ -134,6 +134,25 @@ erDiagram
     datetime updatedAt
   }
 
+  Document {
+    uuid id PK
+    uuid userId FK
+    string originalName
+    string mimeType
+    int size "bytes"
+    enum storageProvider "LOCAL, S3"
+    string storageKey UK
+    string publicUrl
+    enum resourceType "PDF, VIDEO..."
+    enum status "READY, DELETED..."
+    string folder
+    string[] tags
+    json metadata "EXIF, page count..."
+    uuid resourceId FK "NULLable, 1:1"
+    datetime createdAt
+    datetime updatedAt
+  }
+
   Resource {
     uuid id PK
     uuid userId FK
@@ -141,9 +160,12 @@ erDiagram
     enum type "PDF, VIDEO, LINK, CODE..."
     string url
     string fileKey
+    int fileSize "bytes"
+    string mimeType
     string[] tags
     uuid collectionId FK "NULLable"
     boolean isFavorite
+    boolean isUpload "uploaded file flag"
     datetime createdAt
     datetime updatedAt
   }
@@ -195,6 +217,8 @@ erDiagram
   User ||--o{ Notification : "receives"
   User ||--o{ BrowserTelemetry : "browses"
   User ||--o{ DesktopTelemetry : "uses"
+  User ||--o{ Document : "uploads"
+  Resource ||--o| Document : "links to"
   Collection ||--o{ Resource : "groups"
 ```
 
@@ -223,9 +247,10 @@ flowchart TB
     N[("📓 <b>Note</b>")]
   end
 
-  subgraph Resources["<b><font color=#FBBF24>RESOURCES</font></b>"]
+  subgraph Resources["<b><font color=#FBBF24>RESOURCES & FILES</font></b>"]
     R[("📄 <b>Resource</b>")]
     C[("📁 <b>Collection</b>")]
+    D[("💾 <b>Document</b>")]
   end
 
   subgraph Alerts["<b><font color=#F87171>ALERTS</font></b>"]
@@ -246,6 +271,8 @@ flowchart TB
   U -->|1:M| T
   U -->|1:M| N
   U -->|1:M| R
+  U -->|1:M| D
+  R -->|1:1| D
   U -->|1:M| C
   U -->|1:M| NOTIF
   U -->|1:M| BT
@@ -263,6 +290,7 @@ flowchart TB
   style N fill:#1a1a2e,stroke:#4ADE80,stroke-width:2px,color:#fff
   style R fill:#1a1a2e,stroke:#FBBF24,stroke-width:2px,color:#fff
   style C fill:#1a1a2e,stroke:#FBBF24,stroke-width:2px,color:#fff
+  style D fill:#1a1a2e,stroke:#34D399,stroke-width:2px,color:#fff
   style NOTIF fill:#1a1a2e,stroke:#F87171,stroke-width:2px,color:#fff
   style BT fill:#1a1a2e,stroke:#A78BFA,stroke-width:2px,color:#fff
   style DT fill:#1a1a2e,stroke:#A78BFA,stroke-width:2px,color:#fff
@@ -284,6 +312,8 @@ flowchart TB
 | User <-> Note | 1:M | One user can write many notes |
 | User <-> Resource | 1:M | One user can own many resources |
 | User <-> Collection | 1:M | One user can organize many collections |
+| User <-> Document | 1:M | One user can upload many documents (long-term storage) |
+| Resource <-> Document | 1:1 | An uploaded Resource links to exactly one Document (SET NULL on delete) |
 | User <-> Notification | 1:M | One user can receive many notifications |
 | User <-> BrowserTelemetry | 1:M | One user generates many browser telemetry events |
 | User <-> DesktopTelemetry | 1:M | One user generates many desktop telemetry events |
@@ -306,3 +336,4 @@ flowchart TB
 | ActivityLog | userId, action, entity, createdAt | Audit trail queries |
 | BrowserTelemetry | userId, domain, category, timestamp | Analytics aggregation, domain/ category grouping |
 | DesktopTelemetry | userId, activeApp, category, timestamp | Analytics aggregation, app/ category grouping |
+| Document | userId, userId+resourceType, storageKey, status, folder, tags (GIN) | User file listing, type filtering, storage lookup, status checks |

@@ -62,6 +62,19 @@ CREATE TYPE "NotificationType" AS ENUM (
   'MENTOR'
 );
 
+CREATE TYPE "StorageProvider" AS ENUM (
+  'LOCAL',
+  'S3',
+  'CLOUDINARY'
+);
+
+CREATE TYPE "DocumentStatus" AS ENUM (
+  'UPLOADING',
+  'READY',
+  'FAILED',
+  'DELETED'
+);
+
 -- =============================================================================
 -- TABLE: User
 -- Description: Core user account - supports both LOCAL auth and OAuth providers.
@@ -266,10 +279,13 @@ CREATE TABLE "Resource" (
   title        TEXT           NOT NULL,
   type         "ResourceType" NOT NULL,
   url          TEXT           NULL,          -- External URL for LINK type
-  fileKey      TEXT           NULL,          -- File storage key for uploaded files
+  fileKey      TEXT           NULL,          -- Storage key for uploaded files
+  fileSize     INTEGER       NULL,          -- File size in bytes
+  mimeType     TEXT           NULL,          -- MIME type of the file
   tags         TEXT[]         NOT NULL DEFAULT '{}',
   collectionId TEXT           NULL REFERENCES "Collection"(id) ON DELETE SET NULL,
   isFavorite   BOOLEAN        NOT NULL DEFAULT FALSE,
+  isUpload     BOOLEAN        NOT NULL DEFAULT FALSE, -- TRUE if this is an uploaded file
   createdAt    TIMESTAMP      NOT NULL DEFAULT NOW(),
   updatedAt    TIMESTAMP      NOT NULL DEFAULT NOW()
 );
@@ -279,6 +295,41 @@ CREATE INDEX idx_resource_type ON "Resource"(type);
 CREATE INDEX idx_resource_collectionId ON "Resource"(collectionId);
 CREATE INDEX idx_resource_tags ON "Resource" USING GIN(tags);
 CREATE INDEX idx_resource_isFavorite ON "Resource"(isFavorite);
+CREATE INDEX idx_resource_isUpload ON "Resource"(isUpload);
+
+-- =============================================================================
+-- TABLE: Document
+-- Description: Long-term persistent file storage tracking. Each document
+--              represents an uploaded file with its storage location,
+--              metadata, and status. Files are organized per-user with
+--              support for local disk and S3-compatible storage backends.
+-- =============================================================================
+
+CREATE TABLE "Document" (
+  id              TEXT             PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  userId          TEXT             NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+  originalName    TEXT             NOT NULL,           -- Original uploaded filename
+  mimeType        TEXT             NOT NULL,           -- MIME type
+  size            INTEGER          NOT NULL,           -- File size in bytes
+  storageProvider "StorageProvider" NOT NULL DEFAULT 'LOCAL',
+  storageKey      TEXT             NOT NULL UNIQUE,    -- Relative path or S3 key
+  publicUrl       TEXT             NULL,               -- Cached public URL
+  resourceType    "ResourceType"   NOT NULL,           -- PDF, VIDEO, IMAGE, etc.
+  status          "DocumentStatus" NOT NULL DEFAULT 'READY',
+  folder          TEXT             NULL,               -- User-defined folder path
+  tags            TEXT[]           NOT NULL DEFAULT '{}',
+  metadata        JSONB            NULL,               -- EXIF, PDF page count, video duration, etc.
+  resourceId      TEXT             NULL UNIQUE REFERENCES "Resource"(id) ON DELETE SET NULL,
+  createdAt       TIMESTAMP        NOT NULL DEFAULT NOW(),
+  updatedAt       TIMESTAMP        NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_document_userId ON "Document"(userId);
+CREATE INDEX idx_document_userId_type ON "Document"(userId, resourceType);
+CREATE INDEX idx_document_storageKey ON "Document"(storageKey);
+CREATE INDEX idx_document_status ON "Document"(status);
+CREATE INDEX idx_document_folder ON "Document"(folder);
+CREATE INDEX idx_document_tags ON "Document" USING GIN(tags);
 
 -- =============================================================================
 -- TABLE: Notification
