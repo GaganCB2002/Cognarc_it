@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/Button';
 import { Play, Pause, Square, Activity, MapPin } from 'lucide-react';
 
@@ -14,8 +15,23 @@ function formatDuration(seconds: number) {
 
 export function SidebarSessionPanel() {
   const { session, startSession, pauseSession, resumeSession, stopSession } = useSession();
+  const { isAuthenticated } = useAuth();
   const [showReport, setShowReport] = useState(false);
   const [lastReport, setLastReport] = useState<any>(null);
+  const [error, setError] = useState("");
+
+  const handleStart = async () => {
+    if (!isAuthenticated) {
+      setError("Sign in required");
+      return;
+    }
+    setError("");
+    try {
+      await startSession();
+    } catch (err: any) {
+      setError(err.message || "Failed to start session");
+    }
+  };
 
   const handleStop = async () => {
     const report = await stopSession();
@@ -28,10 +44,11 @@ export function SidebarSessionPanel() {
   if (session.status === 'IDLE') {
     return (
       <>
-        <Button onClick={() => startSession()} variant="primary" className="w-full justify-center">
+        <Button onClick={handleStart} variant="primary" className="w-full justify-center">
           <Play className="w-4 h-4 mr-2" />
           START SESSION
         </Button>
+        {error && <p className="text-xs text-st-danger text-center mt-1">{error}</p>}
 
         {/* Temporary overlay just to show the generated report for demonstration */}
         {showReport && lastReport && (

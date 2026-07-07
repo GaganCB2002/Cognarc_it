@@ -2,6 +2,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 class ApiClient {
   private token: string | null = null;
+  private onUnauthorized: (() => void) | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -16,6 +17,14 @@ class ApiClient {
     } else {
       localStorage.removeItem("token");
     }
+  }
+
+  setOnUnauthorized(handler: () => void) {
+    this.onUnauthorized = handler;
+  }
+
+  getToken(): string | null {
+    return this.token;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -41,6 +50,14 @@ class ApiClient {
       headers,
       credentials: "include",
     });
+
+    if (response.status === 401) {
+      this.setToken(null);
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      }
+      throw new Error("Authentication required");
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: "Request failed" }));

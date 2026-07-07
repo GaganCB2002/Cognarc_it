@@ -31,6 +31,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = !!token && !!user;
 
   useEffect(() => {
+    api.setOnUnauthorized(() => {
+      setToken(null);
+      setUser(null);
+      router.push("/login");
+    });
+
     const savedToken = localStorage.getItem("token");
     if (savedToken) {
       api.setToken(savedToken);
@@ -47,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       setIsLoading(false);
     }
-  }, []);
+  }, [router]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.post<{ token: string; user: User }>("/auth/login", { email, password });
