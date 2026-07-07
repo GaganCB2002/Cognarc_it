@@ -8,6 +8,11 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import { api } from "@/lib/api";
 import { Calendar as CalendarIcon, Grid, List, Activity, Settings, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AnimatedDayFlow } from "@/components/calendar/AnimatedDayFlow";
+import { NewEventModal } from "@/components/calendar/NewEventModal";
+import { SyncModal } from "@/components/calendar/SyncModal";
+import { ProductivityHeatmap } from "@/components/calendar/ProductivityHeatmap";
+import toast from "react-hot-toast";
 
 const locales = {
   "en-US": enUS,
@@ -27,6 +32,38 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [view, setView] = useState<ExtendedView>(Views.MONTH);
   const [date, setDate] = useState(new Date());
+
+  // Flow diagram modal states
+  const [isFlowOpen, setIsFlowOpen] = useState(false);
+  const [flowDate, setFlowDate] = useState<Date | null>(null);
+
+  // New features modals
+  const [isNewEventOpen, setIsNewEventOpen] = useState(false);
+  const [isSyncOpen, setIsSyncOpen] = useState(false);
+  
+  // Get events for a specific date
+  const getEventsForDate = (targetDate: Date | null) => {
+    if (!targetDate) return [];
+    const start = new Date(targetDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(targetDate);
+    end.setHours(23, 59, 59, 999);
+    
+    return events.filter(e => {
+      const eStart = new Date(e.start);
+      return eStart >= start && eStart <= end;
+    });
+  };
+
+  const handleSelectEvent = (event: any) => {
+    setFlowDate(new Date(event.start));
+    setIsFlowOpen(true);
+  };
+
+  const handleSelectSlot = (slotInfo: any) => {
+    setFlowDate(new Date(slotInfo.start));
+    setIsFlowOpen(true);
+  };
 
   useEffect(() => {
     async function loadEvents() {
@@ -54,7 +91,8 @@ export default function CalendarPage() {
               start: new Date(new Date().setHours(10, 0, 0, 0)),
               end: new Date(new Date().setHours(12, 0, 0, 0)),
               type: "learning",
-              color: "#10b981"
+              color: "#10b981",
+              notes: "Topics learned:\n- React Server Components architecture\n- Suspense and Streaming SSR\n- Client vs Server boundaries\n\nDeveloped a small prototype using Next.js App Router."
             },
             {
               id: "m2",
@@ -62,7 +100,8 @@ export default function CalendarPage() {
               start: new Date(new Date().setHours(14, 0, 0, 0)),
               end: new Date(new Date().setHours(16, 30, 0, 0)),
               type: "coding",
-              color: "#8b5cf6"
+              color: "#8b5cf6",
+              notes: "Tasks accomplished:\n- Migrated from CommonJS to ES Modules\n- Set up Prisma ORM schema\n- Fixed circular dependency issues in the auth service."
             }
           ]);
         } else {
@@ -70,10 +109,35 @@ export default function CalendarPage() {
         }
       } catch (error) {
         console.error("Failed to load calendar events", error);
+        toast.error("Failed to load events from the server.");
       }
     }
     loadEvents();
   }, [date]);
+
+  const handleCreateEvent = async (newEventData: any) => {
+    try {
+      // Optimistic update
+      const tempEvent = { ...newEventData, id: Math.random().toString(), color: "#3b82f6" };
+      if (tempEvent.type === "learning") tempEvent.color = "#10b981";
+      if (tempEvent.type === "coding") tempEvent.color = "#8b5cf6";
+      if (tempEvent.type === "task") tempEvent.color = "#ef4444";
+      
+      setEvents((prev) => [...prev, tempEvent]);
+      toast.success("Event created successfully!");
+
+      // Real API Call
+      await api.post("/calendar", {
+        title: newEventData.title,
+        startTime: newEventData.start.toISOString(),
+        endTime: newEventData.end.toISOString(),
+        eventType: newEventData.type.toUpperCase(),
+        notes: newEventData.notes,
+      });
+    } catch (e) {
+      toast.error("Error syncing event with the server.");
+    }
+  };
 
   const eventStyleGetter = (event: any) => {
     let backgroundColor = event.color || "#3b82f6"; // default blue
@@ -111,15 +175,7 @@ export default function CalendarPage() {
     }
     
     if (view === "heatmap") {
-      return (
-        <div className="flex-1 flex items-center justify-center bg-st-bg-elevated rounded-xl border border-st-border">
-          <div className="text-center">
-            <Activity className="w-12 h-12 mx-auto text-st-accent mb-4" />
-            <h3 className="text-lg font-bold text-st-text-primary">Productivity Heatmap</h3>
-            <p className="text-sm text-st-text-secondary">Visualizing deep work intensity across 365 days.</p>
-          </div>
-        </div>
-      );
+      return <ProductivityHeatmap events={events} />;
     }
 
     return (
@@ -137,7 +193,8 @@ export default function CalendarPage() {
           eventPropGetter={eventStyleGetter}
           popup
           selectable
-          onSelectEvent={(event) => alert(`Selected Event: ${event.title}`)}
+          onSelectEvent={handleSelectEvent}
+          onSelectSlot={handleSelectSlot}
           views={["month", "week", "day", "agenda"]}
         />
       </div>
@@ -153,8 +210,12 @@ export default function CalendarPage() {
           <p className="text-st-text-secondary mt-1">Sync your study sessions, meetings, and 100-year milestones.</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" size="sm"><Settings className="w-4 h-4 mr-2" />Sync External</Button>
-          <Button variant="primary" size="sm"><Plus className="w-4 h-4 mr-2" />New Event</Button>
+          <Button variant="outline" size="sm" onClick={() => setIsSyncOpen(true)}>
+            <Settings className="w-4 h-4 mr-2" />Sync External
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => setIsNewEventOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />New Event
+          </Button>
         </div>
       </div>
 
@@ -175,6 +236,24 @@ export default function CalendarPage() {
       </div>
 
       {renderCustomView()}
+      
+      <AnimatedDayFlow 
+        isOpen={isFlowOpen} 
+        onClose={() => setIsFlowOpen(false)} 
+        date={flowDate} 
+        events={getEventsForDate(flowDate)} 
+      />
+      
+      <NewEventModal
+        isOpen={isNewEventOpen}
+        onClose={() => setIsNewEventOpen(false)}
+        onSave={handleCreateEvent}
+      />
+      
+      <SyncModal
+        isOpen={isSyncOpen}
+        onClose={() => setIsSyncOpen(false)}
+      />
     </div>
   );
 }
