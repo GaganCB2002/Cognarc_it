@@ -25,6 +25,8 @@ import {
   User
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { SidebarSessionPanel } from "@/components/dashboard/SidebarSessionPanel";
+import { useAuth } from "@/lib/auth-context";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -46,6 +48,7 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <aside className="w-64 border-r border-st-border bg-st-bg-secondary flex flex-col shrink-0 h-full">
@@ -80,16 +83,17 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-st-border">
-        <Button variant="primary" className="w-full justify-center mb-6">
-          START SESSION
-        </Button>
+        <SidebarSessionPanel />
 
-        <div className="space-y-1">
+        <div className="space-y-1 mt-4">
           <button className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors">
             <HelpCircle className="h-4 w-4" />
             Help
           </button>
-          <button className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors">
+          <button
+            onClick={logout}
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors"
+          >
             <LogOut className="h-4 w-4" />
             Logout
           </button>

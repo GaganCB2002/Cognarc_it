@@ -1,9 +1,34 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { BookOpen, UserCog } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterPage() {
+  const { register } = useAuth();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("Learner");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await register(name, email, password);
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-st-bg-primary">
       {/* Left side - Graphic/Marketing */}
@@ -61,17 +86,17 @@ export default function RegisterPage() {
             <p className="text-st-text-secondary text-sm">Create your scholar-practitioner identity.</p>
           </div>
 
-          <form className="space-y-8" action="#" method="POST">
+          <form className="space-y-8" onSubmit={handleSubmit}>
             
             {/* Role Selection */}
             <div className="space-y-3">
               <label className="text-xs font-semibold tracking-widest text-st-text-muted uppercase">I Am A:</label>
               <div className="grid grid-cols-2 gap-4">
-                <button type="button" className="flex flex-col items-center justify-center p-6 rounded-lg border-2 border-st-accent bg-st-bg-card text-st-text-primary transition-all">
+                <button type="button" onClick={() => setRole("Learner")} className={`flex flex-col items-center justify-center p-6 rounded-lg border-2 transition-all ${role === "Learner" ? "border-st-accent bg-st-bg-card text-st-text-primary" : "border-st-border bg-st-bg-card text-st-text-secondary hover:border-st-text-muted"}`}>
                   <BookOpen className="w-6 h-6 text-st-accent mb-3" />
                   <span className="text-sm font-medium">Learner</span>
                 </button>
-                <button type="button" className="flex flex-col items-center justify-center p-6 rounded-lg border border-st-border bg-st-bg-card text-st-text-secondary hover:border-st-text-muted transition-all">
+                <button type="button" onClick={() => setRole("Mentor")} className={`flex flex-col items-center justify-center p-6 rounded-lg border-2 transition-all ${role === "Mentor" ? "border-st-accent bg-st-bg-card text-st-text-primary" : "border-st-border bg-st-bg-card text-st-text-secondary hover:border-st-text-muted"}`}>
                   <UserCog className="w-6 h-6 mb-3" />
                   <span className="text-sm font-medium">Mentor</span>
                 </button>
@@ -87,6 +112,8 @@ export default function RegisterPage() {
                 autoComplete="name"
                 required
                 placeholder="E.g. Alan Turing"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="bg-st-bg-primary uppercase-placeholder"
               />
 
@@ -98,6 +125,8 @@ export default function RegisterPage() {
                 autoComplete="email"
                 required
                 placeholder="name@university.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="bg-st-bg-primary"
               />
 
@@ -109,13 +138,17 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="bg-st-bg-primary"
               />
             </div>
 
+            {error && <p className="text-sm text-st-danger text-center">{error}</p>}
+
             <div className="pt-4 border-t border-st-border">
-              <Button type="submit" size="lg" className="w-full tracking-wider font-semibold">
-                INITIALIZE PROFILE
+              <Button type="submit" size="lg" disabled={loading} className="w-full tracking-wider font-semibold">
+                {loading ? "Initializing..." : "INITIALIZE PROFILE"}
               </Button>
             </div>
           </form>

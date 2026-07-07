@@ -85,7 +85,7 @@ Developers consume learning material from dozens of sources — YouTube, PDFs, d
 
 StudyTrack solves this with a **four-component system**:
 
-1. **Web Dashboard** (Next.js 16 + Tailwind) — Landing page, auth, curriculum, tasks, notes, resources, analytics, AI mentor chat.
+1. **Web Dashboard** (Next.js 16 + Tailwind) — Landing page, auth, curriculum, tasks, notes, resources, analytics, AI mentor chat. Includes **Enterprise Activity Tracking** (live session timer, geolocation tracking) and an **Enterprise Calendar** (with Year and Heatmap views).
 2. **REST API Backend** (Express 5 + Prisma + PostgreSQL) — JWT-authenticated CRUD, file uploads, telemetry ingestion, AI endpoints.
 3. **Browser Extension** (Chrome MV3) — Tracks active tabs, measures per-domain duration, categorizes browsing, sends telemetry.
 4. **Desktop Agent** (Node.js + active-win) — Polls active window every 5s, categorizes apps, sends telemetry.
@@ -857,7 +857,7 @@ Stats response includes: sessionIntensity, deepHours, profileType, profileDesc, 
 | Badge | default/outline/success/warning/danger | Status labels |
 | Input | label, error | Form inputs |
 | Avatar | name, src, size | User avatar with initials |
-| Sidebar | activeItem | Dashboard navigation |
+| Sidebar | activeItem | Dashboard navigation with interactive **Session Tracking Panel** |
 | DocumentIntelPanel | — | AI document analysis UI |
 
 ### 7.3 Design System (Dark Theme)

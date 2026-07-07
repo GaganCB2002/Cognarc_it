@@ -98,7 +98,7 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
 
 export async function getUserStats(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) {
       res.status(401).json({ message: 'Authentication required' });
       return;

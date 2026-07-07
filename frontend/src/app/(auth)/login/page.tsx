@@ -2,25 +2,34 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Beaker } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleAutoFill = () => {
     setEmail(process.env.NEXT_PUBLIC_TEST_EMAIL || "test@studytrack.dev");
     setPassword(process.env.NEXT_PUBLIC_TEST_PASSWORD || "password123");
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate login and redirect to the dashboard (curriculum)
-    router.push("/curriculum");
+    setError("");
+    setLoading(true);
+    try {
+      await login(email, password);
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,9 +83,10 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {error && <p className="text-sm text-st-danger text-center">{error}</p>}
         <div>
-          <Button type="submit" className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 hover:from-st-accent-hover hover:to-st-accent">
-            Sign in
+          <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 hover:from-st-accent-hover hover:to-st-accent">
+            {loading ? "Signing in..." : "Sign in"}
           </Button>
         </div>
       </form>

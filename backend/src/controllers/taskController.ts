@@ -3,7 +3,7 @@ import { prisma } from '../server';
 
 export async function getTasks(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { status, priority, category, search, page = '1', limit = '20' } = req.query;
@@ -30,7 +30,7 @@ export async function getTasks(req: Request, res: Response): Promise<void> {
 
 export async function getTaskStats(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const [total, byStatus, byPriority] = await Promise.all([
@@ -48,7 +48,7 @@ export async function getTaskStats(req: Request, res: Response): Promise<void> {
 
 export async function getTaskById(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -64,7 +64,7 @@ export async function getTaskById(req: Request, res: Response): Promise<void> {
 
 export async function createTask(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { title, description, priority, status, dueDate, category, checklist } = req.body;
@@ -92,7 +92,7 @@ export async function createTask(req: Request, res: Response): Promise<void> {
 
 export async function updateTask(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -120,7 +120,7 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
 
 export async function deleteTask(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;

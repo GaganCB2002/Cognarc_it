@@ -3,7 +3,7 @@ import { prisma } from '../server';
 
 export async function getNotes(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { folder, search, tag, page = '1', limit = '20' } = req.query;
@@ -34,7 +34,7 @@ export async function getNotes(req: Request, res: Response): Promise<void> {
 
 export async function getNoteById(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -50,7 +50,7 @@ export async function getNoteById(req: Request, res: Response): Promise<void> {
 
 export async function createNote(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { title, content, tags, folderId } = req.body;
@@ -72,7 +72,7 @@ export async function createNote(req: Request, res: Response): Promise<void> {
 
 export async function updateNote(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -97,7 +97,7 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
 
 export async function deleteNote(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
@@ -115,7 +115,7 @@ export async function deleteNote(req: Request, res: Response): Promise<void> {
 
 export async function pinNote(req: Request, res: Response): Promise<void> {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
