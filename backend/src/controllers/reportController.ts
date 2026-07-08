@@ -8,6 +8,8 @@ import {
 import { generatePeriodicPdfReport } from '../services/pdfReport.service';
 import path from 'path';
 import fs from 'fs';
+import { prisma } from '../server';
+import { queueService } from '../services/queue.service';
 
 export async function createSessionReport(req: Request, res: Response): Promise<void> {
   try {
@@ -130,3 +132,43 @@ export async function downloadPeriodicPdf(req: Request, res: Response): Promise<
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
+
+export async function getDailySummary(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    let date = req.query.date ? new Date(req.query.date as string) : new Date();
+    date.setHours(0, 0, 0, 0);
+
+    const summary = await prisma.dailySummary.findUnique({
+      where: { userId_date: { userId, date } }
+    });
+
+    if (!summary) {
+      res.status(404).json({ success: false, message: 'Summary not generated yet for this date' });
+      return;
+    }
+
+    res.json({ success: true, data: summary });
+  } catch (error) {
+    console.error('getDailySummary error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function triggerDailySummary(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const date = new Date();
+    queueService.enqueue("AI_GENERATE_DAILY_SUMMARY", { userId, date });
+
+    res.json({ success: true, message: 'Daily summary generation started' });
+  } catch (error) {
+    console.error('triggerDailySummary error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+

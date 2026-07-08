@@ -45,6 +45,10 @@ model User {
   browserEvents        BrowserTelemetry[]
   desktopEvents        DesktopTelemetry[]
   otps                 Otp[]
+  
+  // AI Integration
+  aiConversations      AIConversation[]
+  dailySummaries       DailySummary[]
 }
 
 model Session {
@@ -148,6 +152,9 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // AI Integration
+  intelligence NoteIntelligence?
 }
 
 model Resource {
@@ -493,6 +500,9 @@ model Document {
   resourceId      String?        @unique
   resource        Resource?      @relation(fields: [resourceId], references: [id], onDelete: SetNull)
 
+  // AI Integration
+  intelligence    DocumentIntelligence?
+
   @@index([userId])
   @@index([userId, resourceType])
   @@index([storageKey])
@@ -533,3 +543,79 @@ model DesktopTelemetry {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
 }
+
+// -----------------------------------------------------------------------------
+// AI Integration Models
+// -----------------------------------------------------------------------------
+
+model AIConversation {
+  id          String       @id @default(uuid())
+  userId      String
+  title       String       @default("New Chat")
+  documentId  String?      // Optional link to a specific document being discussed
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AIMessage[]
+
+  @@index([userId])
+  @@index([documentId])
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  role           String         // "user" or "model"
+  content        String
+  createdAt      DateTime       @default(now())
+  
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model DocumentIntelligence {
+  id                 String    @id @default(uuid())
+  documentId         String    @unique
+  summary            String?
+  chapterSummaries   Json?
+  keyConcepts        Json?
+  topics             Json?
+  interviewQuestions Json?
+  mcqs               Json?
+  flashcards         Json?
+  mindMapData        Json?
+  revisionChecklist  Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  
+  document           Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model NoteIntelligence {
+  id          String   @id @default(uuid())
+  noteId      String   @unique
+  summary     String?
+  keywords    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model DailySummary {
+  id              String   @id @default(uuid())
+  userId          String
+  date            DateTime @db.Date
+  summary         String
+  recommendations Json?
+  metrics         Json?
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+

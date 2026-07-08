@@ -40,7 +40,7 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Notes", href: "/notes", icon: FileText },
   { name: "Knowledge Vault", href: "/knowledge-vault", icon: Database },
-  { name: "AI Assistant", href: "/ai-assistant", icon: Bot },
+  { name: "StudyBot", href: "#", icon: Bot, chatbot: true },
   { name: "PDF Intelligence", href: "/pdf-intelligence", icon: FileSearch },
   { name: "Video Intelligence", href: "/video-intelligence", icon: Video },
   { name: "Reports", href: "/reports", icon: BarChart },
@@ -152,8 +152,43 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {dynamicNavigation.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+        {dynamicNavigation.map((item: any) => {
+          const isActive = !item.chatbot && (pathname === item.href || pathname?.startsWith(`${item.href}/`));
+
+          if (item.chatbot) {
+            return (
+              <button
+                key={item.name}
+                onClick={() => {
+                  const event = new CustomEvent('opencode-chatbot-toggle');
+                  window.dispatchEvent(event);
+                }}
+                className={cn(
+                  "relative flex items-center gap-3 rounded-md text-sm font-medium transition-all duration-200 group w-full",
+                  isCollapsed ? "justify-center px-0 py-2.5 mx-auto w-10" : "px-3 py-2.5",
+                  "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/60"
+                )}
+              >
+                <div className="relative z-10 flex items-center justify-center w-5 h-5 shrink-0 text-st-text-secondary group-hover:text-st-text-primary transition-colors">
+                  <item.icon className="w-4.5 h-4.5" strokeWidth={1.5} />
+                </div>
+                <AnimatePresence mode="wait">
+                  {!isCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: "auto" }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ duration: 0.15, ease: "easeInOut" }}
+                      className="relative z-10 truncate text-sm"
+                    >
+                      {item.name}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </button>
+            );
+          }
+
           return (
             <Link
               key={item.name}
