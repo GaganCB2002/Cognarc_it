@@ -14,7 +14,7 @@ function formatDuration(seconds: number) {
 }
 
 export function SidebarSessionPanel() {
-  const { session, startSession, pauseSession, resumeSession, stopSession } = useSession();
+  const { session, startSession, pauseSession, resumeSession, stopSession, isInitializing } = useSession();
   const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,8 +36,23 @@ export function SidebarSessionPanel() {
   };
 
   const handleStop = async () => {
-    await stopSession();
+    const reportData = await stopSession();
+    if (reportData && reportData.sessionId) {
+      // Trigger automatic download of the PDF report
+      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/tracking/sessions/${reportData.sessionId}/pdf`;
+      // Open in new tab/download
+      window.open(downloadUrl, '_blank');
+    }
   };
+
+  if (isInitializing) {
+    return (
+      <Button disabled variant="outline" className="w-full justify-center opacity-50">
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Syncing...
+      </Button>
+    );
+  }
 
   if (session.status === 'IDLE') {
     return (
@@ -86,7 +101,7 @@ export function SidebarSessionPanel() {
             <Play className="w-4 h-4" />
           </Button>
         )}
-        <Button onClick={handleStop} variant="outline" className="flex-1 px-0 border-st-danger text-st-danger hover:bg-st-danger/10" size="sm">
+        <Button onClick={handleStop} variant="outline" className="flex-1 px-0 border-st-danger text-st-danger hover:bg-st-danger/10" size="sm" title="Stop & Get PDF Report">
           <Square className="w-4 h-4 fill-current" />
         </Button>
       </div>

@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { useAuth } from "@/lib/auth-context";
+import { useSidebarStore } from "@/store/sidebarStore";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const isCollapsed = useSidebarStore((state) => state.isCollapsed);
   const router = useRouter();
 
   useEffect(() => {
@@ -33,14 +35,12 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-st-bg-primary overflow-hidden">
-      {/* Sidebar Component */}
-      <div className="hidden md:block h-full">
-        <Sidebar />
-      </div>
+      <Sidebar />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <div className="flex-1 overflow-y-auto p-8">
+      <main
+        className="flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      >
+        <div className="flex-1 overflow-y-auto">
           {children}
         </div>
       </main>

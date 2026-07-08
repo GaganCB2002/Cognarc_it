@@ -5,6 +5,9 @@ import {
   getReports,
   getReport,
 } from '../services/report.service';
+import { generatePeriodicPdfReport } from '../services/pdfReport.service';
+import path from 'path';
+import fs from 'fs';
 
 export async function createSessionReport(req: Request, res: Response): Promise<void> {
   try {
@@ -37,7 +40,7 @@ export async function createPeriodicReport(req: Request, res: Response): Promise
       return;
     }
 
-    const validTypes = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
+    const validTypes = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'];
     if (!validTypes.includes(type)) {
       res.status(400).json({ message: `type must be one of: ${validTypes.join(', ')}` });
       return;
@@ -82,6 +85,43 @@ export async function getReportById(req: Request, res: Response): Promise<void> 
     res.json({ success: true, data: report });
   } catch (error) {
     console.error('getReportById error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function downloadPeriodicPdf(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const reportId = req.params.reportId as string;
+    if (!reportId) { res.status(400).json({ message: 'Report ID is required' }); return; }
+
+    const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const pdfPath = path.join(uploadsDir, `periodic-report-${reportId}.pdf`);
+    
+    if (!fs.existsSync(pdfPath)) {
+      try {
+        const buffer = await generatePeriodicPdfReport(reportId, userId, { outputPath: pdfPath });
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="periodic-report-${reportId}.pdf"`);
+        res.send(buffer);
+        return;
+      } catch (err) {
+        console.error('downloadPeriodicPdf generation error:', err);
+        res.status(404).json({ success: false, message: 'Report PDF could not be generated' });
+        return;
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="periodic-report-${reportId}.pdf"`);
+    fs.createReadStream(pdfPath).pipe(res);
+  } catch (error) {
+    console.error('downloadPeriodicPdf error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }

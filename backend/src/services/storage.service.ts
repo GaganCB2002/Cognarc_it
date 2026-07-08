@@ -2,8 +2,9 @@ import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
+import * as githubStorage from "./githubStorage.service";
 
-export type StorageProvider = "LOCAL" | "S3";
+export type StorageProvider = "LOCAL" | "S3" | "GITHUB";
 
 interface StorageConfig {
   provider: StorageProvider;
@@ -95,15 +96,18 @@ export async function saveFile(
 ): Promise<StoredFile> {
   const storageKey = generateStorageKey(userId, mimeType, originalName);
 
+  let publicUrl: string | null = null;
+
   if (config.provider === "S3") {
     await saveToS3(storageKey, buffer);
+    if (config.publicBaseUrl) {
+      publicUrl = `${config.publicBaseUrl.replace(/\/$/, "")}/${storageKey}`;
+    }
+  } else if (config.provider === "GITHUB") {
+    publicUrl = await githubStorage.saveFile(storageKey, buffer);
   } else {
     await saveToLocal(storageKey, buffer);
   }
-
-  const publicUrl = config.provider === "S3" && config.publicBaseUrl
-    ? `${config.publicBaseUrl.replace(/\/$/, "")}/${storageKey}`
-    : null;
 
   return {
     storageKey,
@@ -118,6 +122,9 @@ export async function getFile(storageKey: string): Promise<Buffer | null> {
     if (config.provider === "S3") {
       throw new Error("S3 read not implemented");
     }
+    if (config.provider === "GITHUB") {
+      return await githubStorage.getFile(storageKey);
+    }
     return await readFromLocal(storageKey);
   } catch {
     return null;
@@ -127,6 +134,8 @@ export async function getFile(storageKey: string): Promise<Buffer | null> {
 export async function deleteFile(storageKey: string): Promise<void> {
   if (config.provider === "S3") {
     // S3 delete placeholder
+  } else if (config.provider === "GITHUB") {
+    await githubStorage.deleteFile(storageKey);
   } else {
     await deleteFromLocal(storageKey);
   }
@@ -135,6 +144,9 @@ export async function deleteFile(storageKey: string): Promise<void> {
 export async function fileExists(storageKey: string): Promise<boolean> {
   if (config.provider === "S3") {
     return false;
+  }
+  if (config.provider === "GITHUB") {
+    return githubStorage.fileExists(storageKey);
   }
   return existsOnLocal(storageKey);
 }

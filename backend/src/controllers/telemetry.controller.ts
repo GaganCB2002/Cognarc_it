@@ -5,7 +5,7 @@ import { getAggregatedStats } from "../services/analytics.service";
 // POST /api/telemetry/browser
 export const logBrowserEvent = async (req: Request, res: Response) => {
   try {
-    const { url, title, domain, duration, category } = req.body;
+    const { url, title, domain, duration, category, trackingSessionId } = req.body;
     const userId = req.user?.userId as string;
 
     if (!userId) {
@@ -13,8 +13,30 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
       return;
     }
 
+    if (!trackingSessionId) {
+      res.status(403).json({ success: false, error: "Tracking disabled: No active session provided." });
+      return;
+    }
+
+    const activeSession = await prisma.trackingSession.findFirst({
+      where: { id: trackingSessionId, userId, status: "ACTIVE" }
+    });
+
+    if (!activeSession) {
+      res.status(403).json({ success: false, error: "Tracking disabled: Session is not active." });
+      return;
+    }
+
     const event = await prisma.browserTelemetry.create({
-      data: { userId, url, title, domain, duration, category },
+      data: { 
+        userId, 
+        url, 
+        title, 
+        domain, 
+        duration, 
+        category,
+        trackingSessionId: activeSession.id 
+      },
     });
 
     res.status(201).json({ success: true, data: event });
@@ -27,7 +49,7 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
 // POST /api/telemetry/desktop
 export const logDesktopEvent = async (req: Request, res: Response) => {
   try {
-    const { activeApp, windowTitle, processName, duration, isIdle, category } = req.body;
+    const { activeApp, windowTitle, processName, duration, isIdle, category, trackingSessionId } = req.body;
     const userId = req.user?.userId as string;
 
     if (!userId) {
@@ -35,8 +57,31 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
       return;
     }
 
+    if (!trackingSessionId) {
+      res.status(403).json({ success: false, error: "Tracking disabled: No active session provided." });
+      return;
+    }
+
+    const activeSession = await prisma.trackingSession.findFirst({
+      where: { id: trackingSessionId, userId, status: "ACTIVE" }
+    });
+
+    if (!activeSession) {
+      res.status(403).json({ success: false, error: "Tracking disabled: Session is not active." });
+      return;
+    }
+
     const event = await prisma.desktopTelemetry.create({
-      data: { userId, activeApp, windowTitle, processName, duration, isIdle, category },
+      data: { 
+        userId, 
+        activeApp, 
+        windowTitle, 
+        processName, 
+        duration, 
+        isIdle, 
+        category,
+        trackingSessionId: activeSession.id
+      },
     });
 
     res.status(201).json({ success: true, data: event });

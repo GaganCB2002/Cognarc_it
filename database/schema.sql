@@ -65,7 +65,8 @@ CREATE TYPE "NotificationType" AS ENUM (
 CREATE TYPE "StorageProvider" AS ENUM (
   'LOCAL',
   'S3',
-  'CLOUDINARY'
+  'CLOUDINARY',
+  'GITHUB'
 );
 
 CREATE TYPE "DocumentStatus" AS ENUM (
@@ -155,10 +156,34 @@ CREATE TABLE "Profile" (
   weeklyHours  INTEGER     NULL,
   careerGoals  TEXT        NULL,
   skills       JSONB       NULL,
-  timezone     TEXT        NULL
+  timezone     TEXT        NULL,
+  githubUrl    TEXT        NULL,
+  linkedinUrl  TEXT        NULL,
+  portfolioUrl TEXT        NULL
 );
 
 CREATE INDEX idx_profile_userId ON "Profile"(userId);
+
+-- =============================================================================
+-- TABLE: Otp
+-- Description: One-time passwords for login verification and email confirmation.
+--              Each OTP is user-specific, single-use, and expires after 10 mins.
+-- =============================================================================
+
+CREATE TABLE "Otp" (
+  id        TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  userId    TEXT        NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
+  email     TEXT        NOT NULL,
+  code      TEXT        NOT NULL,
+  type      TEXT        NOT NULL DEFAULT 'LOGIN',
+  expiresAt TIMESTAMP   NOT NULL,
+  usedAt    TIMESTAMP   NULL,
+  createdAt TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_otp_userId ON "Otp"(userId);
+CREATE INDEX idx_otp_email ON "Otp"(email);
+CREATE INDEX idx_otp_createdAt ON "Otp"(createdAt);
 
 -- =============================================================================
 -- TABLE: LearningStreak

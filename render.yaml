@@ -16,9 +16,13 @@ services:
       - key: FRONTEND_URL
         value: https://studytrack-web.onrender.com
       - key: STORAGE_PROVIDER
-        value: LOCAL
-      - key: LOCAL_STORAGE_PATH
-        value: ./uploads
+        value: GITHUB
+      - key: GITHUB_STORAGE_TOKEN
+        sync: false
+      - key: GITHUB_STORAGE_OWNER
+        sync: false
+      - key: GITHUB_STORAGE_REPO
+        value: studytrack-uploads
 
   - type: web
     name: studytrack-web

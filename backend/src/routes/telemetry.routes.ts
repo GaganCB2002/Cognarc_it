@@ -1,16 +1,16 @@
 import { Router } from "express";
 import { logBrowserEvent, logDesktopEvent, getTelemetryStats } from "../controllers/telemetry.controller";
-// import { requireAuth } from "../middleware/auth"; // Will add auth middleware later
+import { authenticate } from "../middleware/auth";
 
 const router = Router();
 
 // Endpoint for browser extension
-router.post("/browser", logBrowserEvent);
+router.post("/browser", authenticate, logBrowserEvent);
 
 // Endpoint for desktop agent
-router.post("/desktop", logDesktopEvent);
+router.post("/desktop", authenticate, logDesktopEvent);
 
 // Endpoint for analytics frontend
-router.get("/stats", getTelemetryStats);
+router.get("/stats", authenticate, getTelemetryStats);
 
 export default router;

@@ -67,11 +67,15 @@ export const resumeTrackingSession = async (sessionId: string, userId: string) =
 
 export const stopTrackingSession = async (sessionId: string, userId: string) => {
   const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId, status: { in: ["ACTIVE", "PAUSED"] } },
+    where: { id: sessionId, userId },
   });
-  if (!session) throw new Error("Active or paused session not found");
+  if (!session) throw new Error("Session not found");
+  
+  if (session.status === "COMPLETED") {
+    return session; // Idempotent: already stopped
+  }
+
   const endTime = new Date();
-  const totalMs = endTime.getTime() - session.startTime.getTime();
   return prisma.trackingSession.update({
     where: { id: sessionId },
     data: {

@@ -6,25 +6,30 @@ let activeTabDomain = null;
 let activeTabTitle = null;
 let startTime = Date.now();
 
-// Base URL of the local backend API for development
-// In production, this would be read from config or set to the production URL
-let API_URL = "http://localhost:5000/api/telemetry/browser";
+let API_BASE = "http://localhost:5000/api";
+let TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
+let SESSION_URL = `${API_BASE}/tracking/sessions/current`;
 let USER_ID = "temp-user-id";
+let activeSessionId = null;
 
 // Initialize from storage
 chrome.storage.sync.get({
-  apiUrl: 'http://localhost:5000/api/telemetry/browser',
+  apiBase: 'http://localhost:5000/api',
   userId: 'temp-user-id'
 }, (items) => {
-  API_URL = items.apiUrl.endsWith('/browser') ? items.apiUrl : `${items.apiUrl}/telemetry/browser`;
+  API_BASE = items.apiBase;
+  TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
+  SESSION_URL = `${API_BASE}/tracking/sessions/current`;
   USER_ID = items.userId;
 });
 
 // Listen for options changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync') {
-    if (changes.apiUrl) {
-      API_URL = changes.apiUrl.newValue.endsWith('/browser') ? changes.apiUrl.newValue : `${changes.apiUrl.newValue}/telemetry/browser`;
+    if (changes.apiBase) {
+      API_BASE = changes.apiBase.newValue;
+      TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
+      SESSION_URL = `${API_BASE}/tracking/sessions/current`;
     }
     if (changes.userId) {
       USER_ID = changes.userId.newValue;
@@ -55,21 +60,53 @@ function extractDomain(url) {
   }
 }
 
+async function checkActiveSession() {
+  try {
+    const res = await fetch(SESSION_URL, {
+      headers: { "Authorization": `Bearer ${USER_ID}` }
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.data && data.data.status === 'ACTIVE') {
+        if (activeSessionId !== data.data.id) {
+          console.log(`[Session Started] ID: ${data.data.id}`);
+          activeSessionId = data.data.id;
+          startTime = Date.now(); // Reset timer
+        }
+      } else {
+        if (activeSessionId) {
+          console.log(`[Session Stopped] Tracking disabled.`);
+          activeSessionId = null;
+        }
+      }
+    } else {
+      if (activeSessionId) {
+        console.log(`[Session Stopped] Tracking disabled.`);
+        activeSessionId = null;
+      }
+    }
+  } catch (err) {
+    console.error("Error checking session:", err);
+  }
+}
+
+// Poll session state every 5 seconds
+setInterval(checkActiveSession, 5000);
+
 async function sendTelemetryData(url, title, domain, durationSec, category) {
-  // Only send if there's actually a valid URL and duration > 0
-  if (!url || url.startsWith('chrome://') || url.startsWith('edge://') || durationSec <= 0) return;
+  // Only send if there's actually a valid URL, duration > 0, and an active session
+  if (!url || url.startsWith('chrome://') || url.startsWith('edge://') || durationSec <= 0 || !activeSessionId) return;
 
   try {
-    // We send the user ID in the headers or body. Our backend expects it injected by auth, 
-    // but for the scaffold we can pass it in body and adapt the backend, or just let backend use temp-user-id.
-    // For now we pass it as Authorization header (mock).
-    await fetch(API_URL, {
+    await fetch(TELEMETRY_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${USER_ID}`
       },
       body: JSON.stringify({
+        trackingSessionId: activeSessionId,
         url,
         title,
         domain,

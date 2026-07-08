@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useActivityTracker } from '@/lib/useActivityTracker';
 
 export type SessionStatus = 'IDLE' | 'ACTIVE' | 'PAUSED';
 
@@ -10,35 +11,43 @@ interface SessionState {
   status: SessionStatus;
   sessionId: string | null;
   duration: number;
-  projectName: string;
+  projectName: string | null;
   location: { lat: number; lng: number } | null;
   focusScore: number;
   productivityScore: number;
 }
 
-interface SessionContextValue {
+export interface SessionContextType {
   session: SessionState;
   startSession: (projectName?: string) => Promise<void>;
   pauseSession: () => Promise<void>;
   resumeSession: () => Promise<void>;
   stopSession: () => Promise<any>;
+  isInitializing: boolean;
 }
 
-const SessionContext = createContext<SessionContextValue | undefined>(undefined);
+const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionState>({
     status: 'IDLE',
     sessionId: null,
     duration: 0,
-    projectName: '',
+    projectName: null,
     location: null,
     focusScore: 100,
     productivityScore: 100,
   });
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize micro-tracking when status is ACTIVE
+  useActivityTracker({
+    sessionId: session.sessionId,
+    isActive: session.status === 'ACTIVE'
+  });
 
   const getLocation = (): Promise<{ lat: number; lng: number } | null> => {
     return new Promise((resolve) => {
@@ -57,19 +66,36 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const fetchCurrentSession = async () => {
     try {
       const res = (await api.get('/tracking/sessions/current')) as any;
-      if (res?.data && res.data.isActive) {
+      if (res?.data && (res.data.status === 'ACTIVE' || res.data.status === 'PAUSED')) {
+        const start = new Date(res.data.startTime).getTime();
+        const now = Date.now();
+        const pauseMs = res.data.totalPauseMs || 0;
+        
+        let elapsed = now - start - pauseMs;
+        if (res.data.status === 'PAUSED' && res.data.pausedAt) {
+          const pausedAt = new Date(res.data.pausedAt).getTime();
+          elapsed = pausedAt - start - pauseMs;
+        }
+
         setSession({
-          status: 'ACTIVE',
+          status: res.data.status as SessionStatus,
           sessionId: res.data.id,
-          duration: res.data.totalDuration || 0,
+          duration: Math.max(0, Math.round(elapsed / 1000)),
           projectName: res.data.projectName || 'General Deep Work',
           location: null,
           focusScore: 100,
           productivityScore: 100,
         });
+      } else {
+        // Explicitly clear if no active session returned
+        setSession(prev => prev.status !== 'IDLE' ? {
+          ...prev, status: 'IDLE', sessionId: null, duration: 0
+        } : prev);
       }
     } catch (error) {
-      // No active session or error
+      console.error('Failed to fetch current session', error);
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -127,8 +153,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       if (err.message && err.message.includes('already exists')) {
         // Auto-recover if the server says an active session exists
+        // DO NOT throw an error to the user, just silently sync the state
         await fetchCurrentSession();
-        throw new Error('You had an active session running elsewhere. We have synced it for you! You can now stop it.');
+        return;
       }
       throw err;
     }
@@ -162,7 +189,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         status: 'IDLE',
         sessionId: null,
         duration: 0,
-        projectName: '',
+        projectName: null,
         location: null,
         focusScore: 100,
         productivityScore: 100,
@@ -176,7 +203,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <SessionContext.Provider value={{ session, startSession, pauseSession, resumeSession, stopSession }}>
+    <SessionContext.Provider value={{ session, startSession, pauseSession, resumeSession, stopSession, isInitializing }}>
       {children}
     </SessionContext.Provider>
   );

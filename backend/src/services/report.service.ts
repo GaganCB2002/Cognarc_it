@@ -142,7 +142,7 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
 
 export const generatePeriodicReport = async (
   userId: string,
-  type: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY",
+  type: "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY",
   from: Date,
   to: Date
 ) => {
@@ -161,8 +161,36 @@ export const generatePeriodicReport = async (
   }, 0);
   const totalSessions = sessions.length;
   const avgScore = sessions.length > 0
-    ? Math.round(sessions.reduce((s, sess) => s + (sess as any).productivityScore || 0, 0) / sessions.length)
+    ? Math.round(sessions.reduce((s, sess) => s + ((sess as any).productivityScore || 0), 0) / sessions.length)
     : 0;
+
+  // Aggregate external telemetry for the period
+  const [browserEvents, desktopEvents] = await Promise.all([
+    prisma.browserTelemetry.findMany({
+      where: { userId, timestamp: { gte: from, lte: to } }
+    }),
+    prisma.desktopTelemetry.findMany({
+      where: { userId, timestamp: { gte: from, lte: to }, isIdle: false }
+    })
+  ]);
+
+  const domainMap: Record<string, number> = {};
+  browserEvents.forEach(e => {
+    domainMap[e.domain] = (domainMap[e.domain] || 0) + e.duration;
+  });
+  const topWebsites = Object.entries(domainMap)
+    .map(([domain, duration]) => ({ domain, duration }))
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 10);
+
+  const appMap: Record<string, number> = {};
+  desktopEvents.forEach(e => {
+    appMap[e.activeApp] = (appMap[e.activeApp] || 0) + e.duration;
+  });
+  const topApps = Object.entries(appMap)
+    .map(([app, duration]) => ({ app, duration }))
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 10);
 
   const title = `${type.charAt(0) + type.slice(1).toLowerCase()} Report - ${from.toLocaleDateString()} to ${to.toLocaleDateString()}`;
   const summary = `You completed ${totalSessions} sessions totaling ${Math.round(totalDuration / 60)} minutes. Average productivity score: ${avgScore}%.`;
@@ -176,8 +204,16 @@ export const generatePeriodicReport = async (
       durationSeconds: Math.round(totalDuration),
       productivityScore: avgScore,
       focusScore: avgScore,
-      metrics: { totalSessions, totalDuration: Math.round(totalDuration), avgScore },
-      chartData: { sessions: sessions.map((s) => ({ id: s.id, start: s.startTime, end: s.endTime })) },
+      metrics: { 
+        totalSessions, 
+        totalDuration: Math.round(totalDuration), 
+        avgScore,
+        topWebsites,
+        topApps
+      },
+      chartData: { 
+        sessions: sessions.map((s) => ({ id: s.id, start: s.startTime, end: s.endTime, durationSeconds: s.endTime ? Math.round((s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs) / 1000) : 0 })) 
+      },
       recommendations: [],
       insights: {},
       technologies: [],

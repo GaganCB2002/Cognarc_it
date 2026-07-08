@@ -11,6 +11,8 @@ import {
   getSessionById,
   getSessionStats,
   getSessionActivitiesHandler,
+  downloadSessionPdf,
+  getDashboardData,
 } from '../controllers/trackingController';
 
 const router = Router();
@@ -20,6 +22,8 @@ router.post('/sessions/:sessionId/pause', authenticate, pauseSession);
 router.post('/sessions/:sessionId/resume', authenticate, resumeSession);
 router.post('/sessions/:sessionId/stop', authenticate, stopSession);
 router.post('/sessions/:sessionId/activities', authenticate, logActivity);
+router.get('/sessions/:sessionId/pdf', authenticate, downloadSessionPdf);
+router.get('/sessions/dashboard', authenticate, getDashboardData);
 router.get('/sessions/current', authenticate, getCurrentSession);
 router.get('/sessions', authenticate, getSessions);
 router.get('/sessions/:sessionId', authenticate, getSessionById);

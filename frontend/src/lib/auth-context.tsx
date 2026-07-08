@@ -8,6 +8,34 @@ interface User {
   id: string;
   email: string;
   name: string;
+  avatar?: string;
+  role?: string;
+  emailVerified?: string;
+  profile?: {
+    bio?: string;
+    targetRole?: string;
+    currentLevel?: string;
+    weeklyHours?: number;
+    timezone?: string;
+    skills?: any;
+    careerGoals?: string;
+    githubUrl?: string;
+    linkedinUrl?: string;
+    portfolioUrl?: string;
+  };
+  settings?: any;
+}
+
+interface LoginStep1Response {
+  message: string;
+  otpKey: string;
+  userId: string;
+}
+
+interface LoginStep2Response {
+  message: string;
+  token: string;
+  user: User;
 }
 
 interface AuthContextType {
@@ -15,9 +43,12 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  loginStep1: (email: string, password: string, captchaKey: string, captchaAnswer: number) => Promise<LoginStep1Response>;
+  loginStep2: (userId: string, otpKey: string, otp: string) => Promise<void>;
+  register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: number) => Promise<LoginStep1Response>;
+  verifyEmail: (userId: string, otpKey: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,16 +86,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post<{ token: string; user: User }>("/auth/login", { email, password });
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await api.get<{ user: User }>("/auth/me");
+      setUser(res.user);
+    } catch {
+    }
+  }, []);
+
+  const loginStep1 = useCallback(async (email: string, password: string, captchaKey: string, captchaAnswer: number) => {
+    return api.post<LoginStep1Response>("/auth/login", { email, password, captchaKey, captchaAnswer });
+  }, []);
+
+  const loginStep2 = useCallback(async (userId: string, otpKey: string, otp: string) => {
+    const res = await api.post<LoginStep2Response>("/auth/login/verify", { userId, otpKey, otp });
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);
     router.push("/curriculum");
   }, [router]);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
-    const res = await api.post<{ token: string; user: User }>("/auth/register", { name, email, password });
+  const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: number) => {
+    return api.post<LoginStep1Response>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
+  }, []);
+
+  const verifyEmail = useCallback(async (userId: string, otpKey: string, otp: string) => {
+    const res = await api.post<LoginStep2Response>("/auth/register/verify", { userId, otpKey, otp });
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);
@@ -83,7 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isAuthenticated, login, register, logout }}>
+    <AuthContext.Provider value={{
+      user, token, isLoading, isAuthenticated,
+      loginStep1, loginStep2, register, verifyEmail, logout, refreshUser,
+    }}>
       {children}
     </AuthContext.Provider>
   );

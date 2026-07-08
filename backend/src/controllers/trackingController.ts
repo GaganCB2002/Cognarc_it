@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { prisma } from '../server';
 import { generateSessionReport } from '../services/report.service';
+import { generateSessionPdfReport } from '../services/pdfReport.service';
+import fs from 'fs';
+import path from 'path';
 import {
   startTrackingSession,
   pauseTrackingSession,
@@ -86,6 +89,14 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
     let report = null;
     try {
       report = await generateSessionReport(sessionId, userId);
+      
+      // Auto-generate and cache PDF file in uploads
+      const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const pdfPath = path.join(uploadsDir, `report-${sessionId}.pdf`);
+      await generateSessionPdfReport(sessionId, userId, { outputPath: pdfPath });
     } catch (reportError) {
       console.error('Report generation failed:', reportError);
     }
@@ -97,6 +108,39 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function downloadSessionPdf(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const sessionId = req.params.sessionId as string;
+    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+
+    const pdfPath = path.join(__dirname, '..', '..', 'uploads', `report-${sessionId}.pdf`);
+    
+    // If not cached, generate on-the-fly
+    if (!fs.existsSync(pdfPath)) {
+      try {
+        const buffer = await generateSessionPdfReport(sessionId, userId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="session-report-${sessionId}.pdf"`);
+        res.send(buffer);
+        return;
+      } catch (err) {
+        res.status(404).json({ success: false, message: 'Report PDF could not be generated' });
+        return;
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="session-report-${sessionId}.pdf"`);
+    fs.createReadStream(pdfPath).pipe(res);
+  } catch (error) {
+    console.error('downloadSessionPdf error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
@@ -213,6 +257,64 @@ export async function getSessionActivitiesHandler(req: Request, res: Response): 
     res.json({ success: true, data: activities });
   } catch (error) {
     console.error('getSessionActivities error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function getDashboardData(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const activeSession = await getActiveSession(userId);
+    
+    if (!activeSession) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    const sessionId = activeSession.id;
+
+    // 1. Get session stats
+    const stats = await getAggregatedSessionStats(sessionId, userId);
+
+    // 2. Get top desktop apps for this session
+    const desktopApps = await prisma.desktopTelemetry.groupBy({
+      by: ['processName', 'category'],
+      where: { trackingSessionId: sessionId, userId },
+      _sum: { duration: true },
+      orderBy: { _sum: { duration: 'desc' } },
+      take: 10
+    });
+
+    // 3. Get top browser domains for this session
+    const browserDomains = await prisma.browserTelemetry.groupBy({
+      by: ['domain', 'category'],
+      where: { trackingSessionId: sessionId, userId },
+      _sum: { duration: true },
+      orderBy: { _sum: { duration: 'desc' } },
+      take: 10
+    });
+
+    // 4. Get recent activities
+    const recentActivities = await prisma.activityEvent.findMany({
+      where: { trackingSessionId: sessionId, userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    res.json({ 
+      success: true, 
+      data: {
+        session: activeSession,
+        stats,
+        desktopApps: desktopApps.map(a => ({ name: a.processName, category: a.category, duration: a._sum.duration || 0 })),
+        browserDomains: browserDomains.map(b => ({ name: b.domain, category: b.category, duration: b._sum.duration || 0 })),
+        recentActivities
+      } 
+    });
+  } catch (error) {
+    console.error('getDashboardData error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
