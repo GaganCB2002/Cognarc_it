@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { RefreshCw, Beaker, ShieldCheck } from "lucide-react";
+import { RefreshCw, Beaker, ShieldCheck, Home } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
 
-export default function LoginPage() {
+function LoginForm() {
   const { login } = useAuth();
   const searchParams = useSearchParams();
   const justRegistered = searchParams.get("registered") === "true";
@@ -32,8 +32,8 @@ export default function LoginPage() {
       setCaptchaQuestion(res.question);
       setCaptchaAnswer("");
       setCaptchaTimer(15);
-    } catch {
-      setError("Failed to load captcha. Please refresh.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load captcha");
     }
   }, []);
 
@@ -71,8 +71,11 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-semibold text-st-text-primary">sign in to your account</h3>
+      <div className="flex items-center mb-6">
+        <Link href="/" className="p-2 mr-3 rounded-lg hover:bg-st-bg-elevated transition-colors" aria-label="Home">
+          <Home className="w-5 h-5 text-st-text-secondary" />
+        </Link>
+        <h3 className="text-xl font-semibold text-st-text-primary flex-1">sign in to your account</h3>
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
             <Beaker size={14} className="mr-1" /> User
@@ -86,7 +89,7 @@ export default function LoginPage() {
       {justRegistered && (
         <div className="mb-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
           <p className="text-sm text-emerald-400 font-medium">✓ Registration successful!</p>
-          <p className="text-xs text-emerald-400/70 mt-1">Your account is pending admin approval. You will be able to login once approved (auto-approved after 24 hours).</p>
+          <p className="text-xs text-emerald-400/70 mt-1">Your account is ready. Sign in below to get started.</p>
         </div>
       )}
 
@@ -110,7 +113,7 @@ export default function LoginPage() {
             </div>
           </div>
           <p className="text-sm font-medium text-st-text-primary mb-3 text-center py-2 bg-st-bg-card rounded-lg border border-st-border/30 font-mono tracking-wider">{captchaQuestion || "Loading..."}</p>
-          <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value)} maxLength={6} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-[0.3em]" />
+          <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value.toLowerCase())} maxLength={6} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-[0.3em]" />
         </div>
 
         {error && <p className="text-sm text-st-danger text-center">{error}</p>}
@@ -124,5 +127,13 @@ export default function LoginPage() {
         <Link href="/register" className="font-medium text-st-accent hover:text-st-accent-hover">apply for early access</Link>
       </p>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-8 text-st-text-muted">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

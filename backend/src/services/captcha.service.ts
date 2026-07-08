@@ -4,7 +4,7 @@ const captchaStore = new Map<string, { answer: string; expiresAt: number }>();
 const CAPTCHA_EXPIRY_SECONDS = 120;
 const CAPTCHA_LENGTH = 6;
 
-const ALLOWED_CHARS = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const ALLOWED_CHARS = "abcdefghjkmnpqrstuvwxyz@#$!*+=";
 
 interface CaptchaQuestion {
   key: string;

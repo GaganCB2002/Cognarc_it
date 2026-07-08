@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../server';
-
+import { queueService } from '../services/queue.service';
 export async function getNotes(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
@@ -63,6 +63,9 @@ export async function createNote(req: Request, res: Response): Promise<void> {
       data: { userId, title, content, tags: tags || [], folderId: folderId || undefined },
     });
 
+    // Trigger AI Processing
+    queueService.enqueue("AI_PROCESS_NOTE", { noteId: note.id });
+
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     console.error('createNote error:', error);
@@ -87,6 +90,9 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
     if (folderId !== undefined) updateData.folderId = folderId || null;
 
     const note = await prisma.note.update({ where: { id }, data: updateData });
+
+    // Trigger AI Processing
+    queueService.enqueue("AI_PROCESS_NOTE", { noteId: note.id });
 
     res.json({ success: true, data: note });
   } catch (error) {

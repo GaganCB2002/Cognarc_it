@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import { prisma } from "../server";
 import { getFileType } from "../middleware/upload";
 import { saveFile, getFile as getStorageFile, deleteFile as deleteStorageFile, getLocalPath } from "../services/storage.service";
+import { queueService } from "../services/queue.service";
 
 interface AuthRequest extends Request {
   user?: { userId: string };
@@ -64,6 +65,9 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
       where: { id: document.id },
       data: { resourceId: resource.id },
     });
+
+    // Trigger asynchronous AI processing
+    queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: document.id });
 
     res.status(201).json({
       document,

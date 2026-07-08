@@ -29,6 +29,7 @@ import trackingRoutes from "./routes/tracking.routes";
 import exportRoutes from "./routes/export.routes";
 import insightsRoutes from "./routes/insights.routes";
 import webhookRoutes from "./routes/webhooks";
+import { projectIndexer } from "./services/project-indexer.service";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -127,6 +128,11 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  // Initialize project indexer in background (don't block startup)
+  const projectRoot = path.resolve(__dirname, "..", "..");
+  projectIndexer.initialize(projectRoot).catch((err) =>
+    console.error("Failed to initialize project indexer:", err)
+  );
 });
 
 process.on("unhandledRejection", (err) => {

@@ -6,9 +6,14 @@ import {
   listReports,
   getReportById,
   downloadPeriodicPdf,
+  getDailySummary,
+  triggerDailySummary,
 } from '../controllers/reportController';
 
 const router = Router();
+
+router.get('/daily-ai-summary', authenticate, getDailySummary);
+router.post('/daily-ai-summary/trigger', authenticate, triggerDailySummary);
 
 router.post('/sessions/:sessionId/generate', authenticate, createSessionReport);
 router.post('/periodic', authenticate, createPeriodicReport);

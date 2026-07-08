@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useSidebarStore } from "@/store/sidebarStore";
+import { ChatBotWidget } from "@/components/dashboard/ChatBotWidget";
 
 export default function DashboardLayout({
   children,
@@ -44,6 +45,9 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+
+      {/* Floating project-aware chatbot widget */}
+      <ChatBotWidget />
     </div>
   );
 }

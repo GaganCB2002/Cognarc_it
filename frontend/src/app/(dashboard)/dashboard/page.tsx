@@ -254,11 +254,17 @@ export default function DashboardPage() {
             </div>
             <Card className="p-5">
               <p className="text-sm text-st-text-secondary mb-4">
-                Keep up the great work! Complete your pending tasks to stay on track.
+                Ask StudyBot about the codebase — architecture, routes, database schema, or how any feature works.
               </p>
-              <Link href="/ai-assistant">
-                <Button variant="outline" className="w-full text-sm">Ask AI Assistant</Button>
-              </Link>
+              <p className="text-xs text-st-text-muted mb-3">
+                Uses <strong className="text-st-accent">RAG</strong> — searches actual source files for accurate answers.
+              </p>
+              <Button variant="outline" className="w-full text-sm" onClick={() => {
+                const event = new CustomEvent('opencode-chatbot-toggle');
+                window.dispatchEvent(event);
+              }}>
+                Open StudyBot
+              </Button>
             </Card>
           </div>
 
