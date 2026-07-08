@@ -91,17 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);
-    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin/users" : "/dashboard";
+    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
     router.push(dashboardPath);
   }, [router]);
 
   const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => {
     const res = await api.post<AuthResponse>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
-    api.setToken(res.token);
-    setToken(res.token);
-    setUser(res.user);
-    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin/users" : "/dashboard";
-    router.push(dashboardPath);
+    // New users are pending approval — do NOT auto-login
+    router.push("/login?registered=true");
   }, [router]);
 
   const logout = useCallback(async () => {

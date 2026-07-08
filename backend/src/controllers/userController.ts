@@ -214,3 +214,47 @@ export async function rejectUser(req: Request, res: Response): Promise<void> {
     res.status(500).json({ message: 'Internal server error' });
   }
 }
+
+export async function getAdminDashboardStats(req: Request, res: Response): Promise<void> {
+  try {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user?.userId },
+      select: { role: true },
+    });
+
+    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
+      res.status(403).json({ message: 'Access denied. Admin only.' });
+      return;
+    }
+
+    const [totalUsers, pendingUsers, approvedUsers, totalTasks, totalNotes, totalSessions] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isApproved: false, role: { notIn: ['ADMIN', 'SUPER_ADMIN'] } } }),
+      prisma.user.count({ where: { isApproved: true } }),
+      prisma.task.count(),
+      prisma.note.count(),
+      prisma.trackingSession.count(),
+    ]);
+
+    // Role breakdown
+    const roleBreakdown = await prisma.user.groupBy({
+      by: ['role'],
+      _count: { role: true },
+    });
+
+    res.status(200).json({
+      stats: {
+        totalUsers,
+        pendingUsers,
+        approvedUsers,
+        totalTasks,
+        totalNotes,
+        totalSessions,
+        roleBreakdown: roleBreakdown.map(r => ({ role: r.role, count: r._count.role })),
+      },
+    });
+  } catch (error) {
+    console.error('GetAdminDashboardStats error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}

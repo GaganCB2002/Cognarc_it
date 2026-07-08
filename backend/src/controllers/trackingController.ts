@@ -196,11 +196,18 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
       return;
     }
 
+    for (const ev of events) {
+      if (!ev.trackingSessionId) {
+        res.status(400).json({ message: 'Each event must have a trackingSessionId' });
+        return;
+      }
+    }
+
     const created = await prisma.$transaction(
       events.map((ev: any) =>
         prisma.activityEvent.create({
           data: {
-            trackingSessionId: ev.trackingSessionId || req.params.sessionId,
+            trackingSessionId: ev.trackingSessionId,
             userId,
             eventType: ev.eventType,
             category: (ev.category as any) || 'OTHER',

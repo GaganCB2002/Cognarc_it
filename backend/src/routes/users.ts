@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import { getUsers, getUserById, deleteUser, getUserStats, getPendingUsers, approveUser, rejectUser } from '../controllers/userController';
+import { getUsers, getUserById, deleteUser, getUserStats, getPendingUsers, approveUser, rejectUser, getAdminDashboardStats } from '../controllers/userController';
 
 const router = Router();
 
+router.get('/admin/stats', authenticate, getAdminDashboardStats);
 router.get('/pending', authenticate, getPendingUsers);
 router.get('/', authenticate, getUsers);
 router.get('/stats', authenticate, getUserStats);

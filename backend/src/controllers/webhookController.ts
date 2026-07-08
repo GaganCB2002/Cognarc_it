@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
 import { Webhook } from 'svix';
-import { WebhookEvent } from '@clerk/clerk-sdk-node';
 import { prisma } from '../server';
 
 export const clerkWebhookHandler = async (req: Request, res: Response) => {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!WEBHOOK_SECRET) {
-    throw new Error('Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env or .env.local');
+    res.status(200).json({ success: true, message: 'Webhook handling disabled - no CLERK_WEBHOOK_SECRET configured' });
+    return;
   }
 
   // Get the headers and body
@@ -31,7 +31,7 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
   // Create a new Svix instance with your secret.
   const wh = new Webhook(WEBHOOK_SECRET);
 
-  let evt: WebhookEvent;
+  let evt: any;
 
   // Verify the payload with the headers
   try {
@@ -39,7 +39,7 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
       "svix-id": svix_id,
       "svix-timestamp": svix_timestamp,
       "svix-signature": svix_signature,
-    }) as WebhookEvent;
+    });
   } catch (err) {
     console.error('Error verifying webhook:', err);
     res.status(400).json({
@@ -59,7 +59,7 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
 
     // Find primary email
     const primaryEmailObj = email_addresses.find(
-      (email) => email.id === primary_email_address_id
+      (email: any) => email.id === primary_email_address_id
     );
     const email = primaryEmailObj?.email_address || email_addresses[0]?.email_address;
     

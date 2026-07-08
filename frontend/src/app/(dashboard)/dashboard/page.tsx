@@ -17,6 +17,7 @@ import {
 export default function DashboardPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
+  const [pomodoroCount, setPomodoroCount] = useState(0);
 
   // Dynamic Data States
   const [tasks, setTasks] = useState<any[]>([]);
@@ -31,6 +32,8 @@ export default function DashboardPage() {
       interval = setInterval(() => setTimerSeconds(s => s - 1), 1000);
     } else if (timerSeconds === 0) {
       setTimerRunning(false);
+      setPomodoroCount(c => c + 1);
+      setTimerSeconds(25 * 60);
     }
     return () => clearInterval(interval);
   }, [timerRunning, timerSeconds]);
@@ -172,12 +175,15 @@ export default function DashboardPage() {
               <button onClick={() => setTimerRunning(!timerRunning)} className="hover:opacity-70 transition-opacity">
                 {timerRunning ? <Pause className="w-4 h-4 text-st-accent" /> : <PlayCircle className="w-4 h-4 text-st-accent" />}
               </button>
-              <button onClick={() => { setTimerSeconds(25*60); setTimerRunning(false); }} className="hover:opacity-70 transition-opacity">
+              <button onClick={() => { setTimerSeconds(25*60); setTimerRunning(false); setPomodoroCount(0); }} className="hover:opacity-70 transition-opacity">
                 <RotateCcw className="w-3 h-3 text-st-accent" />
               </button>
             </div>
           </div>
           <h3 className="text-2xl font-bold text-st-text-primary font-mono">{formatTime(timerSeconds)}</h3>
+          {pomodoroCount > 0 && (
+            <p className="text-[10px] text-st-accent mt-1 font-medium">{pomodoroCount} session{pomodoroCount > 1 ? 's' : ''} completed</p>
+          )}
         </Card>
       </div>
 

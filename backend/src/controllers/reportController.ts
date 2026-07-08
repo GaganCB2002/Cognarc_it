@@ -119,7 +119,12 @@ export async function downloadPeriodicPdf(req: Request, res: Response): Promise<
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="periodic-report-${reportId}.pdf"`);
-    fs.createReadStream(pdfPath).pipe(res);
+    const readStream = fs.createReadStream(pdfPath);
+    readStream.on('error', (err) => {
+      console.error('PDF stream error:', err);
+      if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming PDF' });
+    });
+    readStream.pipe(res);
   } catch (error) {
     console.error('downloadPeriodicPdf error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });

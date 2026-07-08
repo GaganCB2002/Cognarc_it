@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
@@ -11,6 +12,8 @@ import api from "@/lib/api";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const searchParams = useSearchParams();
+  const justRegistered = searchParams.get("registered") === "true";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +23,7 @@ export default function LoginPage() {
   const [captchaKey, setCaptchaKey] = useState("");
   const [captchaQuestion, setCaptchaQuestion] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaTimer, setCaptchaTimer] = useState(15);
 
   const fetchCaptcha = useCallback(async () => {
     try {
@@ -27,6 +31,7 @@ export default function LoginPage() {
       setCaptchaKey(res.key);
       setCaptchaQuestion(res.question);
       setCaptchaAnswer("");
+      setCaptchaTimer(15);
     } catch {
       setError("Failed to load captcha. Please refresh.");
     }
@@ -35,6 +40,15 @@ export default function LoginPage() {
   useEffect(() => {
     fetchCaptcha();
   }, [fetchCaptcha]);
+
+  useEffect(() => {
+    if (captchaTimer > 0) {
+      const timer = setTimeout(() => setCaptchaTimer((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (captchaKey) {
+      fetchCaptcha();
+    }
+  }, [captchaTimer, captchaKey, fetchCaptcha]);
 
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -69,6 +83,13 @@ export default function LoginPage() {
         </div>
       </div>
 
+      {justRegistered && (
+        <div className="mb-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+          <p className="text-sm text-emerald-400 font-medium">✓ Registration successful!</p>
+          <p className="text-xs text-emerald-400/70 mt-1">Your account is pending admin approval. You will be able to login once approved (auto-approved after 24 hours).</p>
+        </div>
+      )}
+
       <motion.form key="credentials" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleLogin}>
         <Input label="email address" id="email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
         <div>
@@ -82,6 +103,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
             <div className="flex items-center gap-2">
+              <span className="text-[10px] text-st-text-muted font-mono">{captchaTimer}s</span>
               <button type="button" onClick={fetchCaptcha} className="text-st-text-muted hover:text-st-accent transition-colors" aria-label="Refresh captcha">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

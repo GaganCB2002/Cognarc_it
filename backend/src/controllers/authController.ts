@@ -30,15 +30,12 @@ export async function register(req: Request, res: Response): Promise<void> {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, emailVerified: new Date() },
+      data: { email, password: hashedPassword, name, emailVerified: new Date(), isApproved: false },
       omit: { password: true },
     });
 
-    const token = generateToken(user.id);
-
     res.status(201).json({
-      message: 'Registration successful.',
-      token,
+      message: 'Registration successful. Your account is pending admin approval. You will be able to login once approved (auto-approved after 24 hours).',
       user,
     });
   } catch (error) {
@@ -218,9 +215,14 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
     }
 
     const currentUser = await prisma.user.findUnique({ where: { id: userId } });
-    const currentSettings = currentUser?.settings
-      ? (typeof currentUser.settings === 'string' ? JSON.parse(currentUser.settings) : currentUser.settings)
-      : {};
+    let currentSettings: any = {};
+    if (currentUser?.settings) {
+      try {
+        currentSettings = typeof currentUser.settings === 'string' ? JSON.parse(currentUser.settings) : currentUser.settings;
+      } catch {
+        currentSettings = {};
+      }
+    }
 
     const mergedSettings = { ...currentSettings, ...settings };
 

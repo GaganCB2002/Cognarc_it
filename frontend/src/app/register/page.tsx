@@ -23,6 +23,7 @@ export default function RegisterPage() {
   const [captchaKey, setCaptchaKey] = useState("");
   const [captchaQuestion, setCaptchaQuestion] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaTimer, setCaptchaTimer] = useState(15);
 
   const fetchCaptcha = useCallback(async () => {
     try {
@@ -30,6 +31,7 @@ export default function RegisterPage() {
       setCaptchaKey(res.key);
       setCaptchaQuestion(res.question);
       setCaptchaAnswer("");
+      setCaptchaTimer(15);
     } catch {
       setError("Failed to load captcha. Please refresh.");
     }
@@ -38,6 +40,15 @@ export default function RegisterPage() {
   useEffect(() => {
     fetchCaptcha();
   }, [fetchCaptcha]);
+
+  useEffect(() => {
+    if (captchaTimer > 0) {
+      const timer = setTimeout(() => setCaptchaTimer((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (captchaKey) {
+      fetchCaptcha();
+    }
+  }, [captchaTimer, captchaKey, fetchCaptcha]);
 
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -125,11 +136,12 @@ export default function RegisterPage() {
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
                     <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-st-text-muted font-mono">{captchaTimer}s</span>
                       <button type="button" onClick={fetchCaptcha} className="text-st-text-muted hover:text-st-accent transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                   <p className="text-sm font-medium text-st-text-primary mb-3 text-center py-2 bg-st-bg-card rounded-lg border border-st-border/30 font-mono tracking-wider">{captchaQuestion || "Loading..."}</p>
-                  <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value)} maxLength={6} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-[0.3em]" />
+                  <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value.toLowerCase())} maxLength={6} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-[0.3em]" />
                 </div>
                 {error && <p className="text-sm text-st-danger text-center">{error}</p>}
                 <div className="pt-4 border-t border-st-border">
