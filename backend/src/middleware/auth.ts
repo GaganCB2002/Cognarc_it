@@ -9,47 +9,33 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   try {
-    let token: string | undefined;
-
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
-    if (!token) {
-      res.status(401).json({ message: 'Authentication required' });
-      return;
-    }
-
+    const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
-    req.user = decoded;
+    
+    req.user = { userId: decoded.userId };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Invalid or expired token' });
+    return res.status(401).json({ message: 'Invalid or expired token' });
   }
-}
+};
 
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
   try {
-    let token: string | undefined;
-
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
-    }
-
-    if (token) {
+      const token = authHeader.split(' ')[1];
       const decoded = verifyToken(token);
-      req.user = decoded;
+      req.user = { userId: decoded.userId };
     }
-  } catch {
-    // Ignore invalid tokens for optional auth
+  } catch (error) {
+    // Ignore invalid token for optional auth
   }
   next();
-}
+};

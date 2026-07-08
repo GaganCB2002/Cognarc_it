@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { api } from "@/lib/api";
 import {
   FileText, Plus, Search, Pin, Tag, Folder, Save, Bold, Italic,
   Code, List, Link2, Image, Table, Sparkles, Clock, ChevronRight
@@ -14,23 +15,80 @@ type Note = {
   isPinned: boolean; updatedAt: string; wordCount: number;
 };
 
-const mockNotes: Note[] = [
-  { id: "1", title: "Kafka Partitioning Deep Dive", content: "Kafka partitions are the unit of parallelism. Each partition is an ordered, immutable sequence of records...", tags: ["kafka", "distributed-systems"], folder: "System Design", isPinned: true, updatedAt: "2 hours ago", wordCount: 1420 },
-  { id: "2", title: "Dynamic Programming Patterns", content: "Top-down (Memoization) vs Bottom-up (Tabulation). Key patterns: Knapsack, LCS, LIS, Matrix Chain...", tags: ["algorithms", "dp"], folder: "Algorithms", isPinned: true, updatedAt: "Yesterday", wordCount: 890 },
-  { id: "3", title: "Docker Best Practices", content: "Use multi-stage builds. Keep images small. Use .dockerignore. Don't run as root...", tags: ["docker", "devops"], folder: "DevOps", isPinned: false, updatedAt: "3 days ago", wordCount: 650 },
-  { id: "4", title: "React Server Components Notes", content: "RSC allows rendering on the server without hydration costs. Streaming with Suspense boundaries...", tags: ["react", "frontend"], folder: "Frontend", isPinned: false, updatedAt: "1 week ago", wordCount: 1100 },
-  { id: "5", title: "Interview Prep - System Design", content: "Key topics: Load balancing, caching, database sharding, message queues, microservices...", tags: ["interview", "system-design"], folder: "Career", isPinned: false, updatedAt: "1 week ago", wordCount: 2300 },
-];
-
 const folders = ["All Notes", "System Design", "Algorithms", "DevOps", "Frontend", "Career"];
 
 export default function NotesPage() {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState("All Notes");
-  const [selectedNote, setSelectedNote] = useState<Note | null>(mockNotes[0]);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [noteContent, setNoteContent] = useState(mockNotes[0].content);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const filtered = mockNotes.filter(n => {
+  const fetchNotes = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/notes') as any;
+      if (res && res.data) {
+        setNotes(res.data);
+        if (res.data.length > 0 && !selectedNote) {
+          setSelectedNote(res.data[0]);
+          setNoteContent(res.data[0].content);
+          setNoteTitle(res.data[0].title);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch notes", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  const handleSelectNote = (note: Note) => {
+    setSelectedNote(note);
+    setNoteContent(note.content);
+    setNoteTitle(note.title);
+  };
+
+  const handleCreateNote = async () => {
+    try {
+      const res = await api.post('/notes', {
+        title: "Untitled Note",
+        content: "",
+        tags: [],
+        folder: selectedFolder === "All Notes" ? "General" : selectedFolder
+      }) as any;
+      setNotes(prev => [res.data, ...prev]);
+      handleSelectNote(res.data);
+    } catch (err) {
+      console.error("Failed to create note", err);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!selectedNote) return;
+    try {
+      setSaving(true);
+      const res = await api.put(`/notes/${selectedNote.id}`, {
+        title: noteTitle,
+        content: noteContent
+      }) as any;
+      setNotes(prev => prev.map(n => n.id === selectedNote.id ? res.data : n));
+      setSelectedNote(res.data);
+    } catch (err) {
+      console.error("Failed to save note", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filtered = notes.filter(n => {
     if (selectedFolder !== "All Notes" && n.folder !== selectedFolder) return false;
     if (searchQuery && !n.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -43,7 +101,7 @@ export default function NotesPage() {
           <p className="text-[10px] font-bold tracking-widest text-st-accent uppercase mb-1">Knowledge Base</p>
           <h1 className="text-3xl font-bold text-st-text-primary">Notes</h1>
         </div>
-        <Button variant="primary" size="sm"><Plus className="w-4 h-4 mr-1" />New Note</Button>
+        <Button onClick={handleCreateNote} variant="primary" size="sm"><Plus className="w-4 h-4 mr-1" />New Note</Button>
       </div>
 
       <div className="flex-1 grid grid-cols-12 gap-6 min-h-0 overflow-hidden">
@@ -64,22 +122,28 @@ export default function NotesPage() {
             <input type="text" placeholder="Search notes..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
           </div>
-          {filtered.map(note => (
-            <Card key={note.id} onClick={() => { setSelectedNote(note); setNoteContent(note.content); }}
-              className={`p-4 cursor-pointer transition-all ${selectedNote?.id === note.id ? "border-st-accent/50 bg-st-bg-elevated" : "hover:border-st-accent/20"}`}>
-              <div className="flex items-start justify-between mb-1">
-                <h4 className="font-semibold text-sm text-st-text-primary truncate flex-1">{note.title}</h4>
-                {note.isPinned && <Pin className="w-3 h-3 text-st-accent shrink-0 ml-2" />}
-              </div>
-              <p className="text-xs text-st-text-muted line-clamp-2 mb-2">{note.content}</p>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1">
-                  {note.tags.slice(0, 2).map(t => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-primary text-st-text-muted">{t}</span>)}
+          {loading ? (
+            <div className="p-8 text-center text-st-text-muted">Loading...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-st-text-muted">No notes found.</div>
+          ) : (
+            filtered.map(note => (
+              <Card key={note.id} onClick={() => handleSelectNote(note)}
+                className={`p-4 cursor-pointer transition-all ${selectedNote?.id === note.id ? "border-st-accent/50 bg-st-bg-elevated" : "hover:border-st-accent/20"}`}>
+                <div className="flex items-start justify-between mb-1">
+                  <h4 className="font-semibold text-sm text-st-text-primary truncate flex-1">{note.title}</h4>
+                  {note.isPinned && <Pin className="w-3 h-3 text-st-accent shrink-0 ml-2" />}
                 </div>
-                <span className="text-[10px] text-st-text-muted">{note.updatedAt}</span>
-              </div>
-            </Card>
-          ))}
+                <p className="text-xs text-st-text-muted line-clamp-2 mb-2">{note.content}</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-1">
+                    {(note.tags || []).slice(0, 2).map(t => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-primary text-st-text-muted">{t}</span>)}
+                  </div>
+                  <span className="text-[10px] text-st-text-muted">{new Date(note.updatedAt).toLocaleDateString()}</span>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Editor */}
@@ -87,13 +151,14 @@ export default function NotesPage() {
           {selectedNote ? (
             <>
               <div className="flex items-center justify-between">
-                <input type="text" defaultValue={selectedNote.title}
+                <input type="text" value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)}
                   className="text-2xl font-bold bg-transparent text-st-text-primary focus:outline-none flex-1" />
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-st-text-muted flex items-center gap-1"><Clock className="w-3 h-3" />{selectedNote.updatedAt}</span>
-                  <span className="text-xs text-st-text-muted">{selectedNote.wordCount} words</span>
-                  <Button variant="outline" size="sm"><Sparkles className="w-3 h-3 mr-1" />AI Summary</Button>
-                  <Button variant="primary" size="sm"><Save className="w-3 h-3 mr-1" />Save</Button>
+                  <span className="text-xs text-st-text-muted flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(selectedNote.updatedAt).toLocaleString()}</span>
+                  <span className="text-xs text-st-text-muted">{noteContent.split(/\s+/).filter(w => w.length > 0).length} words</span>
+                  <Button onClick={handleSaveNote} variant="primary" size="sm" disabled={saving}>
+                    <Save className="w-3 h-3 mr-1" />{saving ? 'Saving...' : 'Save'}
+                  </Button>
                 </div>
               </div>
 
@@ -114,7 +179,7 @@ export default function NotesPage() {
               {/* Tags */}
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-st-text-muted" />
-                {selectedNote.tags.map(t => <Badge key={t} variant="outline">{t}</Badge>)}
+                {(selectedNote.tags || []).map(t => <Badge key={t} variant="outline">{t}</Badge>)}
                 <button className="text-xs text-st-text-muted hover:text-st-accent">+ Add tag</button>
               </div>
             </>

@@ -26,13 +26,7 @@ interface User {
   settings?: any;
 }
 
-interface LoginStep1Response {
-  message: string;
-  otpKey: string;
-  userId: string;
-}
-
-interface LoginStep2Response {
+interface AuthResponse {
   message: string;
   token: string;
   user: User;
@@ -43,10 +37,8 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  loginStep1: (email: string, password: string, captchaKey: string, captchaAnswer: number) => Promise<LoginStep1Response>;
-  loginStep2: (userId: string, otpKey: string, otp: string) => Promise<void>;
-  register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: number) => Promise<LoginStep1Response>;
-  verifyEmail: (userId: string, otpKey: string, otp: string) => Promise<void>;
+  login: (email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
+  register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -94,28 +86,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const loginStep1 = useCallback(async (email: string, password: string, captchaKey: string, captchaAnswer: number) => {
-    return api.post<LoginStep1Response>("/auth/login", { email, password, captchaKey, captchaAnswer });
-  }, []);
-
-  const loginStep2 = useCallback(async (userId: string, otpKey: string, otp: string) => {
-    const res = await api.post<LoginStep2Response>("/auth/login/verify", { userId, otpKey, otp });
+  const login = useCallback(async (email: string, password: string, captchaKey: string, captchaAnswer: string) => {
+    const res = await api.post<AuthResponse>("/auth/login", { email, password, captchaKey, captchaAnswer });
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);
-    router.push("/curriculum");
+    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin/users" : "/dashboard";
+    router.push(dashboardPath);
   }, [router]);
 
-  const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: number) => {
-    return api.post<LoginStep1Response>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
-  }, []);
-
-  const verifyEmail = useCallback(async (userId: string, otpKey: string, otp: string) => {
-    const res = await api.post<LoginStep2Response>("/auth/register/verify", { userId, otpKey, otp });
+  const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => {
+    const res = await api.post<AuthResponse>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);
-    router.push("/curriculum");
+    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin/users" : "/dashboard";
+    router.push(dashboardPath);
   }, [router]);
 
   const logout = useCallback(async () => {
@@ -132,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, token, isLoading, isAuthenticated,
-      loginStep1, loginStep2, register, verifyEmail, logout, refreshUser,
+      login, register, logout, refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

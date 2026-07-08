@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { LiveActivityWidget } from "@/components/dashboard/LiveActivityWidget";
+import { api } from "@/lib/api";
 import {
   Flame, CheckCircle2, Clock, PlayCircle, Pause, RotateCcw,
   BookOpen, Code, Brain, Calendar, FileText, TrendingUp,
@@ -15,6 +17,56 @@ import {
 export default function DashboardPage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
+
+  // Dynamic Data States
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [notesCount, setNotesCount] = useState(0);
+  const [totalStudyHours, setTotalStudyHours] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (timerRunning && timerSeconds > 0) {
+      interval = setInterval(() => setTimerSeconds(s => s - 1), 1000);
+    } else if (timerSeconds === 0) {
+      setTimerRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerRunning, timerSeconds]);
+
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        setLoading(true);
+        // Fetch Tasks
+        const tasksRes = await api.get('/tasks') as any;
+        if (tasksRes && tasksRes.data) setTasks(tasksRes.data);
+
+        // Fetch Calendar Events (Next 7 days)
+        const start = new Date().toISOString();
+        const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const calRes = await api.get(`/calendar?start=${start}&end=${end}`) as any;
+        if (calRes && calRes.data) setEvents(calRes.data);
+
+        // Fetch Notes Count
+        const notesRes = await api.get('/notes') as any;
+        if (notesRes && notesRes.data) setNotesCount(notesRes.data.length);
+
+        // Fetch Sessions for Study Hours
+        const sessionsRes = await api.get('/tracking/sessions') as any;
+        if (sessionsRes && sessionsRes.data) {
+          const totalSecs = sessionsRes.data.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
+          setTotalStudyHours(+(totalSecs / 3600).toFixed(1));
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDashboardData();
+  }, []);
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
@@ -29,27 +81,20 @@ export default function DashboardPage() {
     { name: "AI Chat", icon: Brain, href: "/ai-assistant", color: "text-st-accent" },
   ];
 
-  const recentActivities = [
-    { text: "Completed Docker Multi-stage Builds", time: "2 hours ago", color: "bg-st-success" },
-    { text: "Uploaded 'Designing Data-Intensive Applications'", time: "Yesterday", color: "bg-st-accent" },
-    { text: "Finished System Design Mock Interview", time: "2 days ago", color: "bg-blue-400" },
-    { text: "Completed 15 LeetCode Problems", time: "3 days ago", color: "bg-purple-400" },
-  ];
+  const todaysTasks = tasks
+    .filter(t => !t.dueDate || new Date(t.dueDate).toDateString() === new Date().toDateString() || t.status !== "DONE")
+    .slice(0, 4);
 
-  const todaysTasks = [
-    { title: "Review Kafka Partitioning Logic", priority: "Critical", time: "45 mins", category: "System Design", done: false },
-    { title: "Complete Dynamic Programming Quiz", priority: "Medium", time: "30 mins", category: "Algorithms", done: false },
-    { title: "Read CAP Theorem Paper", priority: "High", time: "60 mins", category: "Distributed Systems", done: true },
-  ];
-
-  const notifications = [
-    { text: "Your learning streak is at 14 days!", type: "achievement" },
-    { text: "New AI recommendation available", type: "info" },
-    { text: "Task deadline approaching: System Design Review", type: "warning" },
-  ];
+  const completedTasksCount = tasks.filter(t => t.status === "DONE").length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-8">
+    <div className="max-w-7xl mx-auto space-y-8 pb-8 relative">
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-st-bg-primary/50 backdrop-blur-sm">
+          <div className="animate-spin w-8 h-8 border-2 border-st-accent border-t-transparent rounded-full" />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
@@ -60,11 +105,10 @@ export default function DashboardPage() {
         <div className="flex items-center gap-4">
           <Link href="/reports" className="relative p-2 rounded-lg bg-st-bg-elevated border border-st-border hover:border-st-accent/50 transition-colors">
             <Bell className="w-5 h-5 text-st-text-secondary" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-st-danger rounded-full text-[10px] flex items-center justify-center text-white font-bold">3</span>
           </Link>
           <div className="flex items-center gap-2 px-4 py-2 bg-st-bg-elevated rounded-lg border border-st-border">
             <Flame className="w-5 h-5 text-st-accent" />
-            <span className="font-semibold text-st-text-primary">14 Day Streak</span>
+            <span className="font-semibold text-st-text-primary">0 Day Streak</span>
           </div>
         </div>
       </div>
@@ -87,12 +131,12 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Link href="/analytics">
+        <Link href="/tracking">
           <Card className="p-5 hover:border-st-accent/30 transition-all cursor-pointer">
             <p className="text-xs font-medium text-st-text-secondary mb-1">Study Hours</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary">24.5</h3>
-              <span className="text-xs text-st-success">+2.1h</span>
+              <h3 className="text-2xl font-bold text-st-text-primary">{totalStudyHours}</h3>
+              <span className="text-xs text-st-text-muted">Total</span>
             </div>
           </Card>
         </Link>
@@ -100,8 +144,7 @@ export default function DashboardPage() {
           <Card className="p-5 hover:border-st-accent/30 transition-all cursor-pointer">
             <p className="text-xs font-medium text-st-text-secondary mb-1">Tasks Done</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary">12/18</h3>
-              <span className="text-xs text-st-success">On track</span>
+              <h3 className="text-2xl font-bold text-st-text-primary">{completedTasksCount}/{tasks.length}</h3>
             </div>
           </Card>
         </Link>
@@ -109,8 +152,7 @@ export default function DashboardPage() {
           <Card className="p-5 hover:border-st-accent/30 transition-all cursor-pointer">
             <p className="text-xs font-medium text-st-text-secondary mb-1">Productivity</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-accent">92%</h3>
-              <span className="text-xs text-st-success">+5%</span>
+              <h3 className="text-2xl font-bold text-st-accent">--%</h3>
             </div>
           </Card>
         </Link>
@@ -118,8 +160,7 @@ export default function DashboardPage() {
           <Card className="p-5 hover:border-st-accent/30 transition-all cursor-pointer">
             <p className="text-xs font-medium text-st-text-secondary mb-1">Focus Score</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary">87</h3>
-              <span className="text-xs text-st-warning">-2</span>
+              <h3 className="text-2xl font-bold text-st-text-primary">--</h3>
             </div>
           </Card>
         </Link>
@@ -144,24 +185,25 @@ export default function DashboardPage() {
         {/* Today's Plan */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-st-text-primary">Today&apos;s Plan</h2>
+            <h2 className="text-xl font-bold text-st-text-primary">Active Tasks</h2>
             <Link href="/tasks" className="text-xs text-st-accent hover:underline">View All →</Link>
           </div>
           <Card className="p-0 overflow-hidden">
             <div className="divide-y divide-st-border">
+              {todaysTasks.length === 0 && <div className="p-6 text-center text-st-text-muted">No pending tasks!</div>}
               {todaysTasks.map((task, i) => (
-                <Link key={i} href="/tasks" className="p-5 flex gap-4 items-start hover:bg-st-bg-elevated transition-colors cursor-pointer block">
+                <Link key={task.id || i} href="/tasks" className="p-5 flex gap-4 items-start hover:bg-st-bg-elevated transition-colors cursor-pointer block">
                   <div className="mt-1">
-                    <CheckCircle2 className={`w-5 h-5 ${task.done ? "text-st-success" : "text-st-text-muted"}`} />
+                    <CheckCircle2 className={`w-5 h-5 ${task.status === "DONE" ? "text-st-success" : "text-st-text-muted"}`} />
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className={`font-semibold ${task.done ? "line-through text-st-text-muted" : "text-st-text-primary"}`}>{task.title}</h4>
-                      <Badge variant={task.priority === "Critical" ? "danger" : task.priority === "High" ? "warning" : "outline"}>{task.priority}</Badge>
+                      <h4 className={`font-semibold ${task.status === "DONE" ? "line-through text-st-text-muted" : "text-st-text-primary"}`}>{task.title}</h4>
+                      <Badge variant={task.priority === "CRITICAL" ? "danger" : task.priority === "HIGH" ? "warning" : "outline"}>{task.priority || "MEDIUM"}</Badge>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-st-text-muted">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {task.time}</span>
-                      <span>{task.category}</span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
+                      <span>{task.category || 'General'}</span>
                     </div>
                   </div>
                 </Link>
@@ -176,10 +218,10 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
-              { label: "Study Hours", current: 18, goal: 30, unit: "hrs" },
-              { label: "Tasks Completed", current: 12, goal: 20, unit: "" },
-              { label: "Coding Practice", current: 8, goal: 15, unit: "hrs" },
-              { label: "Documents Read", current: 3, goal: 5, unit: "" },
+              { label: "Study Hours", current: totalStudyHours, goal: 30, unit: "hrs" },
+              { label: "Tasks Completed", current: completedTasksCount, goal: 20, unit: "" },
+              { label: "Coding Practice", current: 0, goal: 15, unit: "hrs" },
+              { label: "Documents Read", current: 0, goal: 5, unit: "" },
             ].map((g, i) => (
               <Card key={i} className="p-4">
                 <div className="flex justify-between items-center mb-2">
@@ -196,6 +238,9 @@ export default function DashboardPage() {
 
         {/* Right Column */}
         <div className="space-y-6">
+          {/* Live Activity Widget */}
+          <LiveActivityWidget />
+
           {/* AI Recommendations */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
@@ -203,7 +248,7 @@ export default function DashboardPage() {
             </div>
             <Card className="p-5">
               <p className="text-sm text-st-text-secondary mb-4">
-                Based on your recent performance in System Design, I recommend reviewing <strong className="text-st-text-primary">Consistency Models</strong> before your mock interview on Friday.
+                Keep up the great work! Complete your pending tasks to stay on track.
               </p>
               <Link href="/ai-assistant">
                 <Button variant="outline" className="w-full text-sm">Ask AI Assistant</Button>
@@ -218,49 +263,17 @@ export default function DashboardPage() {
               <Link href="/calendar" className="text-xs text-st-accent hover:underline">View →</Link>
             </div>
             <Card className="p-0 overflow-hidden divide-y divide-st-border">
-              {[
-                { text: "System Design Review", time: "Today 2:00 PM", color: "bg-blue-400" },
-                { text: "Mock Interview", time: "Fri 10:00 AM", color: "bg-st-accent" },
-                { text: "Sprint Planning", time: "Mon 9:00 AM", color: "bg-purple-400" },
-              ].map((evt, i) => (
-                <div key={i} className="p-3 flex items-center gap-3 hover:bg-st-bg-elevated transition-colors">
-                  <div className={`w-2 h-2 rounded-full ${evt.color} shrink-0`} />
+              {events.length === 0 && <div className="p-4 text-center text-xs text-st-text-muted">No upcoming events.</div>}
+              {events.slice(0, 3).map((evt, i) => (
+                <div key={evt.id || i} className="p-3 flex items-center gap-3 hover:bg-st-bg-elevated transition-colors">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${evt.eventType === 'MEETING' ? 'bg-orange-400' : 'bg-st-accent'}`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-st-text-primary truncate">{evt.text}</p>
-                    <p className="text-xs text-st-text-muted">{evt.time}</p>
+                    <p className="text-sm font-medium text-st-text-primary truncate">{evt.title}</p>
+                    <p className="text-xs text-st-text-muted">{new Date(evt.startTime).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
             </Card>
-          </div>
-
-          {/* Notifications */}
-          <div className="space-y-3">
-            <h2 className="text-lg font-bold text-st-text-primary flex items-center gap-2"><Bell className="w-4 h-4 text-st-accent" />Notifications</h2>
-            <div className="space-y-2">
-              {notifications.map((n, i) => (
-                <Card key={i} className="p-3 flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${n.type === "achievement" ? "bg-st-success" : n.type === "warning" ? "bg-st-warning" : "bg-blue-400"}`} />
-                  <p className="text-sm text-st-text-secondary">{n.text}</p>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="space-y-3">
-            <h2 className="text-lg font-bold text-st-text-primary">Recent Activity</h2>
-            <div className="space-y-3">
-              {recentActivities.map((a, i) => (
-                <div key={i} className="flex gap-3">
-                  <div className={`w-2 h-2 mt-2 rounded-full ${a.color} shrink-0`} />
-                  <div>
-                    <p className="text-sm font-medium text-st-text-primary">{a.text}</p>
-                    <p className="text-xs text-st-text-muted">{a.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* Knowledge Vault Summary */}
@@ -272,15 +285,15 @@ export default function DashboardPage() {
             <Card className="p-4">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-lg font-bold text-st-text-primary">12</p>
+                  <p className="text-lg font-bold text-st-text-primary">--</p>
                   <p className="text-xs text-st-text-muted">PDFs</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-st-text-primary">5</p>
+                  <p className="text-lg font-bold text-st-text-primary">--</p>
                   <p className="text-xs text-st-text-muted">Videos</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-st-text-primary">28</p>
+                  <p className="text-lg font-bold text-st-text-primary">{notesCount}</p>
                   <p className="text-xs text-st-text-muted">Notes</p>
                 </div>
               </div>

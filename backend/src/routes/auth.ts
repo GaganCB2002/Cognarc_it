@@ -3,8 +3,6 @@ import { authenticate } from '../middleware/auth';
 import {
   register,
   login,
-  verifyEmail,
-  verifyLoginOTP,
   getMe,
   updateProfile,
   updateSettings,
@@ -13,7 +11,6 @@ import {
   forgotPassword,
   resetPassword,
   requestCaptcha,
-  resendOTP,
   logout,
 } from '../controllers/authController';
 
@@ -22,10 +19,7 @@ const router = Router();
 router.get('/captcha', requestCaptcha);
 
 router.post('/register', register);
-router.post('/register/verify', verifyEmail);
 router.post('/login', login);
-router.post('/login/verify', verifyLoginOTP);
-router.post('/resend-otp', resendOTP);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

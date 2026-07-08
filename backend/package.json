@@ -14,6 +14,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^4.13.23",
     "@octokit/rest": "^22.0.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -38,6 +39,8 @@
     "pdfkit": "^0.19.1",
     "pg": "^8.22.0",
     "prisma": "^7.8.0",
+    "socket.io": "^4.8.3",
+    "svix": "^1.96.1",
     "uuid": "^14.0.1"
   },
   "devDependencies": {

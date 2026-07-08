@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 class ApiClient {
   private token: string | null = null;
@@ -28,10 +28,6 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    if (!API_URL) {
-      throw new Error("NEXT_PUBLIC_API_URL environment variable is not set");
-    }
-
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
@@ -48,7 +44,6 @@ class ApiClient {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
-      credentials: "include",
     });
 
     if (response.status === 401) {
@@ -56,7 +51,8 @@ class ApiClient {
       if (this.onUnauthorized) {
         this.onUnauthorized();
       }
-      throw new Error("Authentication required");
+      const errorData = await response.json().catch(() => ({ message: "Authentication required" }));
+      throw new Error(errorData.message || errorData.error || "Authentication required");
     }
 
     if (!response.ok) {

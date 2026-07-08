@@ -64,6 +64,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const fetchCurrentSession = async () => {
+    if (!api.getToken()) {
+      setIsInitializing(false);
+      return;
+    }
     try {
       const res = (await api.get('/tracking/sessions/current')) as any;
       if (res?.data && (res.data.status === 'ACTIVE' || res.data.status === 'PAUSED')) {
@@ -116,19 +120,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [session.status]);
-
-  useEffect(() => {
-    if (session.status === 'ACTIVE' && session.sessionId && pathname) {
-      const module = pathname.split('/')[1] || 'home';
-      api.post(`/tracking/sessions/${session.sessionId}/activities`, {
-        trackingSessionId: session.sessionId,
-        eventType: 'PAGE_VIEW',
-        category: 'LEARNING',
-        module,
-        label: `Viewed ${module}`
-      }).catch(() => {});
-    }
-  }, [pathname, session.status, session.sessionId]);
 
   const startSession = async (projectName: string = 'General Deep Work') => {
     const loc = await getLocation();

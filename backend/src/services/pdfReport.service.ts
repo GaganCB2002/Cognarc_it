@@ -228,13 +228,13 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
       });
     }
 
-    // Complete the document
-    doc.end();
-
     if (options.outputPath) {
       const writeStream = fs.createWriteStream(options.outputPath);
       doc.pipe(writeStream);
     }
+
+    // Complete the document
+    doc.end();
   });
 }
 
@@ -400,11 +400,11 @@ export async function generatePeriodicPdfReport(reportId: string, userId: string
       doc.fillColor(secondaryColor).font('Helvetica-Oblique').fontSize(9).text('No external telemetry data recorded for this period.');
     }
 
-    doc.end();
-
     if (options.outputPath) {
       const writeStream = fs.createWriteStream(options.outputPath);
       doc.pipe(writeStream);
     }
+
+    doc.end();
   });
 }

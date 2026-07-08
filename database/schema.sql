@@ -89,6 +89,7 @@ CREATE TABLE "User" (
   password        TEXT            NULL,                           -- NULL for OAuth users
   avatar          TEXT            NULL,
   role            "Role"          NOT NULL DEFAULT 'STUDENT',
+  isApproved      BOOLEAN         NOT NULL DEFAULT FALSE,
   emailVerified   TIMESTAMP       NULL,
   provider        "AuthProvider"  NOT NULL DEFAULT 'LOCAL',
   providerId      TEXT            NULL,

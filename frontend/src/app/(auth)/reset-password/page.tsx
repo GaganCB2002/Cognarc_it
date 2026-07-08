@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { KeyRound, Lock, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { KeyRound, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 
 function ResetPasswordForm() {

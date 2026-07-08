@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../server";
+import { prisma, io } from "../server";
 import { getAggregatedStats } from "../services/analytics.service";
 
 // POST /api/telemetry/browser
@@ -38,6 +38,9 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
         trackingSessionId: activeSession.id 
       },
     });
+
+    // Emit live update
+    io.to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
 
     res.status(201).json({ success: true, data: event });
   } catch (error) {
@@ -83,6 +86,9 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
         trackingSessionId: activeSession.id
       },
     });
+
+    // Emit live update
+    io.to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });
 
     res.status(201).json({ success: true, data: event });
   } catch (error) {

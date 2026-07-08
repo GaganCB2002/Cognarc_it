@@ -160,9 +160,22 @@ export const generatePeriodicReport = async (
     return s + (sess.endTime.getTime() - sess.startTime.getTime() - sess.totalPauseMs) / 1000;
   }, 0);
   const totalSessions = sessions.length;
-  const avgScore = sessions.length > 0
-    ? Math.round(sessions.reduce((s, sess) => s + ((sess as any).productivityScore || 0), 0) / sessions.length)
-    : 0;
+
+  const sessionIds = sessions.map(s => s.id);
+  const allActivities = sessionIds.length > 0
+    ? await prisma.activityEvent.findMany({ where: { trackingSessionId: { in: sessionIds } } })
+    : [];
+
+  const byCategory: Record<string, number> = {};
+  let totalEventDuration = 0;
+  for (const a of allActivities) {
+    byCategory[a.category] = (byCategory[a.category] || 0) + a.duration;
+    totalEventDuration += a.duration;
+  }
+  const learningTime = (byCategory["LEARNING"] || 0) + (byCategory["READING"] || 0);
+  const codingTime = byCategory["CODING"] || 0;
+  const productiveTime = learningTime + codingTime;
+  const avgScore = totalDuration > 0 ? Math.round((productiveTime / totalDuration) * 100) : 0;
 
   // Aggregate external telemetry for the period
   const [browserEvents, desktopEvents] = await Promise.all([

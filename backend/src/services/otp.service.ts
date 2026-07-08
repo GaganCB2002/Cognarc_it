@@ -6,14 +6,6 @@ const RESET_TOKEN_EXPIRY_MINUTES = 15;
 const otpStore = new Map<string, { otp: string; userId: string; expiresAt: number; used: boolean }>();
 const resetTokenStore = new Map<string, { userId: string; expiresAt: number; used: boolean }>();
 
-function generateNumericOTP(length: number = 6): string {
-  let otp = "";
-  for (let i = 0; i < length; i++) {
-    otp += Math.floor(Math.random() * 10).toString();
-  }
-  return otp;
-}
-
 export function generateOTP(userId: string): { otp: string; key: string } {
   const existing = Array.from(otpStore.entries()).find(
     ([_, v]) => v.userId === userId && v.expiresAt > Date.now() && !v.used
@@ -22,7 +14,7 @@ export function generateOTP(userId: string): { otp: string; key: string } {
     return { otp: existing[1].otp, key: existing[0] };
   }
 
-  const otp = generateNumericOTP();
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
   const key = crypto.randomUUID();
   otpStore.set(key, {
     otp,

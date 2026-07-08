@@ -33,7 +33,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-st-bg-primary text-st-text-primary font-inter">
+      <body className="min-h-full flex flex-col bg-st-bg-primary text-st-text-primary font-inter" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

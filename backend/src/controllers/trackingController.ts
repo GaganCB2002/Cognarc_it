@@ -136,9 +136,18 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
       }
     }
 
+    if (!fs.existsSync(pdfPath)) {
+      res.status(404).json({ success: false, message: 'Report PDF not found' });
+      return;
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="session-report-${sessionId}.pdf"`);
-    fs.createReadStream(pdfPath).pipe(res);
+    const pdfStream = fs.createReadStream(pdfPath);
+    pdfStream.on('error', (err) => {
+      console.error('PDF stream error:', err);
+      if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming PDF' });
+    });
+    pdfStream.pipe(res);
   } catch (error) {
     console.error('downloadSessionPdf error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
@@ -150,14 +159,15 @@ export async function logActivity(req: Request, res: Response): Promise<void> {
     const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
-    const { trackingSessionId, eventType, category, module, entityId, entityType, label, duration, metadata } = req.body;
-    if (!trackingSessionId || !eventType) {
-      res.status(400).json({ message: 'trackingSessionId and eventType are required' });
+    const sessionId = req.params.sessionId as string;
+    const { eventType, category, module, entityId, entityType, label, duration, metadata } = req.body;
+    if (!sessionId || !eventType) {
+      res.status(400).json({ message: 'sessionId and eventType are required' });
       return;
     }
 
     const event = await logActivityEvent({
-      trackingSessionId,
+      trackingSessionId: sessionId,
       userId,
       eventType,
       category,
@@ -171,6 +181,43 @@ export async function logActivity(req: Request, res: Response): Promise<void> {
     res.status(201).json({ success: true, data: event });
   } catch (error) {
     console.error('logActivity error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function batchLogActivities(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const { events } = req.body;
+    if (!Array.isArray(events) || events.length === 0) {
+      res.status(400).json({ message: 'events array is required' });
+      return;
+    }
+
+    const created = await prisma.$transaction(
+      events.map((ev: any) =>
+        prisma.activityEvent.create({
+          data: {
+            trackingSessionId: ev.trackingSessionId || req.params.sessionId,
+            userId,
+            eventType: ev.eventType,
+            category: (ev.category as any) || 'OTHER',
+            module: ev.module || null,
+            entityId: ev.entityId || null,
+            entityType: ev.entityType || null,
+            label: ev.label || null,
+            duration: ev.duration || 0,
+            metadata: ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null,
+          },
+        })
+      )
+    );
+
+    res.status(201).json({ success: true, data: created, count: created.length });
+  } catch (error) {
+    console.error('batchLogActivities error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }
@@ -257,6 +304,64 @@ export async function getSessionActivitiesHandler(req: Request, res: Response): 
     res.json({ success: true, data: activities });
   } catch (error) {
     console.error('getSessionActivities error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}
+
+export async function getLiveTelemetry(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+
+    const activeSession = await prisma.trackingSession.findFirst({
+      where: { userId, status: { in: ["ACTIVE", "PAUSED"] } },
+      orderBy: { startTime: "desc" },
+    });
+
+    if (!activeSession) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    const sessionId = activeSession.id;
+
+    const [latestBrowser, latestDesktop] = await Promise.all([
+      prisma.browserTelemetry.findFirst({
+        where: { trackingSessionId: sessionId, userId },
+        orderBy: { timestamp: "desc" },
+      }),
+      prisma.desktopTelemetry.findFirst({
+        where: { trackingSessionId: sessionId, userId },
+        orderBy: { timestamp: "desc" },
+      }),
+    ]);
+
+    // Add estimated running seconds for the current live item
+    const now = Date.now();
+    const liveTab = latestBrowser
+      ? {
+          ...latestBrowser,
+          liveDuration: Math.floor((now - latestBrowser.timestamp.getTime()) / 1000) + latestBrowser.duration,
+        }
+      : null;
+
+    const liveApp = latestDesktop
+      ? {
+          ...latestDesktop,
+          liveDuration: Math.floor((now - latestDesktop.timestamp.getTime()) / 1000) + latestDesktop.duration,
+        }
+      : null;
+
+    res.json({
+      success: true,
+      data: {
+        session: activeSession,
+        liveTab,
+        liveApp,
+      },
+    });
+  } catch (error) {
+    console.error('getLiveTelemetry error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }

@@ -82,31 +82,7 @@ export default function CalendarPage() {
           type: e.eventType?.toLowerCase() || 'other',
         }));
         
-        // Merge with mock events for demonstration if backend is empty
-        if (formatted.length === 0) {
-          setEvents([
-            {
-              id: "m1",
-              title: "Deep Work Session (React)",
-              start: new Date(new Date().setHours(10, 0, 0, 0)),
-              end: new Date(new Date().setHours(12, 0, 0, 0)),
-              type: "learning",
-              color: "#10b981",
-              notes: "Topics learned:\n- React Server Components architecture\n- Suspense and Streaming SSR\n- Client vs Server boundaries\n\nDeveloped a small prototype using Next.js App Router."
-            },
-            {
-              id: "m2",
-              title: "Backend Refactoring",
-              start: new Date(new Date().setHours(14, 0, 0, 0)),
-              end: new Date(new Date().setHours(16, 30, 0, 0)),
-              type: "coding",
-              color: "#8b5cf6",
-              notes: "Tasks accomplished:\n- Migrated from CommonJS to ES Modules\n- Set up Prisma ORM schema\n- Fixed circular dependency issues in the auth service."
-            }
-          ]);
-        } else {
-          setEvents(formatted);
-        }
+        setEvents(formatted);
       } catch (error) {
         console.error("Failed to load calendar events", error);
         toast.error("Failed to load events from the server.");

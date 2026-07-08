@@ -24,6 +24,7 @@ import {
   User,
   Menu,
   X,
+  Shield,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SidebarSessionPanel } from "@/components/dashboard/SidebarSessionPanel";
@@ -66,11 +67,15 @@ function useMediaQuery(query: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const dynamicNavigation = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"
+    ? [...navigation, { name: "Admin Dashboard", href: "/admin", icon: Shield }]
+    : navigation;
 
   useEffect(() => {
     if (isTablet) {
@@ -147,7 +152,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {navigation.map((item) => {
+        {dynamicNavigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
           return (
             <Link
@@ -234,11 +239,7 @@ export function Sidebar() {
               <button className="w-10 h-10 flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors" aria-label="Help">
                 <HelpCircle className="w-4 h-4" />
               </button>
-              <button
-                onClick={logout}
-                className="w-10 h-10 flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-danger hover:bg-st-danger/10 transition-colors"
-                aria-label="Logout"
-              >
+              <button onClick={logout} className="w-10 h-10 flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-danger hover:bg-st-danger/10 transition-colors" aria-label="Logout">
                 <LogOut className="w-4 h-4" />
               </button>
             </motion.div>
@@ -255,12 +256,9 @@ export function Sidebar() {
               <HelpCircle className="w-4 h-4 shrink-0" />
               <span>Help</span>
             </button>
-            <button
-              onClick={logout}
-              className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors"
-            >
+            <button onClick={logout} className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-danger hover:bg-st-danger/10 transition-colors">
               <LogOut className="w-4 h-4 shrink-0" />
-              <span>Logout</span>
+              <span>{user?.name || "Sign Out"}</span>
             </button>
           </motion.div>
         )}

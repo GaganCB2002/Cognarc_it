@@ -15,12 +15,12 @@ function formatDuration(seconds: number) {
 
 export function SidebarSessionPanel() {
   const { session, startSession, pauseSession, resumeSession, stopSession, isInitializing } = useSession();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated: isSignedIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleStart = async () => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       setError("Sign in required");
       return;
     }
@@ -37,10 +37,9 @@ export function SidebarSessionPanel() {
 
   const handleStop = async () => {
     const reportData = await stopSession();
-    if (reportData && reportData.sessionId) {
-      // Trigger automatic download of the PDF report
-      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/tracking/sessions/${reportData.sessionId}/pdf`;
-      // Open in new tab/download
+    const sessionId = reportData?.session?.id || reportData?.id;
+    if (sessionId) {
+      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/tracking/sessions/${sessionId}/pdf`;
       window.open(downloadUrl, '_blank');
     }
   };

@@ -1,37 +1,85 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { api } from "@/lib/api";
 import {
   CheckCircle2, Circle, Clock, Plus, Filter, LayoutGrid, List,
-  Calendar, Tag, Paperclip, ChevronDown, Search, Archive
+  Calendar, Tag, Paperclip, ChevronDown, Search, Archive, X
 } from "lucide-react";
 
 type Task = {
   id: string; title: string; description: string; priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  status: "TODO" | "IN_PROGRESS" | "DONE"; dueDate: string; category: string; tags: string[];
-  checklist: { text: string; done: boolean }[];
+  status: "TODO" | "IN_PROGRESS" | "DONE"; dueDate: string | null; category: string | null;
+  checklist?: { text: string; done: boolean }[];
 };
-
-const mockTasks: Task[] = [
-  { id: "1", title: "Review Kafka Partitioning Logic", description: "Memory consolidation phase. Review the whitepaper and notes.", priority: "CRITICAL", status: "TODO", dueDate: "2026-07-08", category: "System Design", tags: ["review", "kafka"], checklist: [{ text: "Read whitepaper", done: true }, { text: "Write notes", done: false }] },
-  { id: "2", title: "Complete Dynamic Programming Quiz", description: "Knapsack and LCS variations.", priority: "MEDIUM", status: "TODO", dueDate: "2026-07-09", category: "Algorithms", tags: ["practice"], checklist: [] },
-  { id: "3", title: "Build REST API Authentication", description: "Implement JWT auth with refresh tokens.", priority: "HIGH", status: "IN_PROGRESS", dueDate: "2026-07-10", category: "Backend", tags: ["coding", "auth"], checklist: [{ text: "Setup JWT", done: true }, { text: "Refresh tokens", done: false }, { text: "Tests", done: false }] },
-  { id: "4", title: "Read CAP Theorem Paper", description: "Brewer's CAP theorem deep dive.", priority: "MEDIUM", status: "DONE", dueDate: "2026-07-06", category: "Distributed Systems", tags: ["reading"], checklist: [{ text: "Read paper", done: true }, { text: "Write summary", done: true }] },
-  { id: "5", title: "Docker Multi-stage Builds", description: "Optimize container images with multi-stage builds.", priority: "LOW", status: "DONE", dueDate: "2026-07-05", category: "DevOps", tags: ["docker"], checklist: [] },
-  { id: "6", title: "Design Database Schema for Analytics", description: "Create normalized schema for telemetry data.", priority: "HIGH", status: "IN_PROGRESS", dueDate: "2026-07-11", category: "Database", tags: ["design", "analytics"], checklist: [{ text: "ER Diagram", done: true }, { text: "Migration script", done: false }] },
-];
 
 const priorityColors: Record<string, string> = { CRITICAL: "danger", HIGH: "warning", MEDIUM: "outline", LOW: "success" };
 
 export default function TasksPage() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [filter, setFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // New task form state
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDesc, setNewTaskDesc] = useState("");
+  const [newTaskPriority, setNewTaskPriority] = useState<"LOW" | "MEDIUM" | "HIGH" | "CRITICAL">("MEDIUM");
 
-  const filtered = mockTasks.filter(t => {
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/tasks') as any;
+      if (res && res.data) setTasks(res.data);
+    } catch (err) {
+      console.error("Failed to fetch tasks", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const handleCreateTask = async () => {
+    if (!newTaskTitle) return;
+    try {
+      const res = await api.post('/tasks', {
+        title: newTaskTitle,
+        description: newTaskDesc,
+        priority: newTaskPriority,
+        status: "TODO",
+      }) as any;
+      setTasks(prev => [res.data, ...prev]);
+      setIsModalOpen(false);
+      setNewTaskTitle("");
+      setNewTaskDesc("");
+      setNewTaskPriority("MEDIUM");
+    } catch (err) {
+      console.error("Failed to create task", err);
+    }
+  };
+
+  const toggleTaskStatus = async (task: Task) => {
+    const newStatus = task.status === "DONE" ? "TODO" : "DONE";
+    try {
+      // Optimistic update
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+      await api.put(`/tasks/${task.id}`, { status: newStatus });
+    } catch (err) {
+      console.error("Failed to update status", err);
+      // Revert on fail
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
+    }
+  };
+
+  const filtered = tasks.filter(t => {
     if (filter !== "ALL" && t.status !== filter) return false;
     if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
@@ -44,14 +92,20 @@ export default function TasksPage() {
   ];
 
   const TaskCard = ({ task }: { task: Task }) => (
-    <Card className="p-4 hover:border-st-accent/30 transition-all cursor-pointer group">
+    <Card className="p-4 hover:border-st-accent/30 transition-all group">
       <div className="flex justify-between items-start mb-2">
-        <h4 className="font-semibold text-sm text-st-text-primary group-hover:text-st-accent transition-colors">{task.title}</h4>
+        <div className="flex gap-2 items-start">
+          <button onClick={() => toggleTaskStatus(task)} className="mt-0.5 text-st-text-muted hover:text-st-accent">
+            {task.status === "DONE" ? <CheckCircle2 className="w-4 h-4 text-st-success" /> : <Circle className="w-4 h-4" />}
+          </button>
+          <h4 className={`font-semibold text-sm transition-colors ${task.status === "DONE" ? 'line-through text-st-text-muted' : 'text-st-text-primary group-hover:text-st-accent'}`}>{task.title}</h4>
+        </div>
         <Badge variant={priorityColors[task.priority] as any}>{task.priority}</Badge>
       </div>
-      <p className="text-xs text-st-text-muted mb-3 line-clamp-2">{task.description}</p>
-      {task.checklist.length > 0 && (
-        <div className="mb-3">
+      {task.description && <p className="text-xs text-st-text-muted mb-3 line-clamp-2 ml-6">{task.description}</p>}
+      
+      {task.checklist && task.checklist.length > 0 && (
+        <div className="mb-3 ml-6">
           <div className="flex items-center gap-2 mb-1">
             <div className="flex-1 h-1.5 bg-st-bg-elevated rounded-full overflow-hidden">
               <div className="h-full bg-st-accent rounded-full" style={{ width: `${(task.checklist.filter(c => c.done).length / task.checklist.length) * 100}%` }} />
@@ -60,19 +114,18 @@ export default function TasksPage() {
           </div>
         </div>
       )}
-      <div className="flex items-center justify-between">
+      
+      <div className="flex items-center justify-between ml-6">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-st-text-muted flex items-center gap-1"><Calendar className="w-3 h-3" />{task.dueDate}</span>
+          {task.dueDate && <span className="text-[10px] text-st-text-muted flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(task.dueDate).toLocaleDateString()}</span>}
         </div>
-        <div className="flex gap-1">
-          {task.tags.slice(0, 2).map(t => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-elevated text-st-text-muted">{t}</span>)}
-        </div>
+        {task.category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-elevated text-st-text-muted">{task.category}</span>}
       </div>
     </Card>
   );
 
   return (
-    <div className="h-full flex flex-col gap-6">
+    <div className="h-full flex flex-col gap-6 relative">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -89,7 +142,7 @@ export default function TasksPage() {
             <button onClick={() => setViewMode("kanban")} className={`p-2 ${viewMode === "kanban" ? "bg-st-accent/10 text-st-accent" : "text-st-text-muted hover:text-st-text-primary"}`}><LayoutGrid className="w-4 h-4" /></button>
             <button onClick={() => setViewMode("list")} className={`p-2 ${viewMode === "list" ? "bg-st-accent/10 text-st-accent" : "text-st-text-muted hover:text-st-text-primary"}`}><List className="w-4 h-4" /></button>
           </div>
-          <Button variant="primary" size="sm"><Plus className="w-4 h-4 mr-1" />New Task</Button>
+          <Button onClick={() => setIsModalOpen(true)} variant="primary" size="sm"><Plus className="w-4 h-4 mr-1" />New Task</Button>
         </div>
       </div>
 
@@ -99,53 +152,101 @@ export default function TasksPage() {
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${filter === f ? "bg-st-accent text-black" : "bg-st-bg-elevated text-st-text-secondary hover:text-st-text-primary border border-st-border"}`}>
             {f === "ALL" ? "All" : f === "IN_PROGRESS" ? "In Progress" : f === "TODO" ? "To Do" : "Done"}
-            <span className="ml-1.5 opacity-70">({f === "ALL" ? mockTasks.length : mockTasks.filter(t => t.status === f).length})</span>
+            <span className="ml-1.5 opacity-70">({f === "ALL" ? tasks.length : tasks.filter(t => t.status === f).length})</span>
           </button>
         ))}
       </div>
 
-      {/* Kanban View */}
-      {viewMode === "kanban" ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
-          {columns.map(col => (
-            <div key={col.key} className="flex flex-col gap-4">
-              <div className={`flex items-center justify-between border-b-2 ${col.color} pb-3`}>
-                <h3 className="font-semibold text-sm text-st-text-primary">{col.label}</h3>
-                <Badge variant="outline">{filtered.filter(t => t.status === col.key).length}</Badge>
-              </div>
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                {filtered.filter(t => t.status === col.key).map(task => <TaskCard key={task.id} task={task} />)}
-              </div>
-            </div>
-          ))}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-2 border-st-accent border-t-transparent rounded-full" />
         </div>
       ) : (
-        /* List View */
-        <Card className="p-0 overflow-hidden flex-1">
-          <div className="divide-y divide-st-border">
-            <div className="grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-st-text-muted uppercase tracking-wider bg-st-bg-elevated">
-              <div className="col-span-1">Status</div><div className="col-span-4">Task</div><div className="col-span-2">Priority</div>
-              <div className="col-span-2">Category</div><div className="col-span-2">Due Date</div><div className="col-span-1">Progress</div>
+        <>
+          {/* Kanban View */}
+          {viewMode === "kanban" ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+              {columns.map(col => (
+                <div key={col.key} className="flex flex-col gap-4">
+                  <div className={`flex items-center justify-between border-b-2 ${col.color} pb-3`}>
+                    <h3 className="font-semibold text-sm text-st-text-primary">{col.label}</h3>
+                    <Badge variant="outline">{filtered.filter(t => t.status === col.key).length}</Badge>
+                  </div>
+                  <div className="space-y-3 flex-1 overflow-y-auto">
+                    {filtered.filter(t => t.status === col.key).map(task => <TaskCard key={task.id} task={task} />)}
+                  </div>
+                </div>
+              ))}
             </div>
-            {filtered.map(task => (
-              <div key={task.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-st-bg-elevated transition-colors cursor-pointer">
-                <div className="col-span-1">{task.status === "DONE" ? <CheckCircle2 className="w-5 h-5 text-st-success" /> : <Circle className="w-5 h-5 text-st-text-muted" />}</div>
-                <div className="col-span-4">
-                  <h4 className={`font-medium text-sm ${task.status === "DONE" ? "line-through text-st-text-muted" : "text-st-text-primary"}`}>{task.title}</h4>
-                  <p className="text-xs text-st-text-muted mt-0.5 truncate">{task.description}</p>
+          ) : (
+            /* List View */
+            <Card className="p-0 overflow-hidden flex-1">
+              <div className="divide-y divide-st-border overflow-y-auto max-h-full">
+                <div className="grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-st-text-muted uppercase tracking-wider bg-st-bg-elevated sticky top-0">
+                  <div className="col-span-1">Status</div><div className="col-span-5">Task</div><div className="col-span-2">Priority</div>
+                  <div className="col-span-2">Category</div><div className="col-span-2">Due Date</div>
                 </div>
-                <div className="col-span-2"><Badge variant={priorityColors[task.priority] as any}>{task.priority}</Badge></div>
-                <div className="col-span-2"><span className="text-sm text-st-text-secondary">{task.category}</span></div>
-                <div className="col-span-2"><span className="text-sm text-st-text-muted flex items-center gap-1"><Clock className="w-3 h-3" />{task.dueDate}</span></div>
-                <div className="col-span-1">
-                  {task.checklist.length > 0 ? (
-                    <span className="text-xs text-st-text-muted">{task.checklist.filter(c => c.done).length}/{task.checklist.length}</span>
-                  ) : <span className="text-xs text-st-text-muted">—</span>}
-                </div>
+                {filtered.length === 0 && <div className="p-8 text-center text-st-text-muted">No tasks found.</div>}
+                {filtered.map(task => (
+                  <div key={task.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-st-bg-elevated transition-colors">
+                    <div className="col-span-1">
+                      <button onClick={() => toggleTaskStatus(task)} className="text-st-text-muted hover:text-st-accent">
+                        {task.status === "DONE" ? <CheckCircle2 className="w-5 h-5 text-st-success" /> : <Circle className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    <div className="col-span-5">
+                      <h4 className={`font-medium text-sm ${task.status === "DONE" ? "line-through text-st-text-muted" : "text-st-text-primary"}`}>{task.title}</h4>
+                      {task.description && <p className="text-xs text-st-text-muted mt-0.5 truncate">{task.description}</p>}
+                    </div>
+                    <div className="col-span-2"><Badge variant={priorityColors[task.priority] as any}>{task.priority}</Badge></div>
+                    <div className="col-span-2"><span className="text-sm text-st-text-secondary">{task.category || '—'}</span></div>
+                    <div className="col-span-2">
+                      <span className="text-sm text-st-text-muted flex items-center gap-1">
+                        {task.dueDate ? <><Clock className="w-3 h-3" /> {new Date(task.dueDate).toLocaleDateString()}</> : '—'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Quick Add Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className="w-[400px] p-6 space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-bold text-lg text-st-text-primary">Create New Task</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-st-text-muted hover:text-st-text-primary"><X className="w-5 h-5"/></button>
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Title</label>
+              <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} autoFocus
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Description</label>
+              <textarea value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)}
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Priority</label>
+              <select value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button onClick={() => setIsModalOpen(false)} variant="outline">Cancel</Button>
+              <Button onClick={handleCreateTask} variant="primary" disabled={!newTaskTitle}>Create Task</Button>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
