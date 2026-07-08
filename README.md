@@ -1,7 +1,13 @@
-# StudyTrack — AI Developer Learning OS
+<div align="center">
+  
+# 💎 StudyTrack 💎
+### ✨ AI Developer Learning OS ✨
 
-> Deep work tracker, AI tutor, curriculum planner, and productivity analytics platform.  
-> Built with Next.js 16 (App Router) + Express 5 + PostgreSQL (Prisma) + Gemini AI.
+[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=00FF99&center=true&vCenter=true&width=600&lines=Deep+work+tracker;AI+tutor+%26+curriculum+planner;Productivity+analytics+platform;Built+with+Next.js+16+%2B+Gemini+AI)](https://git.io/typing-svg)
+
+🔸 **Next.js 16** 🔹 **Express 5** 🔸 **PostgreSQL** 🔹 **Gemini AI** 🔸
+
+</div>
 
 ---
 
