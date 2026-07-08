@@ -101,58 +101,29 @@ echo  [OK] PostgreSQL is running and accepting connections.
 echo.
 
 :: ====================================================================
-:: STEP 3: Read DB connection details from .env
+:: STEP 3: Setup database
 :: ====================================================================
 echo  [3/6] Setting up database...
 
-:: Parse DATABASE_URL to get credentials
-set DB_URL=
-for /f "tokens=2 delims==" %%a in ('findstr /b "DATABASE_URL" backend\.env') do set DB_URL=%%a
-:: Remove quotes
-set DB_URL=%DB_URL:"=%
-:: Extract parts from postgresql://user:pass@host:port/dbname
-set DB_URL_CLEAN=%DB_URL:postgresql://=%
-for /f "tokens=1,2 delims=:@" %%a in ("%DB_URL_CLEAN%") do (
-    set DB_USER=%%a
-    for /f "tokens=1,2 delims=:@" %%c in ("%%b") do (
-        set DB_PASS_PART=%%c
-        set DB_REST=%%d
-    )
-)
-:: Get password (before @)
-for /f "delims=@" %%a in ("%DB_PASS_PART%") do set DB_PASS=%%a
-:: Get host:port/dbname
-for /f "tokens=2 delims=@" %%a in ("%DB_PASS_PART%") do set DB_HOST_PORT=%%a
-for /f "tokens=1,2 delims=/" %%a in ("%DB_HOST_PORT%") do (
-    set DB_HOST=%%a
-    set DB_NAME=%%b
-)
-:: Remove ?schema=... query params from db name
-for /f "delims=?" %%a in ("%DB_NAME%") do set DB_NAME=%%a
-if "%DB_NAME%"=="" set DB_NAME=studytrack
-if "%DB_USER%"=="" set DB_USER=postgres
-
-:: Actually, let's just read it directly from the env file the easy way
-for /f "tokens=*" %%a in ('findstr /b "DATABASE_URL" backend\.env') do set "LINE=%%a"
-set "DB_URL_VAL=%LINE:DATABASE_URL=%"
-set "DB_URL_VAL=%DB_URL_VAL: =%"
-set "DB_URL_VAL=%DB_URL_VAL:"=%"
-echo  [..] Database URL: %DB_URL_VAL%
-
-:: Create database if it doesn't exist
+:: Use PostgreSQL password from .env (default: root for local dev)
 set "PGPASSWORD=root"
-psql -h localhost -p 5432 -U postgres -lqt 2>nul | findstr /c:"%DB_NAME%" >nul 2>&1
+
+echo  [..] Connecting to PostgreSQL at localhost:5432...
+
+:: Check if database exists
+psql -h localhost -p 5432 -U postgres -lqt 2>nul | findstr /c:"studytrack" >nul 2>&1
 if errorlevel 1 (
-    echo  [..] Creating database '%DB_NAME%'...
-    psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE \"%DB_NAME%\";" 2>&1
+    echo  [..] Creating 'studytrack' database...
+    psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE studytrack;" 2>&1
     if errorlevel 1 (
-        echo  [FAIL] Could not create database. Check your PostgreSQL credentials.
+        echo  [FAIL] Could not create database.
+        echo         Run manually: psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE studytrack;"
         pause
         exit /b 1
     )
-    echo  [OK] Database '%DB_NAME%' created.
+    echo  [OK] 'studytrack' database created.
 ) else (
-    echo  [OK] Database '%DB_NAME%' already exists.
+    echo  [OK] 'studytrack' database exists.
 )
 echo.
 
