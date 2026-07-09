@@ -5,7 +5,7 @@ import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
 import { generateResetToken, verifyResetToken, markResetTokenUsed } from '../services/otp.service';
 import { generateCaptcha, verifyCaptcha } from '../services/captcha.service';
-import { sendOTPEmail, sendPasswordResetEmail } from '../services/email.service';
+import { sendOTPEmail } from '../services/email.service';
 import { geminiService } from '../services/gemini.service';
 
 export async function register(req: Request, res: Response): Promise<void> {
@@ -583,18 +583,16 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(200).json({ message: 'If an account with that email exists, a reset link has been sent.' });
+      res.status(404).json({ message: 'No account found with this email address.' });
       return;
     }
 
     const token = generateResetToken(user.id);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
-
-    sendPasswordResetEmail(user.email, resetUrl).catch(err => console.error('Failed to send reset email:', err));
 
     res.status(200).json({
-      message: 'If an account with that email exists, a reset link has been sent.',
+      message: 'Email verified. You can now reset your password.',
+      token,
+      email,
     });
   } catch (error) {
     console.error('ForgotPassword error:', error);

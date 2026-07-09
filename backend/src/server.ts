@@ -45,7 +45,13 @@ const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:3000,http:
 
 export const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: function(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   }
 });
@@ -82,7 +88,14 @@ const apiLimiter = rateLimit({
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    // Permissive CORS to prevent captcha/login issues in deployment
+    return callback(null, true);
+  },
   credentials: true,
 }));
 app.use(compression());

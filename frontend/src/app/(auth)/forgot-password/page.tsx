@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { RefreshCw, ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
+import { RefreshCw, ArrowLeft, ShieldAlert } from "lucide-react";
 import api from "@/lib/api";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [captchaKey, setCaptchaKey] = useState("");
   const [captchaQuestion, setCaptchaQuestion] = useState("");
@@ -16,7 +17,6 @@ export default function ForgotPasswordPage() {
   const [captchaTimer, setCaptchaTimer] = useState(300);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
 
   const fetchCaptcha = useCallback(async () => {
     try {
@@ -50,36 +50,19 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      await api.post("/auth/forgot-password", {
+      const res = await api.post<{ token: string; email: string; message: string }>("/auth/forgot-password", {
         email,
         captchaKey,
         captchaAnswer,
       });
-      setSent(true);
+      router.push(`/reset-password?token=${res.token}&email=${encodeURIComponent(res.email)}`);
     } catch (err: any) {
-      setError(err.message || "failed to send reset link");
+      setError(err.message || "No account found with this email address.");
       fetchCaptcha();
     } finally {
       setLoading(false);
     }
   };
-
-  if (sent) {
-    return (
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-4">
-        <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-4 border border-emerald-500/10">
-          <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-        </div>
-        <h3 className="text-lg font-semibold text-st-text-primary mb-2">check your inbox</h3>
-        <p className="text-sm text-st-text-secondary mb-6">
-          if an account exists for <strong className="text-st-text-primary">{email}</strong>, we&apos;ve sent a password reset link.
-        </p>
-        <Link href="/login" className="inline-flex items-center gap-2 text-sm font-medium text-st-accent hover:text-st-accent-hover">
-          <ArrowLeft className="w-4 h-4" /> back to sign in
-        </Link>
-      </motion.div>
-    );
-  }
 
   return (
     <div>
@@ -88,7 +71,7 @@ export default function ForgotPasswordPage() {
           <ShieldAlert className="w-6 h-6 text-st-accent" />
         </div>
         <h3 className="text-xl font-semibold text-st-text-primary">forgot password?</h3>
-        <p className="text-sm text-st-text-secondary mt-1">enter your email and we&apos;ll send you a reset link.</p>
+        <p className="text-sm text-st-text-secondary mt-1">enter your email to verify and reset your password.</p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
@@ -111,7 +94,7 @@ export default function ForgotPasswordPage() {
         {error && <p className="text-sm text-st-danger text-center">{error}</p>}
 
         <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
-          {loading ? "sending..." : "send reset link"}
+          {loading ? "verifying..." : "verify email"}
         </Button>
       </form>
 

@@ -314,7 +314,7 @@ function LoginForm() {
         <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <ShieldCheck size={14} className="mr-1" /> Admin
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword("Gagan@2002"); setMode("password"); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
           <Eye size={14} className="mr-1" /> GaganCB
         </Button>
       </div>
