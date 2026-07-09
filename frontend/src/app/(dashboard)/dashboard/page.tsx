@@ -42,23 +42,21 @@ export default function DashboardPage() {
     async function fetchDashboardData() {
       try {
         setLoading(true);
-        // Fetch Tasks
-        const tasksRes = await api.get('/tasks') as any;
-        if (tasksRes && tasksRes.data) setTasks(tasksRes.data);
-
-        // Fetch Calendar Events (Next 7 days)
+        // Fetch in parallel for better performance
         const start = new Date().toISOString();
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        const calRes = await api.get(`/calendar?start=${start}&end=${end}`) as any;
-        if (calRes && calRes.data) setEvents(calRes.data);
 
-        // Fetch Notes Count
-        const notesRes = await api.get('/notes') as any;
-        if (notesRes && notesRes.data) setNotesCount(notesRes.data.length);
+        const [tasksRes, calRes, notesRes, sessionsRes] = await Promise.all([
+          api.get('/tasks') as Promise<any>,
+          api.get(`/calendar?start=${start}&end=${end}`) as Promise<any>,
+          api.get('/notes') as Promise<any>,
+          api.get('/tracking/sessions') as Promise<any>
+        ]);
 
-        // Fetch Sessions for Study Hours
-        const sessionsRes = await api.get('/tracking/sessions') as any;
-        if (sessionsRes && sessionsRes.data) {
+        if (tasksRes?.data) setTasks(tasksRes.data);
+        if (calRes?.data) setEvents(calRes.data);
+        if (notesRes?.data) setNotesCount(notesRes.data.length);
+        if (sessionsRes?.data) {
           const totalSecs = sessionsRes.data.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
           setTotalStudyHours(+(totalSecs / 3600).toFixed(1));
         }

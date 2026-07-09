@@ -69,13 +69,14 @@ const httpServer = createServer(app);
 const rawFrontendUrls = (process.env.FRONTEND_URL || "http://localhost:3000,http://localhost:3001");
 const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
 
-function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  if (allowedOrigins.includes('*')) return true;
+function isOriginAllowed(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) return callback(null, true);
+  if (allowedOrigins.includes('*')) return callback(null, true);
   // Allow all localhost origins in development
-  if (!isProduction && origin.startsWith('http://localhost')) return true;
-  return false;
+  if (!isProduction && origin.startsWith('http://localhost')) return callback(null, true);
+  
+  callback(new Error('Not allowed by CORS'));
 }
 
 export const io = new Server(httpServer, {

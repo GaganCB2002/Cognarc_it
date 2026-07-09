@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { BookOpen, UserCog, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import api from "@/lib/api";
+import { generateCaptchaChallenge } from "@/lib/captcha";
 
 export default function RegisterPage() {
   const { register } = useAuth();
 
-  const [step, setStep] = useState<"FORM" | "SUCCESS">("FORM");
+  const [step] = useState<"FORM" | "SUCCESS">("FORM");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,22 +24,41 @@ export default function RegisterPage() {
   const [captchaQuestion, setCaptchaQuestion] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [captchaTimer, setCaptchaTimer] = useState(300);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const captchaLoadingRef = useRef(false);
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error) return err.message;
+    return fallback;
+  };
 
   const fetchCaptcha = useCallback(async () => {
+    if (captchaLoadingRef.current) return;
+    captchaLoadingRef.current = true;
+    setCaptchaLoading(true);
     try {
-      const res = await api.get<{ key: string; question: string }>("/auth/captcha");
-      setCaptchaKey(res.key);
-      setCaptchaQuestion(res.question);
+      const challenge = generateCaptchaChallenge();
+      setCaptchaKey(challenge.key);
+      setCaptchaQuestion(challenge.question);
       setCaptchaAnswer("");
       setCaptchaTimer(300);
-    } catch {
-      setError("Failed to load captcha. Please refresh.");
+      setError("");
+    } catch (err) {
+      setCaptchaKey("");
+      setCaptchaQuestion("");
+      setError(getErrorMessage(err, "Failed to load captcha. Please refresh."));
+    } finally {
+      captchaLoadingRef.current = false;
+      setCaptchaLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchCaptcha();
-  }, [fetchCaptcha]);
+  const handleRequireCaptcha = () => {
+    if (!showCaptcha) setShowCaptcha(true);
+    if (!captchaKey) {
+      fetchCaptcha();
+    }
+  };
 
   useEffect(() => {
     if (captchaTimer > 0) {
@@ -57,9 +76,9 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(name, email, password, captchaKey, captchaAnswer);
-    } catch (err: any) {
-      setError(err.message || "registration failed");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "registration failed"));
+      handleRequireCaptcha();
     } finally {
       setLoading(false);
     }
@@ -130,19 +149,25 @@ export default function RegisterPage() {
                 <div className="space-y-5">
                   <Input label="FULL NAME" id="name" type="text" autoComplete="name" required placeholder="E.g. Alan Turing" value={name} onChange={(e) => setName(e.target.value)} className="bg-st-bg-primary uppercase-placeholder" />
                   <Input label="ACADEMIC EMAIL" id="email" type="email" autoComplete="email" required placeholder="name@university.edu" value={email} onChange={(e) => setEmail(e.target.value)} className="bg-st-bg-primary" />
-                  <Input label="SECURE KEY" id="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="bg-st-bg-primary" />
+                  <Input label="SECURE KEY" id="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} onFocus={handleRequireCaptcha} className="bg-st-bg-primary" />
                 </div>
-                {/* <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-st-text-muted font-mono">{Math.floor(captchaTimer / 60)}m {captchaTimer % 60}s</span>
-                      <button type="button" onClick={fetchCaptcha} className="text-st-text-muted hover:text-st-accent transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium text-st-text-primary mb-3 text-center py-2 bg-st-bg-card rounded-lg border border-st-border/30 font-mono tracking-wider">{captchaQuestion || "Loading..."}</p>
-                  <input type="text" placeholder="enter the code shown above" autoComplete="off" value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value)} maxLength={10} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-wider" />
-                </div> */}
+                <AnimatePresence>
+                  {showCaptcha && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-st-text-muted font-mono">{Math.floor(captchaTimer / 60)}m {captchaTimer % 60}s</span>
+                            <button type="button" onClick={fetchCaptcha} disabled={captchaLoading} className="text-st-text-muted hover:text-st-accent transition-colors disabled:opacity-50"><RefreshCw className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </div>
+                        <p className="text-sm font-medium text-st-text-primary mb-3 text-center py-2 bg-st-bg-card rounded-lg border border-st-border/30 font-mono tracking-wider">{captchaQuestion || "Loading..."}</p>
+                        <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => setCaptchaAnswer(e.target.value)} maxLength={10} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-wider" />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {error && <p className="text-sm text-st-danger text-center">{error}</p>}
                 <div className="pt-4 border-t border-st-border">
                   <Button type="submit" size="lg" disabled={loading} className="w-full tracking-wider font-semibold">{loading ? "initializing..." : "create account"}</Button>

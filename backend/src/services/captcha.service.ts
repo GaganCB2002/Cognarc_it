@@ -1,62 +1,52 @@
-import crypto from "crypto";
-
-const captchaStore = new Map<string, { answer: string; expiresAt: number }>();
 const CAPTCHA_EXPIRY_SECONDS = 300;
+const LOWERCASE = "abcdefghjkmnpqrstuvwxyz";
+const UPPERCASE = "ABCDEFGHJKMNPQRSTUVWXYZ";
+const DIGITS = "23456789";
 
 interface CaptchaQuestion {
   key: string;
   question: string;
+  expiresAt: number;
+}
+
+function pickCharacter(characters: string): string {
+  return characters[Math.floor(Math.random() * characters.length)];
 }
 
 function generateChallenge(): { question: string; answer: string } {
-  const operations = ['+', '-'];
-  const op = operations[Math.floor(Math.random() * operations.length)];
-  const num1 = Math.floor(Math.random() * 20) + 1;
-  const num2 = Math.floor(Math.random() * (op === '-' ? num1 : 20)) + 1;
-  let answer: number;
-  let question: string;
+  const code = [
+    pickCharacter(UPPERCASE),
+    pickCharacter(LOWERCASE),
+    pickCharacter(LOWERCASE),
+    pickCharacter(LOWERCASE),
+    pickCharacter(LOWERCASE),
+    pickCharacter(DIGITS),
+    pickCharacter(UPPERCASE),
+  ].join("");
 
-  switch (op) {
-    case '+':
-      answer = num1 + num2;
-      question = `What is ${num1} + ${num2}?`;
-      break;
-    case '-':
-      answer = num1 - num2;
-      question = `What is ${num1} - ${num2}?`;
-      break;
-    default:
-      answer = num1 + num2;
-      question = `What is ${num1} + ${num2}?`;
-  }
-
-  return { question, answer: String(answer) };
+  return { question: code, answer: code };
 }
 
 export function generateCaptcha(): CaptchaQuestion {
-  const key = crypto.randomUUID();
   const { question, answer } = generateChallenge();
+  const expiresAt = Date.now() + CAPTCHA_EXPIRY_SECONDS * 1000;
+  const keyPayload = JSON.stringify({ question, answer, expiresAt });
+  const key = Buffer.from(keyPayload, "utf8").toString("base64url");
 
-  captchaStore.set(key, {
-    answer,
-    expiresAt: Date.now() + CAPTCHA_EXPIRY_SECONDS * 1000,
-  });
-
-  setTimeout(() => captchaStore.delete(key), CAPTCHA_EXPIRY_SECONDS * 1000 + 1000);
-
-  return { key, question };
+  return { key, question, expiresAt };
 }
 
 export function verifyCaptcha(key: string, answer: string): boolean {
-  const record = captchaStore.get(key);
-  if (!record) return false;
-  if (record.expiresAt < Date.now()) {
-    captchaStore.delete(key);
+  try {
+    const decoded = JSON.parse(Buffer.from(key, "base64url").toString("utf8")) as {
+      question?: string;
+      answer?: string;
+      expiresAt?: number;
+    };
+    if (!decoded.answer || !decoded.expiresAt) return false;
+    if (decoded.expiresAt < Date.now()) return false;
+    return decoded.answer.toLowerCase() === String(answer).trim().toLowerCase();
+  } catch {
     return false;
   }
-  const isValid = record.answer.toLowerCase() === String(answer).trim().toLowerCase();
-  if (isValid) {
-    captchaStore.delete(key);
-  }
-  return isValid;
 }

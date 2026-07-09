@@ -17,13 +17,13 @@ interface User {
     currentLevel?: string;
     weeklyHours?: number;
     timezone?: string;
-    skills?: any;
+    skills?: unknown;
     careerGoals?: string;
     githubUrl?: string;
     linkedinUrl?: string;
     portfolioUrl?: string;
   };
-  settings?: any;
+  settings?: unknown;
 }
 
 interface LoginResponse {
@@ -50,6 +50,27 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_USER_STORAGE_KEY = "authUser";
+
+function readStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) as User : null;
+  } catch {
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeStoredUser(user: User | null) {
+  if (typeof window === "undefined") return;
+  if (user) {
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -57,38 +78,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const isAuthenticated = !!token && !!user;
+  const isAuthenticated = !!token;
 
   useEffect(() => {
-    api.setOnUnauthorized(() => {
+    let cancelled = false;
+
+    const clearAuthState = () => {
       setToken(null);
       setUser(null);
+      writeStoredUser(null);
+    };
+
+    api.setOnUnauthorized(() => {
+      clearAuthState();
       router.push("/login");
     });
 
     const savedToken = localStorage.getItem("accessToken");
     if (savedToken) {
+      const savedUser = readStoredUser();
       api.setToken(savedToken);
       setToken(savedToken);
-      api.get<{ user: User }>("/auth/me").then((res) => {
+      if (savedUser) {
+        setUser(savedUser);
+      }
+      setIsLoading(false);
+
+      void api.get<{ user: User }>("/auth/me").then((res) => {
+        if (cancelled) return;
         setUser(res.user);
+        writeStoredUser(res.user);
       }).catch(() => {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+        if (cancelled) return;
+        clearAuthState();
         api.setToken(null);
-        setToken(null);
-      }).finally(() => {
-        setIsLoading(false);
+        router.push("/login");
       });
     } else {
       setIsLoading(false);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.get<{ user: User }>("/auth/me");
       setUser(res.user);
+      writeStoredUser(res.user);
     } catch {
     }
   }, []);
@@ -105,7 +144,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.setToken(res.token, res.refreshToken || null);
     setToken(res.token);
     setUser(res.user);
-    const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
+    writeStoredUser(res.user);
+    const role = res.user.role ? res.user.role.toLowerCase().replace('_', '-') : 'student';
+    const dashboardPath = `/${role}/dashboard`;
     router.push(dashboardPath);
   }, [router]);
 
@@ -122,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.setToken(null);
     setToken(null);
     setUser(null);
+    writeStoredUser(null);
     router.push("/login");
   }, [router]);
 

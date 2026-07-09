@@ -44,7 +44,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 10);
     const otpCode = String(Math.floor(100000 + Math.random() * 900000));
 
     const createdUser = await prisma.user.create({
@@ -63,11 +63,18 @@ export async function register(req: Request, res: Response): Promise<void> {
 }
 
 export async function login(req: Request, res: Response): Promise<void> {
+  console.log('[DEBUG] login controller hit');
   try {
-    const { email, password, captchaKey, captchaAnswer } = req.body;
+    let { email, password, captchaKey, captchaAnswer } = req.body;
+    console.log('[DEBUG] request body parsed');
 
     if (!email || !password) {
       res.status(400).json({ message: 'Email and password are required' });
+      return;
+    }
+
+    if (password.length > 100) {
+      res.status(400).json({ message: 'Password is too long' });
       return;
     }
 
@@ -76,13 +83,14 @@ export async function login(req: Request, res: Response): Promise<void> {
     //   return;
     // }
 
+    email = email.toLowerCase();
     let user = await prisma.user.findUnique({ where: { email } });
     
     // Auto-create test accounts (configured via env vars, disabled by default)
     const testEmails = (process.env.TEST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     const testPassword = process.env.TEST_PASSWORD || '';
     if (!user && testPassword && testEmails.includes(email.toLowerCase()) && password === testPassword) {
-      const hashedPassword = await bcrypt.hash(password, 12);
+      const hashedPassword = await bcrypt.hash(password, 10);
       const otpCode = String(Math.floor(100000 + Math.random() * 900000));
       user = await prisma.user.create({
         data: {
@@ -102,7 +110,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     const specialPassword = process.env.SPECIAL_USER_PASSWORD || '';
     const specialName = process.env.SPECIAL_USER_NAME || '';
     if (!user && specialEmail && specialPassword && email.toLowerCase() === specialEmail && password === specialPassword) {
-      const hashedPassword = await bcrypt.hash(password, 12);
+      const hashedPassword = await bcrypt.hash(password, 10);
       const otpCode = String(Math.floor(100000 + Math.random() * 900000));
       user = await prisma.user.create({
         data: {
@@ -171,7 +179,7 @@ export async function login(req: Request, res: Response): Promise<void> {
 
 export async function sendOtp(req: Request, res: Response): Promise<void> {
   try {
-    const { email, captchaKey, captchaAnswer } = req.body;
+    let { email, captchaKey, captchaAnswer } = req.body;
 
     if (!email) {
       res.status(400).json({ message: 'Email is required' });
@@ -183,6 +191,7 @@ export async function sendOtp(req: Request, res: Response): Promise<void> {
     //   return;
     // }
 
+    email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.otpCode) {
       res.status(404).json({ message: 'User not found or OTP not configured' });
@@ -204,7 +213,7 @@ export async function sendOtp(req: Request, res: Response): Promise<void> {
 
 export async function verifyOtpLogin(req: Request, res: Response): Promise<void> {
   try {
-    const { email, otp, captchaKey, captchaAnswer } = req.body;
+    let { email, otp, captchaKey, captchaAnswer } = req.body;
 
     if (!email || !otp) {
       res.status(400).json({ message: 'Email and OTP are required' });
@@ -216,6 +225,7 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
     //   return;
     // }
 
+    email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       res.status(401).json({ message: 'Invalid email' });
@@ -295,7 +305,7 @@ export async function enrollFace(req: Request, res: Response): Promise<void> {
 
 export async function faceLogin(req: Request, res: Response): Promise<void> {
   try {
-    const { email, faceImage, captchaKey, captchaAnswer } = req.body;
+    let { email, faceImage, captchaKey, captchaAnswer } = req.body;
 
     if (!email || !faceImage) {
       res.status(400).json({ message: 'Email and face image are required' });
@@ -307,6 +317,7 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
     //   return;
     // }
 
+    email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       res.status(401).json({ message: 'User not found' });

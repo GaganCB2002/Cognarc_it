@@ -1,4 +1,8 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+interface RefreshTokenResponse {
+  token: string;
+}
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -22,6 +26,7 @@ class ApiClient {
     } else {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      localStorage.removeItem("authUser");
     }
     if (refreshToken) {
       localStorage.setItem("refreshToken", refreshToken);
@@ -38,7 +43,7 @@ class ApiClient {
     return this.accessToken;
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
@@ -52,83 +57,110 @@ class ApiClient {
       delete headers["Content-Type"];
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
+    const timeoutMs = options.timeoutMs ?? (endpoint.startsWith("/auth/") ? 15000 : undefined);
+    const controller = timeoutMs || options.signal ? new AbortController() : undefined;
+    const timeoutId = timeoutMs && controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
 
-    if (response.status === 401 && this.refreshToken && !endpoint.includes('/refresh-token')) {
-      // Attempt token refresh
-      try {
-        const refreshRes = await fetch(`${API_URL}/auth/refresh-token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: this.refreshToken }),
-          credentials: 'include',
-        });
-        if (refreshRes.ok) {
-          const refreshData = await refreshRes.json();
-          this.accessToken = refreshData.token;
-          localStorage.setItem('accessToken', refreshData.token);
-          headers['Authorization'] = `Bearer ${refreshData.token}`;
-          // Retry original request with new token
-          const retryResponse = await fetch(`${API_URL}${endpoint}`, {
-            ...options,
-            headers,
+    if (options.signal && controller) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+    }
+
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+        credentials: "include",
+        signal: controller?.signal ?? options.signal,
+      });
+
+      if (response.status === 401 && this.refreshToken && !endpoint.includes('/refresh-token')) {
+        // Attempt token refresh
+        try {
+          const refreshController = timeoutMs ? new AbortController() : undefined;
+          const refreshTimeoutId = timeoutMs && refreshController ? setTimeout(() => refreshController.abort(), timeoutMs) : undefined;
+          const refreshRes = await fetch(`${API_URL}/auth/refresh-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: this.refreshToken }),
             credentials: 'include',
+            signal: refreshController?.signal,
           });
-          if (retryResponse.ok) {
-            return retryResponse.json();
+          if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json() as RefreshTokenResponse;
+            this.accessToken = refreshData.token;
+            localStorage.setItem('accessToken', refreshData.token);
+            headers['Authorization'] = `Bearer ${refreshData.token}`;
+            // Retry original request with new token
+            const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+              ...options,
+              headers,
+              credentials: 'include',
+              signal: controller?.signal ?? options.signal,
+            });
+            if (retryResponse.ok) {
+              return retryResponse.json();
+            }
           }
+        } catch {
+          // Refresh failed, proceed with normal 401 handling
         }
-      } catch {
-        // Refresh failed, proceed with normal 401 handling
+        this.setToken(null);
+        if (this.onUnauthorized) {
+          this.onUnauthorized();
+        }
+        const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
+        throw new Error(errorData.message || errorData.error || "Authentication required");
       }
-      this.setToken(null);
-      if (this.onUnauthorized) {
-        this.onUnauthorized();
+
+      if (response.status === 401) {
+        this.setToken(null);
+        if (this.onUnauthorized) {
+          this.onUnauthorized();
+        }
+        const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
+        throw new Error(errorData.message || errorData.error || "Authentication required");
       }
-      const errorData = await response.json().catch(() => ({ message: "Authentication required" }));
-      throw new Error(errorData.message || errorData.error || "Authentication required");
-    }
 
-    if (response.status === 401) {
-      this.setToken(null);
-      if (this.onUnauthorized) {
-        this.onUnauthorized();
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Request failed" })) as { message?: string; error?: string };
+        throw new Error(error.message || error.error || `HTTP ${response.status}`);
       }
-      const errorData = await response.json().catch(() => ({ message: "Authentication required" }));
-      throw new Error(errorData.message || errorData.error || "Authentication required");
-    }
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || error.error || `HTTP ${response.status}`);
+      return response.json();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error("Request timed out. Please try again.");
+      }
+      throw error;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
     }
-
-    return response.json();
   }
 
   get<T>(endpoint: string) {
     return this.request<T>(endpoint);
   }
 
-  post<T>(endpoint: string, data?: any) {
+  post<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
       method: "POST",
       body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 
-  put<T>(endpoint: string, data?: any) {
+  put<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
       method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
-  patch<T>(endpoint: string, data?: any) {
+  patch<T>(endpoint: string, data?: unknown) {
     return this.request<T>(endpoint, {
       method: "PATCH",
       body: JSON.stringify(data),

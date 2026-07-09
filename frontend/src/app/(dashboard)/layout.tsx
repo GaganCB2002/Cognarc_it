@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useSidebarStore } from "@/store/sidebarStore";
@@ -12,15 +12,31 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const isCollapsed = useSidebarStore((state) => state.isCollapsed);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
+    } else if (!isLoading && isAuthenticated && user) {
+      // Role-based routing check
+      const expectedRolePrefix = `/${user.role ? user.role.toLowerCase().replace('_', '-') : 'student'}`;
+      const rolePrefixes = ['/admin', '/hr', '/manager', '/employee', '/student', '/trainer', '/super-admin'];
+      
+      const isTryingToAccessAnotherRole = rolePrefixes.some(prefix => 
+        pathname?.startsWith(prefix) && !pathname.startsWith(expectedRolePrefix)
+      );
+
+      // If they go to the root `/dashboard`, redirect to their specific dashboard
+      if (pathname === '/dashboard') {
+        router.push(`${expectedRolePrefix}/dashboard`);
+      } else if (isTryingToAccessAnotherRole) {
+        router.push("/unauthorized");
+      }
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router, user, pathname]);
 
   if (isLoading) {
     return (

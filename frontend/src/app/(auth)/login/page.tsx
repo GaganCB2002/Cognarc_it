@@ -3,13 +3,16 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { RefreshCw, Beaker, ShieldCheck, Home, KeyRound, ScanFace, Eye, CheckCircle2, AlertCircle, Camera, UserPlus } from "lucide-react";
+import { RefreshCw, Beaker, ShieldCheck, Home, KeyRound, ScanFace, Eye, CheckCircle2, Camera, UserPlus } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import api from "@/lib/api";
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
+import api from "@/lib/api";
+import { generateCaptchaChallenge } from "@/lib/captcha";
 
 type LoginMode = "password" | "otp" | "face" | "register";
 
@@ -59,22 +62,34 @@ function LoginForm() {
   const [captchaQuestion, setCaptchaQuestion] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
   const [captchaTimer, setCaptchaTimer] = useState(300);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const captchaLoadingRef = useRef(false);
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error) return err.message;
+    return fallback;
+  };
 
   const fetchCaptcha = useCallback(async () => {
+    if (captchaLoadingRef.current) return;
+    captchaLoadingRef.current = true;
+    setCaptchaLoading(true);
     try {
-      const res = await api.get<{ key: string; question: string }>("/auth/captcha");
-      setCaptchaKey(res.key);
-      setCaptchaQuestion(res.question);
+      const challenge = generateCaptchaChallenge();
+      setCaptchaKey(challenge.key);
+      setCaptchaQuestion(challenge.question);
       setCaptchaAnswer("");
       setCaptchaTimer(300);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load captcha");
+      setError("");
+    } finally {
+      captchaLoadingRef.current = false;
+      setCaptchaLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchCaptcha();
-  }, [fetchCaptcha]);
+  const handleRequireCaptcha = () => {
+    // Captcha disabled globally
+  };
 
   useEffect(() => {
     if (captchaTimer > 0) {
@@ -118,9 +133,10 @@ function LoginForm() {
 
   // Cleanup camera on unmount
   useEffect(() => {
+    const videoElement = videoRef.current;
     return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (videoElement?.srcObject) {
+        const stream = videoElement.srcObject as MediaStream;
         stream.getTracks().forEach(t => t.stop());
       }
     };
@@ -137,9 +153,9 @@ function LoginForm() {
     setLoading(true);
     try {
       await login(email, password, captchaKey, captchaAnswer);
-    } catch (err: any) {
-      setError(err.message || "Login failed");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Login failed"));
+      handleRequireCaptcha();
     } finally {
       setLoading(false);
     }
@@ -158,9 +174,9 @@ function LoginForm() {
         setMode("password");
         setSuccess("");
       }, 3000);
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Registration failed"));
+      handleRequireCaptcha();
     } finally {
       setRegisterLoading(false);
     }
@@ -176,9 +192,9 @@ function LoginForm() {
       setOtpSent(true);
       setSuccess("OTP sent to your registered email");
       await fetchCaptcha();
-    } catch (err: any) {
-      setError(err.message || "Failed to send OTP");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Failed to send OTP"));
+      handleRequireCaptcha();
     } finally {
       setOtpLoading(false);
     }
@@ -190,9 +206,9 @@ function LoginForm() {
     setOtpVerifyLoading(true);
     try {
       await login(email, otp, captchaKey, captchaAnswer, true);
-    } catch (err: any) {
-      setError(err.message || "OTP verification failed");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "OTP verification failed"));
+      handleRequireCaptcha();
     } finally {
       setOtpVerifyLoading(false);
     }
@@ -262,8 +278,8 @@ function LoginForm() {
              
              if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
                  const blendshapes = results.faceBlendshapes[0].categories;
-                 const leftEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkLeft')?.score || 0;
-                 const rightEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkRight')?.score || 0;
+                 const leftEye = blendshapes.find((blendshape) => blendshape.categoryName === 'eyeBlinkLeft')?.score || 0;
+                 const rightEye = blendshapes.find((blendshape) => blendshape.categoryName === 'eyeBlinkRight')?.score || 0;
                  
                  const isCurrentlyBlinking = leftEye > 0.4 && rightEye > 0.4;
                  
@@ -306,15 +322,15 @@ function LoginForm() {
     try {
       // if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
       await login(email, faceImage, captchaKey, captchaAnswer, false, true);
-    } catch (err: any) {
-      setError(err.message || "Face login failed");
-      fetchCaptcha();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Face login failed"));
+      handleRequireCaptcha();
     } finally {
       setFaceLoading(false);
     }
   };
 
-  const tabs: { key: LoginMode; label: string; icon: any }[] = [
+  const tabs: { key: LoginMode; label: string; icon: LucideIcon }[] = [
     { key: "password", label: "Password", icon: Beaker },
     { key: "otp", label: "OTP", icon: KeyRound },
     { key: "face", label: "Face", icon: ScanFace },
@@ -332,13 +348,13 @@ function LoginForm() {
 
       {/* Demo Account Buttons */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); handleRequireCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <Beaker size={14} className="mr-1" /> Test User
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); handleRequireCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <ShieldCheck size={14} className="mr-1" /> Admin
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword("password123"); setMode("password"); handleRequireCaptcha(); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
           <Eye size={14} className="mr-1" /> GaganCB
         </Button>
       </div>
@@ -365,13 +381,19 @@ function LoginForm() {
         <motion.form key="password" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleLogin}>
           <Input label="email address" id="email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           <div>
-            <Input label="password" id="password" name="password" type="password" autoComplete="current-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Input label="password" id="password" name="password" type="password" autoComplete="current-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} onFocus={handleRequireCaptcha} />
             <div className="flex items-center justify-end mt-2">
               <Link href="/forgot-password" className="text-sm font-medium text-st-accent hover:text-st-accent-hover">forgot your password?</Link>
             </div>
           </div>
 
-          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
+          <AnimatePresence>
+            {showCaptcha && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} isLoading={captchaLoading} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
@@ -385,9 +407,15 @@ function LoginForm() {
         <motion.form key="register" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleRegister}>
           <Input label="full name" id="reg-name" name="name" type="text" autoComplete="name" required placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
           <Input label="email address" id="reg-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <Input label="password" id="reg-password" name="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input label="password" id="reg-password" name="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} onFocus={handleRequireCaptcha} />
           
-          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
+          <AnimatePresence>
+            {showCaptcha && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} isLoading={captchaLoading} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           {success && <p className="text-sm text-emerald-400 text-center bg-emerald-400/10 py-2 rounded-lg border border-emerald-400/20">{success}</p>}
@@ -401,9 +429,15 @@ function LoginForm() {
       {/* ===== OTP TAB ===== */}
       {mode === "otp" && (
         <motion.div key="otp" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5">
-          <Input label="email address" id="otp-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input label="email address" id="otp-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} onFocus={handleRequireCaptcha} />
 
-          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
+          <AnimatePresence>
+            {showCaptcha && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} isLoading={captchaLoading} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {!otpSent ? (
             <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
@@ -437,9 +471,15 @@ function LoginForm() {
       {/* ===== FACE TAB ===== */}
       {mode === "face" && (
         <motion.form key="face" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleFaceLogin}>
-          <Input label="email address" id="face-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input label="email address" id="face-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} onFocus={handleRequireCaptcha} />
 
-          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
+          <AnimatePresence>
+            {showCaptcha && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} isLoading={captchaLoading} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Webcam Section */}
           <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
@@ -463,7 +503,7 @@ function LoginForm() {
                 )}
 
                 {captured && faceImage && (
-                  <img src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" className="w-full max-w-[320px] h-auto rounded-lg" />
+                  <Image src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" width={320} height={240} unoptimized className="w-full max-w-[320px] h-auto rounded-lg" />
                 )}
               </div>
 
@@ -509,8 +549,8 @@ function LoginForm() {
   );
 }
 
-function CaptchaSection({ captchaQuestion, captchaAnswer, captchaTimer, onCaptchaChange, onRefresh }: {
-  captchaQuestion: string; captchaAnswer: string; captchaTimer: number; onCaptchaChange: (v: string) => void; onRefresh: () => void;
+function CaptchaSection({ captchaQuestion, captchaAnswer, captchaTimer, isLoading, onCaptchaChange, onRefresh }: {
+  captchaQuestion: string; captchaAnswer: string; captchaTimer: number; isLoading: boolean; onCaptchaChange: (v: string) => void; onRefresh: () => void;
 }) {
   return (
     <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
@@ -518,7 +558,7 @@ function CaptchaSection({ captchaQuestion, captchaAnswer, captchaTimer, onCaptch
         <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-st-text-muted font-mono">{Math.floor(captchaTimer / 60)}m {captchaTimer % 60}s</span>
-          <button type="button" onClick={onRefresh} className="text-st-text-muted hover:text-st-accent transition-colors" aria-label="Refresh captcha">
+          <button type="button" onClick={onRefresh} disabled={isLoading} className="text-st-text-muted hover:text-st-accent transition-colors disabled:opacity-50" aria-label="Refresh captcha">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>

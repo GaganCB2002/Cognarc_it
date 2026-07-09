@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RefreshCw, ArrowLeft, ShieldAlert } from "lucide-react";
 import api from "@/lib/api";
+import { generateCaptchaChallenge } from "@/lib/captcha";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -17,16 +18,31 @@ export default function ForgotPasswordPage() {
   const [captchaTimer, setCaptchaTimer] = useState(300);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const captchaLoadingRef = useRef(false);
+  const getErrorMessage = (err: unknown, fallback: string) => {
+    if (err instanceof Error) return err.message;
+    return fallback;
+  };
 
   const fetchCaptcha = useCallback(async () => {
+    if (captchaLoadingRef.current) return;
+    captchaLoadingRef.current = true;
+    setCaptchaLoading(true);
     try {
-      const res = await api.get<{ key: string; question: string }>("/auth/captcha");
-      setCaptchaKey(res.key);
-      setCaptchaQuestion(res.question);
+      const challenge = generateCaptchaChallenge();
+      setCaptchaKey(challenge.key);
+      setCaptchaQuestion(challenge.question);
       setCaptchaAnswer("");
       setCaptchaTimer(300);
-    } catch {
-      setError("Failed to load captcha. Please refresh.");
+      setError("");
+    } catch (err) {
+      setCaptchaKey("");
+      setCaptchaQuestion("");
+      setError(getErrorMessage(err, "Failed to load captcha. Please refresh."));
+    } finally {
+      captchaLoadingRef.current = false;
+      setCaptchaLoading(false);
     }
   }, []);
 
@@ -56,8 +72,8 @@ export default function ForgotPasswordPage() {
         captchaAnswer,
       });
       router.push(`/reset-password?token=${res.token}&email=${encodeURIComponent(res.email)}`);
-    } catch (err: any) {
-      setError(err.message || "No account found with this email address.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "No account found with this email address."));
       fetchCaptcha();
     } finally {
       setLoading(false);
@@ -82,7 +98,7 @@ export default function ForgotPasswordPage() {
             <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-st-text-muted font-mono">{Math.floor(captchaTimer / 60)}m {captchaTimer % 60}s</span>
-              <button type="button" onClick={fetchCaptcha} className="text-st-text-muted hover:text-st-accent transition-colors" aria-label="Refresh captcha">
+              <button type="button" onClick={fetchCaptcha} disabled={captchaLoading} className="text-st-text-muted hover:text-st-accent transition-colors disabled:opacity-50" aria-label="Refresh captcha">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
             </div>
