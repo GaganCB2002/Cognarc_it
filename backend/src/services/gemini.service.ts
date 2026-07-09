@@ -256,7 +256,7 @@ ${content}
    * Checks: 1) Is there a face visible? 2) Eyes are open (liveness)? 
    * 3) Does it match the reference face?
    */
-  async verifyFace(liveImageBase64: string, referenceImageBase64: string): Promise<{ match: boolean; eyesOpen: boolean; faceDetected: boolean; message: string }> {
+  async verifyFace(liveImageBase64: string, referenceImageBase64: string): Promise<{ match: boolean; eyesOpen: boolean; faceDetected: boolean; message: string; matchScore: number }> {
     const prompt = `You are a face verification system. Analyze the two images provided.
 - The first image (LIVE) is a real-time webcam capture of a person trying to log in.
 - The second image (REFERENCE) is the stored reference photo of the authorized user.
@@ -266,6 +266,7 @@ You must return ONLY valid JSON in this exact format:
   "faceDetected": true/false,
   "eyesOpen": true/false,
   "match": true/false,
+  "matchScore": 0-100,
   "confidence": "high/medium/low",
   "message": "Brief explanation of the result"
 }
@@ -273,8 +274,9 @@ You must return ONLY valid JSON in this exact format:
 Rules:
 - "faceDetected": true only if a clear human face is visible in the LIVE image
 - "eyesOpen": true only if the person's eyes are clearly open (not blinking/closed) in the LIVE image
-- "match": true only if the face in the LIVE image matches the person in the REFERENCE image
-- Be strict about the match - only return true if you are confident it is the same person`;
+- "match": true only if the two faces are the SAME PERSON with matchScore >= 90
+- "matchScore": a number from 0 to 100 representing how confident you are the faces match (100 = identical, 0 = completely different)
+- Be strict about the match - only return true if matchScore >= 90`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -299,7 +301,11 @@ Rules:
     });
 
     if (!response.text) throw new Error("No response from Gemini");
-    return safeParse(response.text, { match: false, eyesOpen: false, faceDetected: false, message: 'Failed to parse AI response' });
+    const parsed = safeParse(response.text, { match: false, eyesOpen: false, faceDetected: false, message: 'Failed to parse AI response', matchScore: 0, confidence: 'low' });
+    if (parsed.matchScore !== undefined && parsed.matchScore < 90) {
+      parsed.match = false;
+    }
+    return parsed;
   },
 
   /**
