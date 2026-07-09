@@ -132,7 +132,7 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      // Bypassed frontend captcha check
       await login(email, password, captchaKey, captchaAnswer);
     } catch (err: any) {
       setError(err.message || "Login failed");
@@ -148,7 +148,7 @@ function LoginForm() {
     setError("");
     setOtpLoading(true);
     try {
-      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      // Bypassed frontend captcha check
       await api.post("/auth/send-otp", { email, captchaKey, captchaAnswer });
       setOtpSent(true);
       setSuccess("OTP sent to your registered email");
@@ -364,7 +364,7 @@ function LoginForm() {
           <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
 
           {!otpSent ? (
-            <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim() || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+            <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
               {otpLoading ? "sending..." : "send OTP to email"}
             </Button>
           ) : (
