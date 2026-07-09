@@ -13,6 +13,7 @@ export default function ForgotPasswordPage() {
   const [captchaKey, setCaptchaKey] = useState("");
   const [captchaQuestion, setCaptchaQuestion] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const [captchaTimer, setCaptchaTimer] = useState(300);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -23,6 +24,7 @@ export default function ForgotPasswordPage() {
       setCaptchaKey(res.key);
       setCaptchaQuestion(res.question);
       setCaptchaAnswer("");
+      setCaptchaTimer(300);
     } catch {
       setError("Failed to load captcha. Please refresh.");
     }
@@ -31,6 +33,15 @@ export default function ForgotPasswordPage() {
   useEffect(() => {
     fetchCaptcha();
   }, [fetchCaptcha]);
+
+  useEffect(() => {
+    if (captchaTimer > 0) {
+      const timer = setTimeout(() => setCaptchaTimer((c) => c - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (captchaKey) {
+      fetchCaptcha();
+    }
+  }, [captchaTimer, captchaKey, fetchCaptcha]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,6 +98,7 @@ export default function ForgotPasswordPage() {
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-st-text-muted tracking-wider">security verification</span>
             <div className="flex items-center gap-2">
+              <span className="text-[10px] text-st-text-muted font-mono">{Math.floor(captchaTimer / 60)}m {captchaTimer % 60}s</span>
               <button type="button" onClick={fetchCaptcha} className="text-st-text-muted hover:text-st-accent transition-colors" aria-label="Refresh captcha">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

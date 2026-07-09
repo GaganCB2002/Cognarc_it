@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
-import { generateSummary, generateQuiz, chatWithTutor } from "../services/ai.service";
+import { generateSummary, generateQuiz, chatWithTutor, chatWithCareerCoach } from "../services/ai.service";
 import { prisma } from "../server";
 import { projectIndexer } from "../services/project-indexer.service";
 import { geminiService } from "../services/gemini.service";
+import { agentService } from "../services/agent.service";
 import { PROJECT_SYSTEM_CONTEXT } from "../data/project-context";
 
 interface AuthRequest extends Request {
@@ -173,6 +174,42 @@ export const chat = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error("Chat error:", error);
     res.status(500).json({ error: "Failed to process chat" });
+  }
+};
+
+export const agentChat = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Messages array is required" });
+    }
+
+    const reply = await agentService.processMessage(messages, userId);
+    res.json({ reply });
+  } catch (error) {
+    console.error("Agent chat error:", error);
+    res.status(500).json({ error: "Failed to process request" });
+  }
+};
+
+export const careerChat = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Messages array is required" });
+    }
+
+    const aiResponseText = await chatWithCareerCoach(messages);
+    res.json({ reply: aiResponseText });
+  } catch (error) {
+    console.error("Career chat error:", error);
+    res.status(500).json({ error: "Failed to process career chat" });
   }
 };
 

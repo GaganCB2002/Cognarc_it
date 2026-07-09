@@ -37,7 +37,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
+  login: (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -86,8 +86,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string, captchaKey: string, captchaAnswer: string) => {
-    const res = await api.post<AuthResponse>("/auth/login", { email, password, captchaKey, captchaAnswer });
+  const login = useCallback(async (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => {
+    let res: AuthResponse;
+    if (isFace) {
+      res = await api.post<AuthResponse>("/auth/face-login", { email, faceImage: code, captchaKey, captchaAnswer });
+    } else if (isOtp) {
+      res = await api.post<AuthResponse>("/auth/verify-otp", { email, otp: code, captchaKey, captchaAnswer });
+    } else {
+      res = await api.post<AuthResponse>("/auth/login", { email, password: code, captchaKey, captchaAnswer });
+    }
     api.setToken(res.token);
     setToken(res.token);
     setUser(res.user);

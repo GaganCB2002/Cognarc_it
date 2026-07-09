@@ -1,7 +1,6 @@
 import { prisma } from "../server";
 import { geminiService } from "./gemini.service";
-import fs from "fs/promises";
-import path from "path";
+import { getLocalPath } from "./storage.service";
 
 type JobType = "AI_PROCESS_DOCUMENT" | "AI_PROCESS_NOTE" | "AI_GENERATE_DAILY_SUMMARY";
 
@@ -80,17 +79,7 @@ class JobQueue {
     const document = await prisma.document.findUnique({ where: { id: documentId } });
     if (!document) throw new Error("Document not found");
 
-    // Only process supported files. Wait, Gemini File API supports PDF, Images, Audio, Video, TXT
-    // We will upload it to Gemini File API
-    // The file is stored in document.storageKey. Since we use local storage by default (or S3),
-    // let's assume it's local for now as per `saveFile` in uploadController
-    const filePath = path.resolve(document.storageKey);
-    
-    try {
-      await fs.access(filePath);
-    } catch {
-      throw new Error(`Local file not found at ${filePath}`);
-    }
+    const filePath = getLocalPath(document.storageKey);
 
     const geminiFile = await geminiService.uploadFile(filePath, document.mimeType, document.originalName);
     

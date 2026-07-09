@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
+import toast from "react-hot-toast";
 import { BarChart3, Download, Calendar, FileText, Clock, Target, Code, BookOpen, Brain, Zap, TrendingUp, Coffee, Loader2 } from "lucide-react";
 
 export default function ReportsPage() {
@@ -97,7 +98,7 @@ export default function ReportsPage() {
       }
     } catch (err) {
       console.error("Failed to generate periodic PDF", err);
-      alert("Failed to generate report. Please try again.");
+      toast.error("Failed to generate report. Please try again.");
     } finally {
       setGeneratingPdf(false);
     }

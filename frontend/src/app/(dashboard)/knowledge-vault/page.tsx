@@ -1,14 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import api from "@/lib/api";
 import {
   Database, Upload, Search, Star, Grid, List, FileText, Video, Image,
-  Link2, Code, FolderOpen, Filter, Heart, Trash2, Download, ExternalLink,
-  Clock, RefreshCw, AlertCircle
+  Link2, Code, FolderOpen, Heart, Trash2, ExternalLink,
+  Clock, RefreshCw, AlertCircle, Plus, X
 } from "lucide-react";
 
 type FileItem = {
@@ -56,6 +57,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function KnowledgeVaultPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,23 +65,47 @@ export default function KnowledgeVaultPage() {
   const [filter, setFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [uploading, setUploading] = useState(false);
-
-  useEffect(() => {
-    fetchFiles();
-  }, []);
+  const [showUrlModal, setShowUrlModal] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [urlType, setUrlType] = useState<"LINK" | "VIDEO">("LINK");
+  const [urlTitle, setUrlTitle] = useState("");
 
   const fetchFiles = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<FileItem[]>("/upload/my-files");
-      setFiles(data);
+      const [uploaded, resources] = await Promise.all([
+        api.get<any[]>("/upload/my-files"),
+        api.get<any[]>("/resources"),
+      ]);
+      const resourceFiles: FileItem[] = (resources || [])
+        .filter((r: any) => !r.isUpload)
+        .map((r: any) => ({
+          id: r.id,
+          name: r.title,
+          title: r.title,
+          mimeType: "",
+          size: 0,
+          type: r.type,
+          status: "READY",
+          folder: null,
+          tags: r.tags || [],
+          isFavorite: r.isFavorite || false,
+          resourceId: r.id,
+          publicUrl: r.url || null,
+          uploadedAt: r.createdAt,
+        }));
+      setFiles([...(uploaded || []), ...resourceFiles]);
     } catch (err: any) {
       setError(err.message || "Failed to load files");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchFiles();
+  }, []);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,19 +123,55 @@ export default function KnowledgeVaultPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (file: FileItem) => {
     if (!confirm("Delete this file permanently?")) return;
     try {
-      await api.delete(`/upload/${id}`);
-      setFiles((prev) => prev.filter((f) => f.id !== id));
+      if (file.resourceId) {
+        await api.delete(`/resources/${file.resourceId}`);
+      } else {
+        await api.delete(`/upload/${file.id}`);
+      }
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
     } catch (err: any) {
       setError(err.message || "Delete failed");
     }
   };
 
+  const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const handleFileClick = (file: FileItem) => {
+    if (file.type === "PDF") {
+      router.push(`/pdf-intelligence/view/${file.id}`);
+    } else if (file.publicUrl) {
+      window.open(file.publicUrl, "_blank");
+    } else {
+      window.open(`${BASE}/upload/${file.id}`, "_blank");
+    }
+  };
+
+  const handleAddUrl = async () => {
+    if (!urlInput.trim()) return;
+    try {
+      await api.post("/resources", {
+        title: urlTitle || urlInput,
+        type: urlType,
+        url: urlInput,
+      });
+      setShowUrlModal(false);
+      setUrlInput("");
+      setUrlTitle("");
+      await fetchFiles();
+    } catch (err: any) {
+      setError(err.message || "Failed to add URL");
+    }
+  };
+
   const handleToggleFavorite = async (file: FileItem) => {
     try {
-      await api.patch(`/upload/${file.id}/metadata`, { isFavorite: !file.isFavorite });
+      if (file.resourceId) {
+        await api.put(`/resources/${file.resourceId}`, { isFavorite: !file.isFavorite });
+      } else {
+        await api.patch(`/upload/${file.id}/metadata`, { isFavorite: !file.isFavorite });
+      }
       setFiles((prev) =>
         prev.map((f) => (f.id === file.id ? { ...f, isFavorite: !f.isFavorite } : f))
       );
@@ -168,6 +230,9 @@ export default function KnowledgeVaultPage() {
           <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
             <Upload className="w-4 h-4 mr-1" />
             {uploading ? "Uploading..." : "Upload"}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowUrlModal(true)}>
+            <Link2 className="w-4 h-4 mr-1" />Add Link
           </Button>
           <Button variant="ghost" size="sm" onClick={fetchFiles} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -246,16 +311,16 @@ export default function KnowledgeVaultPage() {
           {filtered.map((file) => {
             const Icon = typeIcons[file.type] || FolderOpen;
             return (
-              <Card key={file.id} className="p-5 hover:border-st-accent/30 transition-all cursor-pointer group flex flex-col relative">
+              <Card key={file.id} onClick={() => handleFileClick(file)} className="p-5 hover:border-st-accent/30 transition-all cursor-pointer group flex flex-col relative">
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-lg bg-st-bg-elevated flex items-center justify-center">
                     <Icon className={`w-5 h-5 ${typeColors[file.type] || "text-st-text-muted"}`} />
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleToggleFavorite(file)}>
+                    <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
                       <Star className={`w-4 h-4 ${file.isFavorite ? "fill-st-accent text-st-accent" : "text-st-text-muted"}`} />
                     </button>
-                    <button onClick={() => handleDelete(file.id)} className="hover:text-st-danger transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(file); }} className="hover:text-st-danger transition-colors">
                       <Trash2 className="w-4 h-4 text-st-text-muted" />
                     </button>
                   </div>
@@ -288,7 +353,7 @@ export default function KnowledgeVaultPage() {
             {filtered.map((file) => {
               const Icon = typeIcons[file.type] || FolderOpen;
               return (
-                <div key={file.id} className="p-4 flex items-center gap-4 hover:bg-st-bg-elevated transition-colors group">
+                <div key={file.id} onClick={() => handleFileClick(file)} className="p-4 flex items-center gap-4 hover:bg-st-bg-elevated transition-colors group cursor-pointer">
                   <Icon className={`w-5 h-5 ${typeColors[file.type] || "text-st-text-muted"} shrink-0`} />
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-sm text-st-text-primary truncate">{file.title}</h4>
@@ -297,13 +362,13 @@ export default function KnowledgeVaultPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleToggleFavorite(file)}>
+                    <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
                       <Star className={`w-4 h-4 ${file.isFavorite ? "fill-st-accent text-st-accent" : "text-st-text-muted hover:text-st-accent"}`} />
                     </button>
-                    <button onClick={() => window.open(`/api/upload/${file.id}`, "_blank")}>
+                    <button onClick={(e) => { e.stopPropagation(); window.open(`${BASE}/upload/${file.id}`, "_blank"); }}>
                       <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
                     </button>
-                    <button onClick={() => handleDelete(file.id)}>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(file); }}>
                       <Trash2 className="w-4 h-4 text-st-text-muted hover:text-st-danger" />
                     </button>
                   </div>
@@ -313,6 +378,48 @@ export default function KnowledgeVaultPage() {
             })}
           </div>
         </Card>
+      )}
+
+      {/* Add URL/Link Modal */}
+      {showUrlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUrlModal(false)}>
+          <Card className="w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-st-text-primary">Add {urlType === "LINK" ? "Link" : "Video URL"}</h3>
+              <button onClick={() => setShowUrlModal(false)} className="text-st-text-muted hover:text-st-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <button onClick={() => setUrlType("LINK")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${urlType === "LINK" ? "bg-st-accent text-black" : "bg-st-bg-elevated text-st-text-secondary"}`}>
+                  <Link2 className="w-4 h-4 inline mr-1" />Link
+                </button>
+                <button onClick={() => setUrlType("VIDEO")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${urlType === "VIDEO" ? "bg-st-accent text-black" : "bg-st-bg-elevated text-st-text-secondary"}`}>
+                  <Video className="w-4 h-4 inline mr-1" />Video
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs text-st-text-muted mb-1">Title (optional)</label>
+                <input type="text" value={urlTitle} onChange={(e) => setUrlTitle(e.target.value)}
+                  placeholder={urlType === "LINK" ? "My Link" : "My Video"}
+                  className="w-full px-3 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
+              </div>
+              <div>
+                <label className="block text-xs text-st-text-muted mb-1">URL</label>
+                <input type="url" value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
+                  placeholder={urlType === "LINK" ? "https://example.com" : "https://youtube.com/watch?v=..."}
+                  className="w-full px-3 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setShowUrlModal(false)}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={handleAddUrl} disabled={!urlInput.trim()}>
+                  <Plus className="w-4 h-4 mr-1" />Add
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

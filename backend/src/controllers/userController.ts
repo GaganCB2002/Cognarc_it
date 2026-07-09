@@ -17,15 +17,15 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
-    const [users, total] = await Promise.all([
+    const [rawUsers, total] = await Promise.all([
       prisma.user.findMany({
         skip,
         take: limit,
-        omit: { password: true },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count(),
     ]);
+    const users = rawUsers.map(({ password, ...rest }) => rest);
 
     res.status(200).json({
       users,
@@ -46,20 +46,20 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
   try {
     const id = req.params.id as string;
 
-    const user = await prisma.user.findUnique({
+    const rawUser = await prisma.user.findUnique({
       where: { id },
-      omit: { password: true },
       include: {
         profile: true,
         learningStreak: true,
       },
     });
 
-    if (!user) {
+    if (!rawUser) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
 
+    const { password, ...user } = rawUser;
     res.status(200).json({ user });
   } catch (error) {
     console.error('GetUserById error:', error);
@@ -140,16 +140,16 @@ export async function getPendingUsers(req: Request, res: Response): Promise<void
     const limit = parseInt(req.query.limit as string) || 20;
     const skip = (page - 1) * limit;
 
-    const [users, total] = await Promise.all([
+    const [rawUsers, total] = await Promise.all([
       prisma.user.findMany({
         where: { isApproved: false, role: { notIn: ['ADMIN', 'SUPER_ADMIN'] } },
         skip,
         take: limit,
-        omit: { password: true },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.user.count({ where: { isApproved: false, role: { notIn: ['ADMIN', 'SUPER_ADMIN'] } } }),
     ]);
+    const users = rawUsers.map(({ password, ...rest }) => rest);
 
     res.status(200).json({
       users,

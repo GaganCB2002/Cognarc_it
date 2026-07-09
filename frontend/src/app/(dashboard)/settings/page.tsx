@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Settings as SettingsIcon, User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, ChevronRight, Save, LogOut, CheckCircle2 } from "lucide-react";
+import { Settings as SettingsIcon, User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, ChevronRight, Save, LogOut, CheckCircle2, ScanFace, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -52,6 +51,83 @@ export default function SettingsPage() {
     privacy: { dataSharing: false, analyticsOptIn: true, publicProfile: false },
     tracking: { desktopAgent: true, browserExtension: true, idleDetection: true }
   });
+
+  // Face enrollment
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [faceImage, setFaceImage] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [faceSaving, setFaceSaving] = useState(false);
+  const [faceEnrolled, setFaceEnrolled] = useState(false);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setCameraActive(true);
+        setFaceImage(null);
+        setFaceEnrolled(false);
+      }
+    } catch {
+      showError("Camera access denied. Please allow camera permissions.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  const captureFace = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const base64 = dataUrl.split(",")[1];
+    setFaceImage(base64);
+    stopCamera();
+  };
+
+  const retakeFacePhoto = () => {
+    setFaceImage(null);
+    startCamera();
+  };
+
+  const saveFaceEnrollment = async () => {
+    if (!faceImage) return;
+    setFaceSaving(true);
+    try {
+      await api.put("/auth/enroll-face", { faceImage });
+      setFaceEnrolled(true);
+      showSuccess("Face enrolled successfully!");
+    } catch (err: any) {
+      showError(err.message || "Failed to enroll face");
+      setFaceImage(null);
+    } finally {
+      setFaceSaving(false);
+    }
+  };
 
   const sections = [
     { key: "profile", label: "Profile", icon: User },
@@ -371,6 +447,59 @@ export default function SettingsPage() {
               <Button variant="primary" onClick={changePassword} disabled={saving || !passwords.currentPassword || !passwords.newPassword}>
                 {saving ? "Updating..." : "Update Password"}
               </Button>
+
+              {/* Face Enrollment Section */}
+              <div className="border-t border-st-border pt-6 mt-6">
+                <h4 className="text-sm font-bold text-st-text-primary mb-1 flex items-center gap-2">
+                  <ScanFace className="w-4 h-4 text-st-accent" /> Face Login
+                </h4>
+                <p className="text-xs text-st-text-muted mb-4">Enroll your face for quick login. Position your face clearly and keep your eyes open.</p>
+
+                <canvas ref={canvasRef} className="hidden" />
+
+                {!faceImage ? (
+                  <div className="text-center py-6 bg-st-bg-elevated rounded-lg border border-st-border">
+                    <ScanFace className="w-10 h-10 mx-auto text-st-text-muted mb-2" />
+                    {!cameraActive ? (
+                      <Button type="button" variant="primary" size="sm" onClick={startCamera}>
+                        <Camera className="w-4 h-4 mr-1" /> Start Camera
+                      </Button>
+                    ) : (
+                      <div>
+                        <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3">
+                          <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-[240px] h-auto" />
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                          <Button type="button" variant="primary" size="sm" onClick={captureFace}>
+                            <Camera className="w-4 h-4 mr-1" /> Capture
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={stopCamera}>Cancel</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-st-bg-elevated rounded-lg border border-st-border">
+                    <div className="inline-block rounded-lg overflow-hidden border-2 border-emerald-500/50 mb-2">
+                      <img src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" className="w-24 h-24 object-cover" />
+                    </div>
+                    <p className="text-xs text-emerald-400 mb-2 flex items-center justify-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Face captured
+                    </p>
+                    <div className="flex gap-2 justify-center">
+                      <Button type="button" variant="primary" size="sm" onClick={saveFaceEnrollment} disabled={faceSaving}>
+                        {faceSaving ? "Saving..." : "Save Face"}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={retakeFacePhoto}>Retake</Button>
+                    </div>
+                    {faceEnrolled && (
+                      <p className="text-xs text-emerald-400 mt-2 flex items-center justify-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Face enrolled successfully!
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </Card>
           )}
 

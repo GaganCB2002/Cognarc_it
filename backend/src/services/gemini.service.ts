@@ -1,9 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
-import fs from 'fs';
-import path from 'path';
 
-// Note: Ensure GEMINI_API_KEY is defined in your .env file.
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.warn('[GEMINI] GEMINI_API_KEY not set — AI features will fail with 500 errors');
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+
+function safeParse<T>(text: string, fallback: T): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    console.error('[GEMINI] Failed to parse AI response as JSON:', text.substring(0, 200));
+    return fallback;
+  }
+}
 
 const JSON_MODEL = "gemini-2.5-flash";
 const TEXT_MODEL = "gemini-2.5-flash";
@@ -32,12 +42,18 @@ export const geminiService = {
 
     console.log(`Uploaded file as ${file.name}`);
 
-    // Wait until the file is active (some videos/PDFs take time to process)
     let fileState = await ai.files.get({ name: file.name });
-    while (fileState.state === 'PROCESSING') {
+    let retries = 0;
+    const MAX_RETRIES = 60;
+    while (fileState.state === 'PROCESSING' && retries < MAX_RETRIES) {
       console.log(`Waiting for file processing: ${file.name}...`);
       await new Promise((resolve) => setTimeout(resolve, 5000));
       fileState = await ai.files.get({ name: file.name });
+      retries++;
+    }
+
+    if (retries >= MAX_RETRIES) {
+      throw new Error(`Gemini file processing timed out after ${MAX_RETRIES * 5} seconds: ${file.name}`);
     }
 
     if (fileState.state === 'FAILED') {
@@ -95,7 +111,7 @@ ${text.substring(0, 500000)}
     });
 
     if (!response.text) throw new Error("No response from Gemini");
-    return JSON.parse(response.text);
+    return safeParse(response.text, { summary: "", chapterSummaries: [], keyConcepts: [], topics: [], interviewQuestions: [], mcqs: [], flashcards: [], mindMapData: [], revisionChecklist: [] });
   },
 
   /**
@@ -133,7 +149,7 @@ You must return ONLY valid JSON matching this schema:
     });
 
     if (!response.text) throw new Error("No response from Gemini");
-    return JSON.parse(response.text);
+    return safeParse(response.text, { summary: "", chapterSummaries: [], keyConcepts: [], topics: [], interviewQuestions: [], mcqs: [], flashcards: [], mindMapData: [], revisionChecklist: [] });
   },
 
   /**
@@ -161,7 +177,7 @@ ${content}
     });
 
     if (!response.text) throw new Error("No response from Gemini");
-    return JSON.parse(response.text);
+    return safeParse(response.text, { summary: "", keywords: [] });
   },
 
   /**
@@ -217,6 +233,76 @@ ${content}
   },
 
   /**
+   * Detects if an image contains a human face.
+   */
+  async detectFace(imageBase64: string): Promise<{ hasFace: boolean; message: string }> {
+    const text = 'Analyze this image. Does it contain a clear human face? Reply with ONLY valid JSON: {"hasFace": true/false, "message": "reason"}';
+
+    const response = await ai.models.generateContent({
+      model: TEXT_MODEL,
+      contents: [
+        { text },
+        { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } }
+      ],
+      config: { responseMimeType: 'application/json' },
+    });
+
+    if (!response.text) return { hasFace: false, message: 'No response from AI' };
+    return safeParse(response.text, { hasFace: false, message: 'Failed to parse AI response' });
+  },
+
+  /**
+   * Verifies a face image against a stored reference image.
+   * Checks: 1) Is there a face visible? 2) Eyes are open (liveness)? 
+   * 3) Does it match the reference face?
+   */
+  async verifyFace(liveImageBase64: string, referenceImageBase64: string): Promise<{ match: boolean; eyesOpen: boolean; faceDetected: boolean; message: string }> {
+    const prompt = `You are a face verification system. Analyze the two images provided.
+- The first image (LIVE) is a real-time webcam capture of a person trying to log in.
+- The second image (REFERENCE) is the stored reference photo of the authorized user.
+
+You must return ONLY valid JSON in this exact format:
+{
+  "faceDetected": true/false,
+  "eyesOpen": true/false,
+  "match": true/false,
+  "confidence": "high/medium/low",
+  "message": "Brief explanation of the result"
+}
+
+Rules:
+- "faceDetected": true only if a clear human face is visible in the LIVE image
+- "eyesOpen": true only if the person's eyes are clearly open (not blinking/closed) in the LIVE image
+- "match": true only if the face in the LIVE image matches the person in the REFERENCE image
+- Be strict about the match - only return true if you are confident it is the same person`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: liveImageBase64,
+          }
+        },
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: referenceImageBase64,
+          }
+        }
+      ],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    if (!response.text) throw new Error("No response from Gemini");
+    return safeParse(response.text, { match: false, eyesOpen: false, faceDetected: false, message: 'Failed to parse AI response' });
+  },
+
+  /**
    * Generates a daily summary based on activity.
    */
   async generateDailySummary(activities: any) {
@@ -240,6 +326,6 @@ Provide a daily digest in JSON format:
     });
 
     if (!response.text) throw new Error("No response from Gemini");
-    return JSON.parse(response.text);
+    return safeParse(response.text, { summary: '', recommendations: [], metrics: { totalActiveMinutes: 0, tasksCompleted: 0, documentsRead: 0 } });
   }
 };
