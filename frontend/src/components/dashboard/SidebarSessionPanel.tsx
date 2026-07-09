@@ -39,7 +39,7 @@ export function SidebarSessionPanel() {
     const reportData = await stopSession();
     const sessionId = reportData?.session?.id || reportData?.id;
     if (sessionId) {
-      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/tracking/sessions/${sessionId}/pdf`;
+      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/tracking/sessions/${sessionId}/pdf`;
       window.open(downloadUrl, '_blank');
     }
   };

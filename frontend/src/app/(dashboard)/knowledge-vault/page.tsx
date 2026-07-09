@@ -137,7 +137,7 @@ export default function KnowledgeVaultPage() {
     }
   };
 
-  const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
   const handleFileClick = (file: FileItem) => {
     if (file.type === "PDF") {
       router.push(`/pdf-intelligence/view/${file.id}`);

@@ -93,7 +93,7 @@ export default function ReportsPage() {
 
       if (res && res.data && res.data.id) {
         // 2. Download the resulting PDF
-        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/reports/${res.data.id}/pdf`;
+        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/reports/${res.data.id}/pdf`;
         window.open(downloadUrl, '_blank');
       }
     } catch (err) {
@@ -105,7 +105,7 @@ export default function ReportsPage() {
   };
 
   const handleDownload = (sessId: string) => {
-    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/tracking/sessions/${sessId}/pdf`;
+    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/tracking/sessions/${sessId}/pdf`;
     window.open(downloadUrl, '_blank');
   };
 

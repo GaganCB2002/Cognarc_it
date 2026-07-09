@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Load existing settings
   chrome.storage.sync.get({
-    apiUrl: 'http://localhost:5000/api',
+    apiUrl: 'https://cognarc-it-1.onrender.com/api',
     userId: 'temp-user-id'
   }, (items) => {
     apiUrlInput.value = items.apiUrl;

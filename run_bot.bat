@@ -34,8 +34,8 @@ echo.
 echo ===================================================
 echo All components are launching in separate windows!
 echo.
-echo Frontend will be available at: http://localhost:3000
-echo Backend will be available at:  http://localhost:5000
+echo Frontend will be available at: https://cognarc-it.vercel.app
+echo Backend will be available at:  https://cognarc-it-1.onrender.com
 echo ===================================================
 echo You can safely close this launcher window.
 pause

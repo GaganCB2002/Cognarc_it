@@ -2,7 +2,7 @@ import activeWin from 'active-win';
 import axios from 'axios';
 
 // Read from env or default to dev settings
-const API_BASE = process.env.STUDYTRACK_API_BASE || "http://localhost:5000/api";
+const API_BASE = process.env.STUDYTRACK_API_BASE || "https://cognarc-it-1.onrender.com/api";
 const TELEMETRY_URL = `${API_BASE}/telemetry/desktop`;
 const SESSION_URL = `${API_BASE}/tracking/sessions/current`;
 const USER_TOKEN = process.env.STUDYTRACK_USER_TOKEN || "temp-user-id";

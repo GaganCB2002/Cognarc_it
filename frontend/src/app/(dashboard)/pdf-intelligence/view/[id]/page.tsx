@@ -156,7 +156,7 @@ export default function PDFViewerPage() {
     if (docText) return docText;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/upload/${id}/text`,
+        `${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${id}/text`,
         { headers: { Authorization: `Bearer ${api.getToken()}` } }
       );
       if (!res.ok) throw new Error("Failed to extract text");
@@ -261,7 +261,7 @@ export default function PDFViewerPage() {
       const data = await api.get<any>("/upload/my-files");
       const found = data.find((d: any) => d.id === id);
       if (found) setDoc(found); else setError("Document not found");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/upload/${id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${id}`, {
         headers: { Authorization: `Bearer ${api.getToken()}` }
       });
       if (res.ok) setPdfData(new Uint8Array(await res.arrayBuffer()));

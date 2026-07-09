@@ -4,7 +4,7 @@
 
 const STUDYTRACK_CONFIG = {
   // Backend API URL for telemetry submission
-  API_URL: "http://localhost:5000/api/telemetry/browser",
+  API_URL: "https://cognarc-it-1.onrender.com/api/telemetry/browser",
 
   // Your StudyTrack user authentication token
   // Get this from your StudyTrack dashboard after logging in

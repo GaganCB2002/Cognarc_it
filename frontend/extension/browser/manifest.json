@@ -9,7 +9,7 @@
     "idle"
   ],
   "host_permissions": [
-    "http://localhost:5000/*",
+    "https://cognarc-it-1.onrender.com/*",
     "https://*.onrender.com/*"
   ],
   "background": {

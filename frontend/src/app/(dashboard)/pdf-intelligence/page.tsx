@@ -117,7 +117,7 @@ export default function PDFIntelligencePage() {
     setAiResult(null);
     try {
       const fileRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/upload/${selectedDoc.id}/text`,
+        `${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${selectedDoc.id}/text`,
         { headers: { Authorization: `Bearer ${api.getToken()}` } }
       );
       if (!fileRes.ok) throw new Error("Failed to extract text from document");
@@ -340,7 +340,7 @@ export default function PDFIntelligencePage() {
                     <Button variant="ghost" size="sm" onClick={() => router.push(`/pdf-intelligence/view/${selectedDoc.id}`)}>
                       <ExternalLink className="w-4 h-4 mr-1" />Open Viewer
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"}/upload/${selectedDoc.id}`, "_blank")}>
+                    <Button variant="ghost" size="sm" onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${selectedDoc.id}`, "_blank")}>
                       <FileText className="w-4 h-4 mr-1" />Download
                     </Button>
                   </div>

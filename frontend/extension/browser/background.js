@@ -6,7 +6,7 @@ let activeTabDomain = null;
 let activeTabTitle = null;
 let startTime = Date.now();
 
-let API_BASE = "http://localhost:5000/api";
+let API_BASE = "https://cognarc-it-1.onrender.com/api";
 let TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
 let SESSION_URL = `${API_BASE}/tracking/sessions/current`;
 let USER_ID = "temp-user-id";
@@ -14,7 +14,7 @@ let activeSessionId = null;
 
 // Initialize from storage
 chrome.storage.sync.get({
-  apiBase: 'http://localhost:5000/api',
+  apiBase: 'https://cognarc-it-1.onrender.com/api',
   userId: 'temp-user-id'
 }, (items) => {
   API_BASE = items.apiBase;

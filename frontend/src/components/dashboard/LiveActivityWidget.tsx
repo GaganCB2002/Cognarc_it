@@ -29,7 +29,7 @@ export function LiveActivityWidget() {
     if (!user?.id) return;
 
     // Connect to the backend socket
-    const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "http://localhost:5000";
+    const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "https://cognarc-it-1.onrender.com";
     const socket: Socket = io(socketUrl, {
       withCredentials: true,
     });

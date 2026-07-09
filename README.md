@@ -218,14 +218,14 @@ Create a `.env` in `/backend` and `.env.local` in `/frontend`.
 ```env
 DATABASE_URL="postgresql://user:password@localhost:5432/studytrack"
 JWT_SECRET="your-super-secret-key"
-FRONTEND_URL="http://localhost:3000"
+FRONTEND_URL="https://cognarc-it.vercel.app"
 PORT=5000
 GEMINI_API_KEY="your-google-gemini-key"
 ```
 
 **Frontend (`/frontend/.env.local`)**
 ```env
-NEXT_PUBLIC_API_URL="http://localhost:5000/api"
+NEXT_PUBLIC_API_URL="https://cognarc-it-1.onrender.com/api"
 ```
 
 ### 2. Run Backend
@@ -243,4 +243,4 @@ npm install
 npm run dev
 ```
 
-Navigate to `http://localhost:3000` to start using the OS.
+Navigate to `https://cognarc-it.vercel.app` to start using the OS.
