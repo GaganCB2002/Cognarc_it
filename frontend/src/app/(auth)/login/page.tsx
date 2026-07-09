@@ -304,7 +304,7 @@ function LoginForm() {
     setError("");
     setFaceLoading(true);
     try {
-      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      // if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
       await login(email, faceImage, captchaKey, captchaAnswer, false, true);
     } catch (err: any) {
       setError(err.message || "Face login failed");
@@ -371,7 +371,7 @@ function LoginForm() {
             </div>
           </div>
 
-          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
 
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
@@ -387,12 +387,12 @@ function LoginForm() {
           <Input label="email address" id="reg-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input label="password" id="reg-password" name="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
           
-          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
           
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           {success && <p className="text-sm text-emerald-400 text-center bg-emerald-400/10 py-2 rounded-lg border border-emerald-400/20">{success}</p>}
           
-          <Button type="submit" disabled={registerLoading || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+          <Button type="submit" disabled={registerLoading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
             {registerLoading ? "registering..." : "create account"}
           </Button>
         </motion.form>
@@ -403,7 +403,7 @@ function LoginForm() {
         <motion.div key="otp" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5">
           <Input label="email address" id="otp-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
 
-          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
 
           {!otpSent ? (
             <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
@@ -439,7 +439,7 @@ function LoginForm() {
         <motion.form key="face" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleFaceLogin}>
           <Input label="email address" id="face-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
 
-          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+          {/* <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} /> */}
 
           {/* Webcam Section */}
           <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
@@ -495,7 +495,7 @@ function LoginForm() {
           </div>
 
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
-          <Button type="submit" disabled={faceLoading || !faceImage || !email.trim() || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+          <Button type="submit" disabled={faceLoading || !faceImage || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
             {faceLoading ? "verifying face..." : "sign in with face"}
           </Button>
         </motion.form>

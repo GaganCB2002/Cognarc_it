@@ -33,10 +33,10 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-      return;
-    }
+    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+    //   return;
+    // }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -71,10 +71,10 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-      return;
-    }
+    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+    //   return;
+    // }
 
     let user = await prisma.user.findUnique({ where: { email } });
     
@@ -178,10 +178,10 @@ export async function sendOtp(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-      return;
-    }
+    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+    //   return;
+    // }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.otpCode) {
@@ -211,10 +211,10 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-      return;
-    }
+    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+    //   return;
+    // }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -302,10 +302,10 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-      return;
-    }
+    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+    //   return;
+    // }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
