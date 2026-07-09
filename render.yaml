@@ -14,7 +14,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://studytrack-web.onrender.com
+        value: https://cognarc-3dh07ad3d-gagan-c-b-s-projects.vercel.app
       - key: STORAGE_PROVIDER
         value: GITHUB
       - key: GITHUB_STORAGE_TOKEN
