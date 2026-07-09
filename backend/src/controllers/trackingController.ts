@@ -104,7 +104,7 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: { session, report } });
   } catch (error: any) {
     console.error('stopSession error:', error);
-    if (error.message === 'Active or paused session not found') {
+    if (error.message === 'Session not found') {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
@@ -122,7 +122,6 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
 
     const pdfPath = path.join(__dirname, '..', '..', 'uploads', `report-${sessionId}.pdf`);
     
-    // If not cached, generate on-the-fly
     if (!fs.existsSync(pdfPath)) {
       try {
         const buffer = await generateSessionPdfReport(sessionId, userId);
@@ -134,11 +133,6 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
         res.status(404).json({ success: false, message: 'Report PDF could not be generated' });
         return;
       }
-    }
-
-    if (!fs.existsSync(pdfPath)) {
-      res.status(404).json({ success: false, message: 'Report PDF not found' });
-      return;
     }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="session-report-${sessionId}.pdf"`);
@@ -196,11 +190,17 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
       return;
     }
 
-    for (const ev of events) {
-      if (!ev.trackingSessionId) {
-        res.status(400).json({ message: 'Each event must have a trackingSessionId' });
-        return;
-      }
+    // Validate session ownership for all events
+    const sessionIds = [...new Set(events.map((e: any) => e.trackingSessionId))];
+    const validSessions = await prisma.trackingSession.findMany({
+      where: { id: { in: sessionIds }, userId },
+      select: { id: true },
+    });
+    const validSessionIds = new Set(validSessions.map((s: any) => s.id));
+    const invalid = sessionIds.find((sid: string) => !validSessionIds.has(sid));
+    if (invalid) {
+      res.status(403).json({ message: `Session ${invalid} not found or does not belong to user` });
+      return;
     }
 
     const created = await prisma.$transaction(

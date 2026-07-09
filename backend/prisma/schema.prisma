@@ -473,6 +473,7 @@ enum StorageProvider {
   S3
   CLOUDINARY
   GITHUB
+  GOOGLE_DRIVE
 }
 
 enum DocumentStatus {

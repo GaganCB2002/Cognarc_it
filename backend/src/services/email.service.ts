@@ -4,62 +4,21 @@ const APP_NAME = process.env.APP_NAME || "StudyTrack";
 let transporter: nodemailer.Transporter | null = null;
 let etherealUrl: string | null = null;
 
-function getEtherealTransport() {
-  return nodemailer.createTransport({
-    host: "smtp.ethereal.email",
-    port: 587,
-    secure: false,
-    auth: {
-      user: "fanny.weimann69@ethereal.email",
-      pass: "Vjcm46j7RrfntmqZmk",
-    },
-  });
-}
-
-function getRealTransport() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT || "587"),
-    secure: process.env.SMTP_PORT === "465",
-    auth: {
-      user: process.env.SMTP_USER || "",
-      pass: process.env.SMTP_PASS || "",
-    },
-    pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-  });
-}
-
 async function getTransporter(): Promise<nodemailer.Transporter> {
   if (transporter) return transporter;
 
-  const hasRealSmtp = !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-
-  if (hasRealSmtp) {
-    transporter = getRealTransport();
-    try {
-      await transporter.verify();
-      console.log(`[EMAIL] Real SMTP connected (${process.env.SMTP_USER})`);
-    } catch {
-      console.warn("[EMAIL] Real SMTP failed, falling back to Ethereal (dev)");
-      transporter = getEtherealTransport();
-    }
-  } else {
-    transporter = getEtherealTransport();
-    const account = await nodemailer.createTestAccount();
-    transporter = nodemailer.createTransport({
-      host: account.smtp.host,
-      port: account.smtp.port,
-      secure: account.smtp.secure,
-      auth: {
-        user: account.user,
-        pass: account.pass,
-      },
-    });
-    etherealUrl = `https://ethereal.email/login?user=${account.user}`;
-    console.log(`[EMAIL] Using Ethereal (dev) — view emails at ${etherealUrl}`);
-  }
+  const account = await nodemailer.createTestAccount();
+  transporter = nodemailer.createTransport({
+    host: account.smtp.host,
+    port: account.smtp.port,
+    secure: account.smtp.secure,
+    auth: {
+      user: account.user,
+      pass: account.pass,
+    },
+  });
+  etherealUrl = `https://ethereal.email/login?user=${account.user}`;
+  console.log(`[EMAIL] Using Ethereal — view emails at ${etherealUrl}`);
 
   return transporter;
 }

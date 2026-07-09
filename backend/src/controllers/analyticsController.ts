@@ -1,14 +1,8 @@
 import { Request, Response } from 'express';
 import { prisma } from '../server';
 import { getAggregatedStats } from '../services/analytics.service';
-import {
-  generateProductivityInsights,
-  generateLearningRoadmap,
-} from '../services/insights.service';
-import {
-  getSessionHistory,
-  getAggregatedSessionStats,
-} from '../services/tracking.service';
+import { generateProductivityInsights } from '../services/insights.service';
+import { getSessionHistory } from '../services/tracking.service';
 
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {

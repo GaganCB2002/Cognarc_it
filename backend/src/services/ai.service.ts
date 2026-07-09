@@ -7,6 +7,8 @@ export const generateSummary = async (text: string) => {
   return {
     summary: result.summary,
     keyTopics: result.topics,
+    mcqs: result.mcqs,
+    interviewQuestions: result.interviewQuestions,
   };
 };
 

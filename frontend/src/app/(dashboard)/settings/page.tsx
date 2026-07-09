@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Settings as SettingsIcon, User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, ChevronRight, Save, LogOut, CheckCircle2, ScanFace, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -60,6 +61,48 @@ export default function SettingsPage() {
   const [faceSaving, setFaceSaving] = useState(false);
   const [faceEnrolled, setFaceEnrolled] = useState(false);
 
+  // Blink Detection
+  const [blinkCount, setBlinkCount] = useState(0);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const requestRef = useRef<number | null>(null);
+  const blinkCountRef = useRef(0);
+  const cameraActiveRef = useRef(false);
+
+  useEffect(() => {
+     cameraActiveRef.current = cameraActive;
+  }, [cameraActive]);
+
+  // Load FaceLandmarker
+  useEffect(() => {
+    let isMounted = true;
+    const initModel = async () => {
+      try {
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
+        if (isMounted) {
+            faceLandmarkerRef.current = landmarker;
+        }
+      } catch (err) {
+        console.error("Failed to load FaceLandmarker", err);
+      }
+    };
+    initModel();
+    return () => {
+        isMounted = false;
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
+
   // Cleanup camera on unmount
   useEffect(() => {
     return () => {
@@ -70,36 +113,22 @@ export default function SettingsPage() {
     };
   }, []);
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-        setFaceImage(null);
-        setFaceEnrolled(false);
-      }
-    } catch {
-      showError("Camera access denied. Please allow camera permissions.");
-    }
-  };
-
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
-  };
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+  }, []);
 
-  const captureFace = () => {
+  const captureFace = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
@@ -107,7 +136,70 @@ export default function SettingsPage() {
     const base64 = dataUrl.split(",")[1];
     setFaceImage(base64);
     stopCamera();
-  };
+  }, [stopCamera]);
+
+  const captureFaceRef = useRef(captureFace);
+  useEffect(() => { captureFaceRef.current = captureFace; }, [captureFace]);
+
+  const startCamera = useCallback(async () => {
+    stopCamera();
+    
+    setCameraActive(true);
+    setFaceImage(null);
+    setFaceEnrolled(false);
+    setBlinkCount(0);
+    blinkCountRef.current = 0;
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+
+        let lastVideoTime = -1;
+        let blinkState = false;
+
+        const renderLoop = () => {
+           if (!videoRef.current || !faceLandmarkerRef.current || !cameraActiveRef.current) return;
+           
+           const video = videoRef.current;
+           let startTimeMs = performance.now();
+           if (video.currentTime !== lastVideoTime) {
+             lastVideoTime = video.currentTime;
+             const results = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
+             
+             if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+                 const blendshapes = results.faceBlendshapes[0].categories;
+                 const leftEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+                 const rightEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkRight')?.score || 0;
+                 
+                 const isCurrentlyBlinking = leftEye > 0.4 && rightEye > 0.4;
+                 
+                 if (isCurrentlyBlinking && !blinkState) {
+                     blinkState = true;
+                 } else if (!isCurrentlyBlinking && blinkState) {
+                     blinkState = false;
+                     blinkCountRef.current += 1;
+                     setBlinkCount(blinkCountRef.current);
+                     
+                     if (blinkCountRef.current >= 3) {
+                         captureFaceRef.current(); 
+                         return; // stop RAF
+                     }
+                 }
+             }
+           }
+           requestRef.current = requestAnimationFrame(renderLoop);
+        };
+        requestRef.current = requestAnimationFrame(renderLoop);
+      }
+    } catch {
+      setCameraActive(false);
+      showError("Camera access denied. Please allow camera permissions.");
+    }
+  }, [stopCamera]);
 
   const retakeFacePhoto = () => {
     setFaceImage(null);
@@ -459,24 +551,25 @@ export default function SettingsPage() {
 
                 {!faceImage ? (
                   <div className="text-center py-6 bg-st-bg-elevated rounded-lg border border-st-border">
-                    <ScanFace className="w-10 h-10 mx-auto text-st-text-muted mb-2" />
-                    {!cameraActive ? (
+                    <div className={`flex flex-col items-center justify-center ${cameraActive ? 'hidden' : ''}`}>
+                      <ScanFace className="w-10 h-10 mx-auto text-st-text-muted mb-2" />
                       <Button type="button" variant="primary" size="sm" onClick={startCamera}>
                         <Camera className="w-4 h-4 mr-1" /> Start Camera
                       </Button>
-                    ) : (
-                      <div>
-                        <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3">
-                          <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-[240px] h-auto" />
-                        </div>
-                        <div className="flex gap-2 justify-center">
-                          <Button type="button" variant="primary" size="sm" onClick={captureFace}>
-                            <Camera className="w-4 h-4 mr-1" /> Capture
-                          </Button>
-                          <Button type="button" variant="ghost" size="sm" onClick={stopCamera}>Cancel</Button>
+                    </div>
+                    
+                    <div className={`flex flex-col items-center ${!cameraActive ? 'hidden' : ''}`}>
+                      <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3">
+                        <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-[240px] h-auto" />
+                        <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-mono flex gap-1 items-center z-10">
+                          <Eye className="w-3 h-3 text-st-accent" /> Blinks: {blinkCount} / 3
                         </div>
                       </div>
-                    )}
+                      <div className="flex flex-col gap-2 justify-center items-center">
+                        <p className="text-xs text-st-accent font-medium mb-1 bg-st-accent/10 px-3 py-1.5 rounded-full border border-st-accent/20">Please blink your eyes 3 times</p>
+                        <Button type="button" variant="ghost" size="sm" onClick={stopCamera}>Cancel</Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-4 bg-st-bg-elevated rounded-lg border border-st-border">

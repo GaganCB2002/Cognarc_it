@@ -79,6 +79,7 @@ export default function Home() {
 
   // Video Playlist
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [videoMuted, setVideoMuted] = useState(true);
   const backgroundVideos = ["/hero-video.mp4", "/hero-video-2.mp4"];
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -199,13 +200,27 @@ export default function Home() {
             <video 
               ref={videoRef}
               autoPlay 
-              muted 
+              muted={videoMuted}
               playsInline 
               onEnded={handleVideoEnded}
               className="w-full h-full object-cover opacity-100 transition-opacity duration-1000"
             >
               <source src={backgroundVideos[currentVideoIndex]} type="video/mp4" />
             </video>
+            <button
+              onClick={() => {
+                setVideoMuted(prev => !prev);
+                if (videoRef.current) videoRef.current.muted = !videoMuted;
+              }}
+              className="absolute top-6 right-6 z-20 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center transition-colors border border-white/10"
+              aria-label={videoMuted ? "Unmute video" : "Mute video"}
+            >
+              {videoMuted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              )}
+            </button>
             <div className="absolute inset-0 bg-black/40 pointer-events-none" />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-st-bg-primary/30 to-st-bg-primary pointer-events-none" />
           </div>

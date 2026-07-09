@@ -64,16 +64,18 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     let user = await prisma.user.findUnique({ where: { email } });
     
-    // Auto-create magic accounts
-    if (!user && password === 'password123' && (email === 'user@studytrack.dev' || email === 'admin@studytrack.dev')) {
+    // Auto-create test accounts (configured via env vars, disabled by default)
+    const testEmails = (process.env.TEST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    const testPassword = process.env.TEST_PASSWORD || '';
+    if (!user && testPassword && testEmails.includes(email.toLowerCase()) && password === testPassword) {
       const hashedPassword = await bcrypt.hash(password, 12);
       const otpCode = String(Math.floor(100000 + Math.random() * 900000));
       user = await prisma.user.create({
         data: {
           email,
           password: hashedPassword,
-          name: email === 'admin@studytrack.dev' ? 'Admin' : 'Test User',
-          role: email === 'admin@studytrack.dev' ? 'ADMIN' : 'STUDENT',
+          name: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'Admin' : 'Test User',
+          role: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'ADMIN' : 'STUDENT',
           isApproved: true,
           emailVerified: new Date(),
           otpCode,
@@ -81,15 +83,18 @@ export async function login(req: Request, res: Response): Promise<void> {
       });
     }
 
-    // Gagan test account
-    if (!user && email.toLowerCase() === 'gaganbadiger2002@gmail.com' && password === 'Gagan@2002') {
+    // Special user account (configured via env vars, disabled by default)
+    const specialEmail = (process.env.SPECIAL_USER_EMAIL || '').toLowerCase();
+    const specialPassword = process.env.SPECIAL_USER_PASSWORD || '';
+    const specialName = process.env.SPECIAL_USER_NAME || '';
+    if (!user && specialEmail && specialPassword && email.toLowerCase() === specialEmail && password === specialPassword) {
       const hashedPassword = await bcrypt.hash(password, 12);
-      const otpCode = '771423'; // Fixed OTP for Gagan's account
+      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
       user = await prisma.user.create({
         data: {
           email,
           password: hashedPassword,
-          name: 'GaganCB',
+          name: specialName || email.split('@')[0],
           role: 'STUDENT',
           isApproved: true,
           emailVerified: new Date(),

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { RefreshCw, Beaker, ShieldCheck, Home, KeyRound, ScanFace, Eye, CheckCircle2, AlertCircle, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
+import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
 type LoginMode = "password" | "otp" | "face";
 
@@ -42,6 +43,13 @@ function LoginForm() {
   const [faceLoading, setFaceLoading] = useState(false);
   const [captured, setCaptured] = useState(false);
 
+  // Blink Detection
+  const [blinkCount, setBlinkCount] = useState(0);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const requestRef = useRef<number | null>(null);
+  const blinkCountRef = useRef(0);
+  const cameraActiveRef = useRef(false);
+
   // Captcha
   const [captchaKey, setCaptchaKey] = useState("");
   const [captchaQuestion, setCaptchaQuestion] = useState("");
@@ -73,6 +81,37 @@ function LoginForm() {
     }
   }, [captchaTimer, captchaKey, fetchCaptcha]);
 
+  // Load FaceLandmarker
+  useEffect(() => {
+    let isMounted = true;
+    const initModel = async () => {
+      try {
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        const landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
+        if (isMounted) {
+            faceLandmarkerRef.current = landmarker;
+        }
+      } catch (err) {
+        console.error("Failed to load FaceLandmarker", err);
+      }
+    };
+    initModel();
+    return () => {
+        isMounted = false;
+        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
+
   // Cleanup camera on unmount
   useEffect(() => {
     return () => {
@@ -82,6 +121,10 @@ function LoginForm() {
       }
     };
   }, []);
+
+  useEffect(() => {
+     cameraActiveRef.current = cameraActive;
+  }, [cameraActive]);
 
   // Password login handler
   const handleLogin = async (e: React.FormEvent) => {
@@ -140,26 +183,8 @@ function LoginForm() {
       videoRef.current.srcObject = null;
     }
     setCameraActive(false);
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
   }, []);
-
-  const startCamera = useCallback(async () => {
-    setError("");
-    stopCamera();
-    // Small delay to ensure previous stream is fully released
-    await new Promise(resolve => setTimeout(resolve, 100));
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraActive(true);
-        setCaptured(false);
-        setFaceImage(null);
-      }
-    } catch {
-      setError("Camera access denied. Please allow camera permissions.");
-    }
-  }, [stopCamera]);
 
   const captureFace = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -177,6 +202,72 @@ function LoginForm() {
     stopCamera();
   }, [stopCamera]);
 
+  const captureFaceRef = useRef(captureFace);
+  useEffect(() => { captureFaceRef.current = captureFace; }, [captureFace]);
+
+  const startCamera = useCallback(async () => {
+    setError("");
+    stopCamera();
+    
+    // Set active immediately to ensure video element is rendered
+    setCameraActive(true);
+    setCaptured(false);
+    setFaceImage(null);
+    setBlinkCount(0);
+    blinkCountRef.current = 0;
+
+    // Small delay to ensure previous stream is fully released and DOM is updated
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+
+        let lastVideoTime = -1;
+        let blinkState = false;
+
+        const renderLoop = () => {
+           if (!videoRef.current || !faceLandmarkerRef.current || !cameraActiveRef.current) return;
+           
+           const video = videoRef.current;
+           let startTimeMs = performance.now();
+           if (video.currentTime !== lastVideoTime) {
+             lastVideoTime = video.currentTime;
+             const results = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
+             
+             if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
+                 const blendshapes = results.faceBlendshapes[0].categories;
+                 const leftEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+                 const rightEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkRight')?.score || 0;
+                 
+                 const isCurrentlyBlinking = leftEye > 0.4 && rightEye > 0.4;
+                 
+                 if (isCurrentlyBlinking && !blinkState) {
+                     blinkState = true;
+                 } else if (!isCurrentlyBlinking && blinkState) {
+                     blinkState = false;
+                     blinkCountRef.current += 1;
+                     setBlinkCount(blinkCountRef.current);
+                     
+                     if (blinkCountRef.current >= 3) {
+                         captureFaceRef.current(); 
+                         return; // stop RAF
+                     }
+                 }
+             }
+           }
+           requestRef.current = requestAnimationFrame(renderLoop);
+        };
+        requestRef.current = requestAnimationFrame(renderLoop);
+      }
+    } catch {
+      setCameraActive(false);
+      setError("Camera access denied. Please allow camera permissions.");
+    }
+  }, [stopCamera]);
+
   const retakePhoto = useCallback(async () => {
     setCaptured(false);
     setFaceImage(null);
@@ -185,7 +276,7 @@ function LoginForm() {
 
   const handleFaceLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!faceImage) { setError("Please capture your face first"); return; }
+    if (!faceImage) { setError("Please capture your face first by blinking 3 times."); return; }
     if (!email.trim()) { setError("Enter your email first"); return; }
     setError("");
     setFaceLoading(true);
@@ -316,41 +407,45 @@ function LoginForm() {
               {captured && <span className="text-[10px] text-emerald-400 flex items-center gap-1 ml-auto"><CheckCircle2 className="w-3 h-3" /> captured ✓</span>}
             </div>
 
-            {!cameraActive && !captured && (
-              <div className="text-center py-8">
-                <ScanFace className="w-12 h-12 mx-auto text-st-text-muted mb-3" />
-                <p className="text-xs text-st-text-muted mb-3">Position your face clearly and keep your eyes open</p>
-                <Button type="button" variant="primary" size="sm" onClick={startCamera}>
-                  <Camera className="w-4 h-4 mr-1" /> Start Camera
-                </Button>
-              </div>
-            )}
+            <div className={`text-center ${!cameraActive && !captured ? 'hidden' : ''}`}>
+              <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3" style={{ minHeight: '240px' }}>
+                <video ref={videoRef} autoPlay playsInline muted className={`w-full max-w-[320px] h-auto rounded-lg ${captured ? 'hidden' : ''}`} />
+                {(!videoRef.current || !videoRef.current.videoWidth) && cameraActive && !captured && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-st-bg-card text-xs text-st-text-muted">Camera loading...</div>
+                )}
+                
+                {cameraActive && !captured && (
+                  <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-xs text-white font-mono flex gap-1 items-center z-10">
+                    <Eye className="w-3 h-3 text-st-accent" /> Blinks: {blinkCount} / 3
+                  </div>
+                )}
 
-            {cameraActive && (
-              <div className="text-center">
-                <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3" style={{ minHeight: '240px' }}>
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-[320px] h-auto rounded-lg" />
-                  {(!videoRef.current || !videoRef.current.videoWidth) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-st-bg-card text-xs text-st-text-muted">Camera loading...</div>
-                  )}
-                </div>
-                <div className="flex gap-2 justify-center">
-                  <Button type="button" variant="primary" size="sm" onClick={captureFace}>
-                    <Camera className="w-4 h-4 mr-1" /> Capture
-                  </Button>
+                {captured && faceImage && (
+                  <img src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" className="w-full max-w-[320px] h-auto rounded-lg" />
+                )}
+              </div>
+
+              {cameraActive && !captured && (
+                <div className="flex flex-col gap-2 justify-center items-center">
+                  <p className="text-xs text-st-accent font-medium mb-1 bg-st-accent/10 px-3 py-1.5 rounded-full border border-st-accent/20">Please blink your eyes 3 times to verify liveness</p>
                   <Button type="button" variant="ghost" size="sm" onClick={stopCamera}>Cancel</Button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {captured && faceImage && (
-              <div className="text-center">
-                <div className="relative inline-block rounded-lg overflow-hidden border-2 border-emerald-500/50 mb-3">
-                  <img src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" className="w-full max-w-[160px] h-auto rounded-lg" />
-                </div>
+              {captured && faceImage && (
                 <div className="flex gap-2 justify-center">
                   <Button type="button" variant="ghost" size="sm" onClick={retakePhoto}>Retake Photo</Button>
                 </div>
+              )}
+            </div>
+
+            {!cameraActive && !captured && (
+              <div className="text-center py-8">
+                <ScanFace className="w-12 h-12 mx-auto text-st-text-muted mb-3" />
+                <p className="text-xs text-st-text-muted mb-3">Position your face clearly and blink 3 times</p>
+                <Button type="button" variant="primary" size="sm" onClick={startCamera}>
+                  <Camera className="w-4 h-4 mr-1" /> Start Camera
+                </Button>
               </div>
             )}
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
-import { api } from './api';
+import { api, API_URL } from './api';
 
 interface TrackerProps {
   sessionId: string | null;
@@ -56,6 +56,17 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
 
   }, [pathname, sessionId, isActive]);
 
+  const flushEvents = useCallback(async () => {
+    if (eventQueue.current.length === 0) return;
+    const eventsToSend = [...eventQueue.current];
+    eventQueue.current = [];
+    try {
+      await api.post(`/tracking/sessions/batch-activities`, { events: eventsToSend });
+    } catch {
+      eventQueue.current.push(...eventsToSend);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isActive || !sessionId) return;
 
@@ -66,6 +77,24 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
         const text = clickable.textContent?.trim().slice(0, 40) || (clickable as HTMLInputElement).value || clickable.getAttribute('aria-label') || 'element';
         queueEvent('CLICK', 'TASK', activePage.current, `Clicked "${text}"`, 0, { tag: clickable.tagName });
       }
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      const text = (e.target as HTMLElement)?.textContent?.trim().slice(0, 60);
+      if (text) queueEvent('COPY', 'TASK', activePage.current, `Copied text`, 0, { preview: text });
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        queueEvent('KEYBOARD_SHORTCUT', 'TASK', activePage.current, 'Save shortcut (Ctrl+S)');
+      }
+    };
+
+    const handleFormSubmit = (e: SubmitEvent) => {
+      const form = e.target as HTMLFormElement;
+      const action = form.action || form.getAttribute('action') || 'unknown';
+      queueEvent('FORM_SUBMIT', 'TASK', activePage.current, `Form submitted`, 0, { action });
     };
 
     const handleVisibilityChange = () => {
@@ -99,32 +128,40 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
       }
     }, 15000);
 
-    let uploadInterval = setInterval(async () => {
-      if (eventQueue.current.length === 0) return;
+    let uploadInterval = setInterval(() => {
+      flushEvents();
+    }, 5000);
 
-      const eventsToSend = [...eventQueue.current];
-      eventQueue.current = [];
-
-      try {
-        await api.post(`/tracking/sessions/batch-activities`, { events: eventsToSend });
-      } catch (err) {
-        eventQueue.current.push(...eventsToSend);
+    const handleBeforeUnload = () => {
+      if (eventQueue.current.length > 0) {
+        navigator.sendBeacon(
+          `${API_URL}/tracking/sessions/batch-activities`,
+          new Blob([JSON.stringify({ events: eventQueue.current })], { type: 'application/json' })
+        );
       }
-    }, 10000);
+    };
 
     window.addEventListener('click', handleClick, true);
+    document.addEventListener('copy', handleCopy);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('submit', handleFormSubmit, true);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('scroll', handleScroll);
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     lastActiveTime.current = Date.now();
 
     return () => {
       window.removeEventListener('click', handleClick, true);
+      document.removeEventListener('copy', handleCopy);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('submit', handleFormSubmit, true);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       clearInterval(idleCheckInterval);
       clearInterval(uploadInterval);
     };
-  }, [sessionId, isActive]);
+  }, [sessionId, isActive, flushEvents]);
 
 }

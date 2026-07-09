@@ -1,11 +1,13 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
+// Load env from project root (../env.backend) for easy deployment
+dotenv.config({ path: path.resolve(__dirname, "..", "..", "env.backend") });
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import path from "path";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";

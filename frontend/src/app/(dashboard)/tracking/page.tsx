@@ -509,7 +509,7 @@ export default function TrackingDashboard() {
         </Card>
       )}
 
-      {!session && !data && !loading && (
+      {session?.status === "IDLE" && !data && !loading && (
         <div className="flex flex-col items-center justify-center py-20 text-st-text-muted">
           <Radio className="w-16 h-16 mb-4 opacity-20" />
           <h3 className="text-xl font-bold mb-2">No Active Session</h3>

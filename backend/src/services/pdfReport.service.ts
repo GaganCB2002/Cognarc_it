@@ -22,8 +22,7 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
     throw new Error('Session not found');
   }
 
-  // Get the AI/general report stored for this session
-  const report = session.reports[0];
+  const report = session.reports?.[0];
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });

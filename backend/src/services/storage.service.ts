@@ -3,8 +3,9 @@ import fsSync from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import * as githubStorage from "./githubStorage.service";
+import * as googleDriveStorage from "./googleDrive.service";
 
-export type StorageProvider = "LOCAL" | "S3" | "GITHUB";
+export type StorageProvider = "LOCAL" | "S3" | "GITHUB" | "GOOGLE_DRIVE";
 
 interface StorageConfig {
   provider: StorageProvider;
@@ -98,7 +99,9 @@ export async function saveFile(
 
   let publicUrl: string | null = null;
 
-  if (config.provider === "S3") {
+  if (config.provider === "GOOGLE_DRIVE") {
+    publicUrl = await googleDriveStorage.saveFile(storageKey, buffer);
+  } else if (config.provider === "S3") {
     await saveToS3(storageKey, buffer);
     if (config.publicBaseUrl) {
       publicUrl = `${config.publicBaseUrl.replace(/\/$/, "")}/${storageKey}`;
@@ -119,6 +122,9 @@ export async function saveFile(
 
 export async function getFile(storageKey: string): Promise<Buffer | null> {
   try {
+    if (config.provider === "GOOGLE_DRIVE") {
+      return await googleDriveStorage.getFile(storageKey);
+    }
     if (config.provider === "S3") {
       throw new Error("S3 read not implemented");
     }
@@ -132,7 +138,9 @@ export async function getFile(storageKey: string): Promise<Buffer | null> {
 }
 
 export async function deleteFile(storageKey: string): Promise<void> {
-  if (config.provider === "S3") {
+  if (config.provider === "GOOGLE_DRIVE") {
+    await googleDriveStorage.deleteFile(storageKey);
+  } else if (config.provider === "S3") {
     // S3 delete placeholder
   } else if (config.provider === "GITHUB") {
     await githubStorage.deleteFile(storageKey);
@@ -142,6 +150,9 @@ export async function deleteFile(storageKey: string): Promise<void> {
 }
 
 export async function fileExists(storageKey: string): Promise<boolean> {
+  if (config.provider === "GOOGLE_DRIVE") {
+    return googleDriveStorage.fileExists(storageKey);
+  }
   if (config.provider === "S3") {
     return false;
   }
