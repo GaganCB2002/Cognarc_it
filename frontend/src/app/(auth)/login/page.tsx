@@ -57,7 +57,15 @@ function LoginForm() {
   const [captchaTimer, setCaptchaTimer] = useState(300);
 
   const fetchCaptcha = useCallback(async () => {
-    // Captcha is disabled
+    try {
+      const res = await api.get<{ key: string; question: string }>("/auth/captcha");
+      setCaptchaKey(res.key);
+      setCaptchaQuestion(res.question);
+      setCaptchaAnswer("");
+      setCaptchaTimer(300);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load captcha");
+    }
   }, []);
 
   useEffect(() => {
@@ -124,7 +132,8 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      await login(email, password, "disabled", "disabled");
+      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      await login(email, password, captchaKey, captchaAnswer);
     } catch (err: any) {
       setError(err.message || "Login failed");
       fetchCaptcha();
@@ -139,9 +148,11 @@ function LoginForm() {
     setError("");
     setOtpLoading(true);
     try {
-      await api.post("/auth/send-otp", { email, captchaKey: "disabled", captchaAnswer: "disabled" });
+      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      await api.post("/auth/send-otp", { email, captchaKey, captchaAnswer });
       setOtpSent(true);
       setSuccess("OTP sent to your registered email");
+      await fetchCaptcha();
     } catch (err: any) {
       setError(err.message || "Failed to send OTP");
       fetchCaptcha();
@@ -155,7 +166,7 @@ function LoginForm() {
     setError("");
     setOtpVerifyLoading(true);
     try {
-      await login(email, otp, "disabled", "disabled", true);
+      await login(email, otp, captchaKey, captchaAnswer, true);
     } catch (err: any) {
       setError(err.message || "OTP verification failed");
       fetchCaptcha();
@@ -270,7 +281,8 @@ function LoginForm() {
     setError("");
     setFaceLoading(true);
     try {
-      await login(email, faceImage, "disabled", "disabled", false, true);
+      if (!captchaKey || !captchaAnswer) throw new Error("Please solve the captcha");
+      await login(email, faceImage, captchaKey, captchaAnswer, false, true);
     } catch (err: any) {
       setError(err.message || "Face login failed");
       fetchCaptcha();
@@ -335,6 +347,7 @@ function LoginForm() {
             </div>
           </div>
 
+          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
 
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
@@ -348,9 +361,10 @@ function LoginForm() {
         <motion.div key="otp" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5">
           <Input label="email address" id="otp-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
 
+          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
 
           {!otpSent ? (
-            <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+            <Button type="button" onClick={handleSendOtp} disabled={otpLoading || !email.trim() || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
               {otpLoading ? "sending..." : "send OTP to email"}
             </Button>
           ) : (
@@ -383,6 +397,7 @@ function LoginForm() {
         <motion.form key="face" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleFaceLogin}>
           <Input label="email address" id="face-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
 
+          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
 
           {/* Webcam Section */}
           <div className="rounded-xl border border-st-border/50 bg-st-bg-elevated/50 p-4">
@@ -438,7 +453,7 @@ function LoginForm() {
           </div>
 
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
-          <Button type="submit" disabled={faceLoading || !faceImage || !email.trim()} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+          <Button type="submit" disabled={faceLoading || !faceImage || !email.trim() || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
             {faceLoading ? "verifying face..." : "sign in with face"}
           </Button>
         </motion.form>
