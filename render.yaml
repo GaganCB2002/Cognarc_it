@@ -31,7 +31,7 @@ services:
     startCommand: cd frontend && npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        value: https://studytrack-api.onrender.com
+        value: https://cognarc-it-1.onrender.com/api
 
 databases:
   - name: studytrack-db
