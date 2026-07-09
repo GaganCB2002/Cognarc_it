@@ -50,6 +50,8 @@ export default function PDFViewerPage() {
   // Plugins
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   
+  const [highlights, setHighlights] = useState<any[]>([]);
+
   const renderHighlightTarget = (props: RenderHighlightTargetProps) => (
     <div
         style={{
@@ -66,18 +68,42 @@ export default function PDFViewerPage() {
         }}
     >
         <Button variant="primary" size="sm" onClick={() => {
+            setHighlights((prev) => [...prev, { content: props.selectedText, highlightAreas: props.highlightAreas }]);
             props.toggle();
-            setNoteContent(`[Highlighted Text: "${props.selectedText}"]\n\n`);
+            setNoteContent((prev) => prev ? `${prev}\n\n[Highlighted Text: "${props.selectedText}"]\n` : `[Highlighted Text: "${props.selectedText}"]\n\n`);
             setShowNotes(true);
-            setNoteTitle(`Highlight Note - ${new Date().toLocaleTimeString()}`);
+            if (!noteTitle) setNoteTitle(`Highlight Note - ${new Date().toLocaleTimeString()}`);
         }}>
-            Add Note
+            Highlight & Add Note
         </Button>
     </div>
   );
 
+  const renderHighlights = (props: any) => (
+      <div>
+          {highlights.map((highlight, index) => (
+              <React.Fragment key={index}>
+                  {highlight.highlightAreas.filter((area: any) => area.pageIndex === props.pageIndex).map((area: any, idx: number) => (
+                      <div
+                          key={idx}
+                          style={Object.assign(
+                              {},
+                              {
+                                  background: 'yellow',
+                                  opacity: 0.4,
+                              },
+                              props.getCssProperties(area, props.rotation)
+                          )}
+                      />
+                  ))}
+              </React.Fragment>
+          ))}
+      </div>
+  );
+
   const highlightPluginInstance = highlightPlugin({
       renderHighlightTarget,
+      renderHighlights,
   });
 
   const fetchDoc = async () => {
