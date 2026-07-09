@@ -10,11 +10,11 @@ services:
           name: studytrack-db
           property: connectionString
       - key: JWT_SECRET
-        generateValue: true
+        value: YOUR_PRODUCTION_JWT_SECRET_HERE
       - key: NODE_ENV
         value: production
       - key: FRONTEND_URL
-        value: https://cognarc-3dh07ad3d-gagan-c-b-s-projects.vercel.app
+        value: https://cognarc-ct0g80nvg-gagan-c-b-s-projects.vercel.app,https://cognarc-it.vercel.app,https://cognarc-3dh07ad3d-gagan-c-b-s-projects.vercel.app
       - key: STORAGE_PROVIDER
         value: GITHUB
       - key: GITHUB_STORAGE_TOKEN
@@ -23,6 +23,16 @@ services:
         sync: false
       - key: GITHUB_STORAGE_REPO
         value: studytrack-uploads
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
 
   - type: web
     name: studytrack-web
