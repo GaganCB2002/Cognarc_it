@@ -148,8 +148,10 @@ export async function login(req: Request, res: Response): Promise<void> {
       token,
       user: { ...user, password: undefined },
     });
-  } catch (error) {
-    console.error('Login error:', error);
+  } catch (error: any) {
+    console.error('Login error:', error?.message || error);
+    if (error?.stack) console.error('Login error stack:', error.stack);
+    try { require('fs').appendFileSync('login_error.log', new Date().toISOString() + ' ' + (error?.stack || error?.message || error) + '\n'); } catch(e) {}
     res.status(500).json({ message: 'Internal server error' });
   }
 }

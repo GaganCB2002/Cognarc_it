@@ -140,6 +140,7 @@ app.use((req, res) => {
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled error:", err);
+  try { require('fs').appendFileSync('server_error.log', new Date().toISOString() + ' ' + (err?.stack || err?.message || err) + '\n'); } catch(e) {}
   res.status(500).json({ message: "Internal server error" });
 });
 
