@@ -308,13 +308,13 @@ function LoginForm() {
 
       {/* Demo Account Buttons */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <Beaker size={14} className="mr-1" /> Test User
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <ShieldCheck size={14} className="mr-1" /> Admin
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
           <Eye size={14} className="mr-1" /> GaganCB
         </Button>
       </div>
