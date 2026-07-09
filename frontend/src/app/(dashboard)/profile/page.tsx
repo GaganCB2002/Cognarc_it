@@ -13,10 +13,6 @@ export default function ProfilePage() {
   const [profileData, setProfileData] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
 
-  useEffect(() => {
-    fetchProfileData();
-  }, []);
-
   const fetchProfileData = async () => {
     try {
       setLoading(true);
@@ -32,6 +28,10 @@ export default function ProfilePage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
 
   const jobPortals = [
     { name: "LinkedIn Jobs", url: "https://www.linkedin.com/jobs/" },

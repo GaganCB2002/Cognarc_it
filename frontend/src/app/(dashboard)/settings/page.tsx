@@ -50,8 +50,13 @@ export default function SettingsPage() {
     language: "en-US",
     ai: { autoSuggestions: true, smartSummaries: true, interviewPrep: true },
     privacy: { dataSharing: false, analyticsOptIn: true, publicProfile: false },
-    tracking: { desktopAgent: true, browserExtension: true, idleDetection: true }
+    tracking: { desktopAgent: true, browserExtension: true, idleDetection: true },
+    auth: { passwordLogin: true, otpLogin: true, faceLogin: true }
   });
+
+  // Avatar upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // Face enrollment
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -113,6 +118,16 @@ export default function SettingsPage() {
     };
   }, []);
 
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(""), 3000);
+  };
+
+  const showError = (msg: string) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(""), 4000);
+  };
+
   const stopCamera = useCallback(() => {
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
@@ -165,7 +180,7 @@ export default function SettingsPage() {
            if (!videoRef.current || !faceLandmarkerRef.current || !cameraActiveRef.current) return;
            
            const video = videoRef.current;
-           let startTimeMs = performance.now();
+           const startTimeMs = performance.now();
            if (video.currentTime !== lastVideoTime) {
              lastVideoTime = video.currentTime;
              const results = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
@@ -234,10 +249,6 @@ export default function SettingsPage() {
     { key: "tracking", label: "Activity Tracking", icon: Activity },
   ];
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -269,14 +280,33 @@ export default function SettingsPage() {
     }
   };
 
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(""), 3000);
-  };
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const showError = (msg: string) => {
-    setErrorMsg(msg);
-    setTimeout(() => setErrorMsg(""), 4000);
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showError("Avatar must be under 2MB");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+      });
+      await api.put("/auth/profile", { avatar: dataUrl });
+      showSuccess("Avatar updated! If a face was detected, it is now enrolled for face login.");
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err: any) {
+      showError(err.message || "Failed to upload avatar");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const saveProfile = async () => {
@@ -384,12 +414,20 @@ export default function SettingsPage() {
             <Card className="p-6 space-y-6">
               <h3 className="text-lg font-bold text-st-text-primary">Profile Settings</h3>
               <div className="flex items-center gap-6">
-                <div className="w-20 h-20 rounded-full bg-st-bg-elevated flex items-center justify-center border-2 border-st-accent/30">
-                  <User className="w-8 h-8 text-st-text-muted" />
+                <div className="w-20 h-20 rounded-full bg-st-bg-elevated flex items-center justify-center border-2 border-st-accent/30 overflow-hidden">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-8 h-8 text-st-text-muted" />
+                  )}
                 </div>
                 <div>
-                  <Button variant="outline" size="sm">Change Avatar</Button>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif" onChange={handleAvatarUpload} className="hidden" />
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={avatarUploading}>
+                    {avatarUploading ? "Uploading..." : "Change Avatar"}
+                  </Button>
                   <p className="text-xs text-st-text-muted mt-1">JPG, PNG, GIF. Max 2MB</p>
+                  <p className="text-xs text-st-accent mt-0.5">Face detected in photo will be auto-enrolled for face login</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -539,6 +577,33 @@ export default function SettingsPage() {
               <Button variant="primary" onClick={changePassword} disabled={saving || !passwords.currentPassword || !passwords.newPassword}>
                 {saving ? "Updating..." : "Update Password"}
               </Button>
+
+              {/* Authentication Methods */}
+              <div className="border-t border-st-border pt-6 mt-6">
+                <h4 className="text-sm font-bold text-st-text-primary mb-1 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-st-accent" /> Authentication Methods
+                </h4>
+                <p className="text-xs text-st-text-muted mb-4">Enable or disable sign-in methods for your account.</p>
+                {[
+                  { key: "passwordLogin", label: "Password Login", desc: "Sign in using your email and password" },
+                  { key: "otpLogin", label: "OTP / Email Login", desc: "Sign in using a one-time code sent to your email" },
+                  { key: "faceLogin", label: "Face Login", desc: "Sign in using facial recognition" },
+                ].map((n, i) => {
+                  const enabled = settings.auth?.[n.key];
+                  return (
+                    <div key={i} className="flex items-center justify-between py-3 border-b border-st-border last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-st-text-primary">{n.label}</p>
+                        <p className="text-xs text-st-text-muted">{n.desc}</p>
+                      </div>
+                      <button onClick={() => updateSettingField("auth", n.key, !enabled)}
+                        className={`w-12 h-6 rounded-full transition-colors ${enabled ? "bg-st-accent" : "bg-st-bg-elevated border border-st-border"}`}>
+                        <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
 
               {/* Face Enrollment Section */}
               <div className="border-t border-st-border pt-6 mt-6">

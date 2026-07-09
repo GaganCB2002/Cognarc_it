@@ -120,7 +120,7 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
       }, 500);
     };
 
-    let idleCheckInterval = setInterval(() => {
+    const idleCheckInterval = setInterval(() => {
       const idleTime = Date.now() - lastActiveTime.current;
       if (idleTime > 60000) {
         queueEvent('USER_IDLE', 'IDLE', activePage.current, 'User idle for > 60s', Math.round(idleTime / 1000));
@@ -128,7 +128,7 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
       }
     }, 15000);
 
-    let uploadInterval = setInterval(() => {
+    const uploadInterval = setInterval(() => {
       flushEvents();
     }, 5000);
 

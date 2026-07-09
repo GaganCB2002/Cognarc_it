@@ -232,7 +232,7 @@ function LoginForm() {
            if (!videoRef.current || !faceLandmarkerRef.current || !cameraActiveRef.current) return;
            
            const video = videoRef.current;
-           let startTimeMs = performance.now();
+           const startTimeMs = performance.now();
            if (video.currentTime !== lastVideoTime) {
              lastVideoTime = video.currentTime;
              const results = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
@@ -410,7 +410,7 @@ function LoginForm() {
             <div className={`text-center ${!cameraActive && !captured ? 'hidden' : ''}`}>
               <div className="relative inline-block rounded-lg overflow-hidden border-2 border-st-accent/50 mb-3" style={{ minHeight: '240px' }}>
                 <video ref={videoRef} autoPlay playsInline muted className={`w-full max-w-[320px] h-auto rounded-lg ${captured ? 'hidden' : ''}`} />
-                {(!videoRef.current || !videoRef.current.videoWidth) && cameraActive && !captured && (
+                {cameraActive && !captured && (
                   <div className="absolute inset-0 flex items-center justify-center bg-st-bg-card text-xs text-st-text-muted">Camera loading...</div>
                 )}
                 

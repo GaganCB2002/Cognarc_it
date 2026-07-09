@@ -108,6 +108,13 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Check if password login is enabled in user settings
+    const userSettings: any = user.settings || {};
+    if (userSettings.auth?.passwordLogin === false) {
+      res.status(403).json({ message: 'Password login is disabled for this account. Use another sign-in method.' });
+      return;
+    }
+
     if (!user.password) {
       res.status(401).json({ message: 'Account uses OAuth. Please sign in with the appropriate provider.' });
       return;
@@ -199,6 +206,13 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Check if OTP login is enabled in user settings
+    const userSettings: any = user.settings || {};
+    if (userSettings.auth?.otpLogin === false) {
+      res.status(403).json({ message: 'OTP login is disabled for this account. Use another sign-in method.' });
+      return;
+    }
+
     if (!user.otpCode || user.otpCode !== otp) {
       res.status(401).json({ message: 'Invalid OTP' });
       return;
@@ -281,16 +295,28 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Check if face login is enabled in user settings
+    const userSettings: any = user.settings || {};
+    if (userSettings.auth?.faceLogin === false) {
+      res.status(403).json({ message: 'Face login is disabled for this account. Use another sign-in method.' });
+      return;
+    }
+
     if (!user.faceData) {
       res.status(400).json({ message: 'Face not enrolled. Please enroll your face first in Settings.' });
       return;
     }
 
     // Verify face using Gemini
+    if (!process.env.GEMINI_API_KEY) {
+      res.status(500).json({ message: 'Face verification is not available (AI service not configured). Please contact the administrator.' });
+      return;
+    }
+
     const result = await geminiService.verifyFace(faceImage, user.faceData);
 
     if (!result.faceDetected) {
-      res.status(401).json({ message: 'No face detected in the image. Please try again.' });
+      res.status(401).json({ message: 'No face detected in the image. Please ensure good lighting and try again.' });
       return;
     }
 
@@ -300,7 +326,8 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
     }
 
     if (!result.match) {
-      res.status(401).json({ message: 'Face does not match. Access denied.' });
+      const score = result.matchScore !== undefined ? ` (score: ${result.matchScore}/100)` : '';
+      res.status(401).json({ message: `Face does not match${score}. Please try again with better lighting.` });
       return;
     }
 
@@ -321,9 +348,15 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
       token,
       user: { ...user, password: undefined },
     });
-  } catch (error) {
-    console.error('FaceLogin error:', error);
-    res.status(500).json({ message: 'Face verification failed. Please try again.' });
+  } catch (error: any) {
+    console.error('FaceLogin error:', error?.message || error);
+    if (error?.message?.includes('API key')) {
+      res.status(500).json({ message: 'Face verification service is not configured. Please contact the administrator.' });
+    } else if (error?.message?.includes('No response from Gemini')) {
+      res.status(500).json({ message: 'Face verification service is temporarily unavailable. Please try again later.' });
+    } else {
+      res.status(500).json({ message: 'Face verification failed. Please try again.' });
+    }
   }
 }
 
@@ -365,7 +398,24 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
 
     const userUpdateData: Record<string, any> = {};
     if (name !== undefined) userUpdateData.name = name;
-    if (avatar !== undefined) userUpdateData.avatar = avatar;
+    if (avatar !== undefined) {
+      userUpdateData.avatar = avatar;
+
+      // If avatar is a base64 data URL, also auto-enroll as face data
+      if (typeof avatar === 'string' && avatar.startsWith('data:image/')) {
+        try {
+          const base64Data = avatar.split(',')[1];
+          if (base64Data) {
+            const faceCheck = await geminiService.detectFace(base64Data);
+            if (faceCheck.hasFace) {
+              userUpdateData.faceData = base64Data;
+            }
+          }
+        } catch (e) {
+          console.error('[PROFILE] Failed to auto-detect face from avatar:', e);
+        }
+      }
+    }
 
     if (Object.keys(userUpdateData).length > 0) {
       await prisma.user.update({
