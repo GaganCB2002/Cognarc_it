@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, refreshTokenMiddleware } from '../middleware/auth';
 import {
   register,
   login,
@@ -16,6 +16,7 @@ import {
   resetPassword,
   requestCaptcha,
   logout,
+  refreshToken,
 } from '../controllers/authController';
 
 const router = Router();
@@ -31,6 +32,7 @@ router.put('/enroll-face', authenticate, enrollFace);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/refresh-token', refreshTokenMiddleware, refreshToken);
 
 router.get('/me', authenticate, getMe);
 router.put('/profile', authenticate, updateProfile);

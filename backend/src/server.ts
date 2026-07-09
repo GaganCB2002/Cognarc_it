@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import path from "path";
-// Load env from project root (../env.backend) for easy deployment
-dotenv.config({ path: path.resolve(__dirname, "..", "..", "env.backend") });
+// Load env from project root (../env.backend) for easy local development
+// In production, env vars come from the hosting provider (Render/Vercel)
+dotenv.config({ path: path.resolve(__dirname, "..", "..", "env.backend"), override: false });
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -33,7 +34,30 @@ import insightsRoutes from "./routes/insights.routes";
 import webhookRoutes from "./routes/webhooks";
 import { projectIndexer } from "./services/project-indexer.service";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Validate critical env vars at startup
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+if (isProduction) {
+  requiredEnvVars.push('FRONTEND_URL');
+}
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`FATAL: Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
+
+// Configure database pool with SSL (required by Neon and Render PostgreSQL)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
@@ -41,17 +65,22 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 
-const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:3000,http://localhost:3001").split(',').map(s => s.trim());
+// Parse allowed origins
+const rawFrontendUrls = (process.env.FRONTEND_URL || "http://localhost:3000,http://localhost:3001");
+const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
+
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (allowedOrigins.includes('*')) return true;
+  // Allow all localhost origins in development
+  if (!isProduction && origin.startsWith('http://localhost')) return true;
+  return false;
+}
 
 export const io = new Server(httpServer, {
   cors: {
-    origin: function(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-        return callback(null, true);
-      }
-      return callback(null, true);
-    },
+    origin: isOriginAllowed,
     credentials: true,
   }
 });
@@ -69,9 +98,10 @@ io.on('connection', (socket) => {
   });
 });
 
+// Rate limiters
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: isProduction ? 20 : 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many attempts. Please try again after 15 minutes.' },
@@ -80,22 +110,19 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: isProduction ? 100 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests. Please slow down.' },
 });
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+// Security middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: isProduction ? undefined : false,
+}));
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-      return callback(null, true);
-    }
-    // Permissive CORS to prevent captcha/login issues in deployment
-    return callback(null, true);
-  },
+  origin: isOriginAllowed,
   credentials: true,
 }));
 app.use(compression());
@@ -114,8 +141,14 @@ app.use('/api/auth', authLimiter);
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date() });
+// Health check with database verification
+app.get("/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: "ok", db: "connected", timestamp: new Date() });
+  } catch (error) {
+    res.status(503).json({ status: "error", db: "disconnected", timestamp: new Date() });
+  }
 });
 
 app.use("/api/auth", authRoutes);
@@ -139,20 +172,36 @@ app.use((req, res) => {
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error("Unhandled error:", err);
-  try { require('fs').appendFileSync('server_error.log', new Date().toISOString() + ' ' + (err?.stack || err?.message || err) + '\n'); } catch(e) {}
-  res.status(500).json({ message: "Internal server error" });
+  console.error("Unhandled error:", {
+    message: err.message,
+    stack: isProduction ? undefined : err.stack,
+    timestamp: new Date().toISOString(),
+  });
+  res.status(500).json({ message: isProduction ? "Internal server error" : err.message });
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  // Initialize project indexer in background (don't block startup)
+  console.log(`Server is running on port ${PORT} (${isProduction ? 'production' : 'development'})`);
   const projectRoot = path.resolve(__dirname, "..", "..");
   projectIndexer.initialize(projectRoot).catch((err) =>
     console.error("Failed to initialize project indexer:", err)
   );
 });
 
-process.on("unhandledRejection", (err) => {
-  console.error("Unhandled Rejection:", err);
+// Graceful shutdown
+async function gracefulShutdown(signal: string) {
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+  httpServer.close(() => {
+    console.log('HTTP server closed');
+  });
+  await prisma.$disconnect();
+  await pool.end();
+  console.log('Database connections closed');
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
 });

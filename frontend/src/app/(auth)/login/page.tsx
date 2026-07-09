@@ -136,7 +136,6 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      // Bypassed frontend captcha check
       await login(email, password, captchaKey, captchaAnswer);
     } catch (err: any) {
       setError(err.message || "Login failed");
@@ -152,16 +151,16 @@ function LoginForm() {
     setSuccess("");
     setRegisterLoading(true);
     try {
-      // Direct registration without captcha
-      await api.post("/auth/register", { email, password, name, captchaKey, captchaAnswer });
+      await api.post("/auth/register", { name, email, password, captchaKey, captchaAnswer });
       setSuccess("Registration successful! You can now log in.");
-      // Automatically switch back to password mode after successful registration
+      setCaptchaAnswer("");
       setTimeout(() => {
         setMode("password");
         setSuccess("");
       }, 3000);
     } catch (err: any) {
       setError(err.message || "Registration failed");
+      fetchCaptcha();
     } finally {
       setRegisterLoading(false);
     }
@@ -173,7 +172,6 @@ function LoginForm() {
     setError("");
     setOtpLoading(true);
     try {
-      // Bypassed frontend captcha check
       await api.post("/auth/send-otp", { email, captchaKey, captchaAnswer });
       setOtpSent(true);
       setSuccess("OTP sent to your registered email");
@@ -334,13 +332,13 @@ function LoginForm() {
 
       {/* Demo Account Buttons */}
       <div className="flex gap-2 mb-4 flex-wrap">
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("user@studytrack.dev"); setPassword("password123"); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <Beaker size={14} className="mr-1" /> Test User
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("admin@studytrack.dev"); setPassword("password123"); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-st-accent text-st-accent hover:bg-st-accent/10">
           <ShieldCheck size={14} className="mr-1" /> Admin
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); setCaptchaAnswer(captchaQuestion.replace(/\s/g, '')); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEmail("gaganbadiger2002@gmail.com"); setPassword(""); setMode("password"); fetchCaptcha(); }} className="text-xs py-1 h-8 border-emerald-500 text-emerald-500 hover:bg-emerald-500/10">
           <Eye size={14} className="mr-1" /> GaganCB
         </Button>
       </div>
@@ -389,10 +387,12 @@ function LoginForm() {
           <Input label="email address" id="reg-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input label="password" id="reg-password" name="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
           
+          <CaptchaSection captchaQuestion={captchaQuestion} captchaAnswer={captchaAnswer} captchaTimer={captchaTimer} onCaptchaChange={setCaptchaAnswer} onRefresh={fetchCaptcha} />
+          
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           {success && <p className="text-sm text-emerald-400 text-center bg-emerald-400/10 py-2 rounded-lg border border-emerald-400/20">{success}</p>}
           
-          <Button type="submit" disabled={registerLoading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+          <Button type="submit" disabled={registerLoading || !captchaAnswer} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
             {registerLoading ? "registering..." : "create account"}
           </Button>
         </motion.form>
@@ -524,7 +524,7 @@ function CaptchaSection({ captchaQuestion, captchaAnswer, captchaTimer, onCaptch
         </div>
       </div>
       <p className="text-sm font-medium text-st-text-primary mb-3 text-center py-2 bg-st-bg-card rounded-lg border border-st-border/30 font-mono tracking-wider">{captchaQuestion || "Loading..."}</p>
-      <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => onCaptchaChange(e.target.value.toLowerCase())} maxLength={6} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-[0.3em]" />
+      <input type="text" placeholder="enter the code shown above" autoComplete="off" required value={captchaAnswer} onChange={(e) => onCaptchaChange(e.target.value)} maxLength={10} className="w-full bg-st-bg-card border border-st-border rounded-lg px-3 py-2 text-sm text-st-text-primary placeholder-st-text-muted focus:outline-none focus:ring-1 focus:ring-st-accent text-center font-mono tracking-wider" />
     </div>
   );
 }

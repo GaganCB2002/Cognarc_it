@@ -17,6 +17,22 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ message: 'Invalid email format' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      return;
+    }
+
+    if (name.length < 2) {
+      res.status(400).json({ message: 'Name must be at least 2 characters long' });
+      return;
+    }
+
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
       res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
       return;
@@ -29,8 +45,6 @@ export async function register(req: Request, res: Response): Promise<void> {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Generate a unique 6-digit OTP for this user (deterministic - same every time)
     const otpCode = String(Math.floor(100000 + Math.random() * 900000));
 
     const createdUser = await prisma.user.create({
@@ -42,9 +56,9 @@ export async function register(req: Request, res: Response): Promise<void> {
       message: 'Registration successful. You can now login.',
       user,
     });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+  } catch (error: any) {
+    console.error('Register error:', { message: error?.message, timestamp: new Date().toISOString() });
+    res.status(500).json({ message: 'Registration failed. Please try again.' });
   }
 }
 
@@ -141,18 +155,17 @@ export async function login(req: Request, res: Response): Promise<void> {
       }
     }
 
-    const token = generateToken(user.id);
+    const tokens = generateToken(user.id);
 
     res.status(200).json({
       message: 'Login successful',
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: { ...user, password: undefined },
     });
   } catch (error: any) {
-    console.error('Login error:', error?.message || error);
-    if (error?.stack) console.error('Login error stack:', error.stack);
-    try { require('fs').appendFileSync('login_error.log', new Date().toISOString() + ' ' + (error?.stack || error?.message || error) + '\n'); } catch(e) {}
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Login error:', { message: error?.message, timestamp: new Date().toISOString() });
+    res.status(500).json({ message: 'Login failed. Please try again later.' });
   }
 }
 
@@ -233,15 +246,16 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
       }
     }
 
-    const token = generateToken(user.id);
+    const tokens = generateToken(user.id);
     res.status(200).json({
       message: 'Login successful',
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: { ...user, password: undefined },
     });
-  } catch (error) {
-    console.error('VerifyOtpLogin error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+  } catch (error: any) {
+    console.error('VerifyOtpLogin error:', { message: error?.message, timestamp: new Date().toISOString() });
+    res.status(500).json({ message: 'Login failed. Please try again.' });
   }
 }
 
@@ -347,14 +361,15 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
       }
     }
 
-    const token = generateToken(user.id);
+    const tokens = generateToken(user.id);
     res.status(200).json({
       message: 'Face login successful',
-      token,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
       user: { ...user, password: undefined },
     });
   } catch (error: any) {
-    console.error('FaceLogin error:', error?.message || error);
+    console.error('FaceLogin error:', { message: error?.message, timestamp: new Date().toISOString() });
     if (error?.message?.includes('API key')) {
       res.status(500).json({ message: 'Face verification service is not configured. Please contact the administrator.' });
     } else if (error?.message?.includes('No response from Gemini')) {
@@ -362,6 +377,20 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
     } else {
       res.status(500).json({ message: 'Face verification failed. Please try again.' });
     }
+  }
+}
+
+export async function refreshToken(req: Request, res: Response): Promise<void> {
+  try {
+    const newAccessToken = res.locals?.newAccessToken;
+    if (!newAccessToken) {
+      res.status(401).json({ message: 'Unable to refresh token' });
+      return;
+    }
+    res.status(200).json({ token: newAccessToken });
+  } catch (error: any) {
+    console.error('RefreshToken error:', { message: error?.message, timestamp: new Date().toISOString() });
+    res.status(500).json({ message: 'Token refresh failed' });
   }
 }
 

@@ -1,21 +1,32 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
 
 class ApiClient {
-  private token: string | null = null;
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
   private onUnauthorized: (() => void) | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("token");
+      this.accessToken = localStorage.getItem("accessToken");
+      this.refreshToken = localStorage.getItem("refreshToken");
     }
   }
 
-  setToken(token: string | null) {
-    this.token = token;
-    if (token) {
-      localStorage.setItem("token", token);
+  setToken(accessToken: string | null, refreshToken?: string | null) {
+    this.accessToken = accessToken;
+    if (refreshToken !== undefined) {
+      this.refreshToken = refreshToken;
+    }
+    if (accessToken) {
+      localStorage.setItem("accessToken", accessToken);
     } else {
-      localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+    }
+    if (refreshToken) {
+      localStorage.setItem("refreshToken", refreshToken);
+    } else if (accessToken === null) {
+      localStorage.removeItem("refreshToken");
     }
   }
 
@@ -24,7 +35,7 @@ class ApiClient {
   }
 
   getToken(): string | null {
-    return this.token;
+    return this.accessToken;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -33,8 +44,8 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
+    if (this.accessToken) {
+      headers["Authorization"] = `Bearer ${this.accessToken}`;
     }
 
     if (options.body instanceof FormData) {
@@ -44,7 +55,43 @@ class ApiClient {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: "include",
     });
+
+    if (response.status === 401 && this.refreshToken && !endpoint.includes('/refresh-token')) {
+      // Attempt token refresh
+      try {
+        const refreshRes = await fetch(`${API_URL}/auth/refresh-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: this.refreshToken }),
+          credentials: 'include',
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          this.accessToken = refreshData.token;
+          localStorage.setItem('accessToken', refreshData.token);
+          headers['Authorization'] = `Bearer ${refreshData.token}`;
+          // Retry original request with new token
+          const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers,
+            credentials: 'include',
+          });
+          if (retryResponse.ok) {
+            return retryResponse.json();
+          }
+        }
+      } catch {
+        // Refresh failed, proceed with normal 401 handling
+      }
+      this.setToken(null);
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      }
+      const errorData = await response.json().catch(() => ({ message: "Authentication required" }));
+      throw new Error(errorData.message || errorData.error || "Authentication required");
+    }
 
     if (response.status === 401) {
       this.setToken(null);
@@ -92,7 +139,6 @@ class ApiClient {
     return this.request<T>(endpoint, { method: "DELETE" });
   }
 
-  // File upload
   uploadFile<T>(endpoint: string, file: File, additionalFields?: Record<string, string>) {
     const formData = new FormData();
     formData.append("file", file);

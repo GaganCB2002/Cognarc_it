@@ -26,9 +26,15 @@ interface User {
   settings?: any;
 }
 
-interface AuthResponse {
+interface LoginResponse {
   message: string;
   token: string;
+  refreshToken?: string;
+  user: User;
+}
+
+interface RegisterResponse {
+  message: string;
   user: User;
 }
 
@@ -60,14 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.push("/login");
     });
 
-    const savedToken = localStorage.getItem("token");
+    const savedToken = localStorage.getItem("accessToken");
     if (savedToken) {
       api.setToken(savedToken);
       setToken(savedToken);
       api.get<{ user: User }>("/auth/me").then((res) => {
         setUser(res.user);
       }).catch(() => {
-        localStorage.removeItem("token");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
         api.setToken(null);
         setToken(null);
       }).finally(() => {
@@ -87,15 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => {
-    let res: AuthResponse;
+    let res: LoginResponse;
     if (isFace) {
-      res = await api.post<AuthResponse>("/auth/face-login", { email, faceImage: code, captchaKey, captchaAnswer });
+      res = await api.post<LoginResponse>("/auth/face-login", { email, faceImage: code, captchaKey, captchaAnswer });
     } else if (isOtp) {
-      res = await api.post<AuthResponse>("/auth/verify-otp", { email, otp: code, captchaKey, captchaAnswer });
+      res = await api.post<LoginResponse>("/auth/verify-otp", { email, otp: code, captchaKey, captchaAnswer });
     } else {
-      res = await api.post<AuthResponse>("/auth/login", { email, password: code, captchaKey, captchaAnswer });
+      res = await api.post<LoginResponse>("/auth/login", { email, password: code, captchaKey, captchaAnswer });
     }
-    api.setToken(res.token);
+    api.setToken(res.token, res.refreshToken || null);
     setToken(res.token);
     setUser(res.user);
     const dashboardPath = res.user.role === "ADMIN" || res.user.role === "SUPER_ADMIN" ? "/admin" : "/dashboard";
@@ -103,8 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => {
-    const res = await api.post<AuthResponse>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
-    // New users are pending approval — do NOT auto-login
+    await api.post<RegisterResponse>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
     router.push("/login?registered=true");
   }, [router]);
 
