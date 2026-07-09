@@ -34,12 +34,12 @@ export async function register(req: Request, res: Response): Promise<void> {
     const otpCode = String(Math.floor(100000 + Math.random() * 900000));
 
     const createdUser = await prisma.user.create({
-      data: { email, password: hashedPassword, name, otpCode, emailVerified: new Date(), isApproved: false },
+      data: { email, password: hashedPassword, name, otpCode, emailVerified: new Date(), isApproved: true },
     });
     const { password: _, ...user } = createdUser;
 
     res.status(201).json({
-      message: 'Registration successful. Your account is pending admin approval. You will be able to login once approved (auto-approved after 24 hours).',
+      message: 'Registration successful. You can now login.',
       user,
     });
   } catch (error) {

@@ -6,12 +6,12 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { RefreshCw, Beaker, ShieldCheck, Home, KeyRound, ScanFace, Eye, CheckCircle2, AlertCircle, Camera } from "lucide-react";
+import { RefreshCw, Beaker, ShieldCheck, Home, KeyRound, ScanFace, Eye, CheckCircle2, AlertCircle, Camera, UserPlus } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import api from "@/lib/api";
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
-type LoginMode = "password" | "otp" | "face";
+type LoginMode = "password" | "otp" | "face" | "register";
 
 function LoginForm() {
   const { login } = useAuth();
@@ -24,6 +24,10 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // Registration
+  const [name, setName] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
 
   // Password login
   const [password, setPassword] = useState("");
@@ -139,6 +143,27 @@ function LoginForm() {
       fetchCaptcha();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setRegisterLoading(true);
+    try {
+      // Direct registration without captcha
+      await api.post("/auth/register", { email, password, name, captchaKey, captchaAnswer });
+      setSuccess("Registration successful! You can now log in.");
+      // Automatically switch back to password mode after successful registration
+      setTimeout(() => {
+        setMode("password");
+        setSuccess("");
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setRegisterLoading(false);
     }
   };
 
@@ -295,6 +320,7 @@ function LoginForm() {
     { key: "password", label: "Password", icon: Beaker },
     { key: "otp", label: "OTP", icon: KeyRound },
     { key: "face", label: "Face", icon: ScanFace },
+    { key: "register", label: "Register", icon: UserPlus },
   ];
 
   return (
@@ -352,6 +378,22 @@ function LoginForm() {
           {error && <p className="text-sm text-st-danger text-center">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
             {loading ? "signing in..." : "continue"}
+          </Button>
+        </motion.form>
+      )}
+
+      {/* ===== REGISTER TAB ===== */}
+      {mode === "register" && (
+        <motion.form key="register" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25 }} className="space-y-5" onSubmit={handleRegister}>
+          <Input label="full name" id="reg-name" name="name" type="text" autoComplete="name" required placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label="email address" id="reg-email" name="email" type="email" autoComplete="email" required placeholder="developer@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input label="password" id="reg-password" name="password" type="password" autoComplete="new-password" required placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          
+          {error && <p className="text-sm text-st-danger text-center">{error}</p>}
+          {success && <p className="text-sm text-emerald-400 text-center bg-emerald-400/10 py-2 rounded-lg border border-emerald-400/20">{success}</p>}
+          
+          <Button type="submit" disabled={registerLoading} className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-black border-0 hover:from-st-accent-hover hover:to-st-accent font-bold">
+            {registerLoading ? "registering..." : "create account"}
           </Button>
         </motion.form>
       )}
