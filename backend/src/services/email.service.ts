@@ -4,48 +4,109 @@ const APP_NAME = process.env.APP_NAME || "StudyTrack";
 let transporter: nodemailer.Transporter | null = null;
 let etherealUrl: string | null = null;
 
-async function getTransporter(): Promise<nodemailer.Transporter> {
-  if (transporter) return transporter;
+import dns from "dns";
+import util from "util";
+const resolveMx = util.promisify(dns.resolveMx);
 
+async function getDirectTransporter(toEmail: string): Promise<nodemailer.Transporter | null> {
+  // If SMTP env vars exist, use them normally
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+  }
+
+  // ZERO-CONFIGURATION: Direct-to-MX delivery
+  try {
+    const domain = toEmail.split('@')[1];
+    if (!domain) return null;
+    
+    const mxRecords = await resolveMx(domain);
+    if (!mxRecords || mxRecords.length === 0) return null;
+    
+    // Pick highest priority MX server
+    mxRecords.sort((a, b) => a.priority - b.priority);
+    const mxHost = mxRecords[0].exchange;
+
+    console.log(`[EMAIL] Using Zero-Config Direct Delivery via MX: ${mxHost}`);
+    return nodemailer.createTransport({
+      host: mxHost,
+      port: 25,
+      secure: false, // TLS is upgraded automatically if supported
+      tls: { rejectUnauthorized: false }, // Allow self-signed certs just in case
+      name: process.env.APP_NAME || "studytrack.dev"
+    });
+  } catch (err) {
+    console.error("[EMAIL] Direct MX resolution failed, falling back to Ethereal:", err);
+    return null;
+  }
+}
+
+async function getFallbackTransporter(): Promise<nodemailer.Transporter> {
+  if (transporter) return transporter;
   const account = await nodemailer.createTestAccount();
   transporter = nodemailer.createTransport({
     host: account.smtp.host,
     port: account.smtp.port,
     secure: account.smtp.secure,
-    auth: {
-      user: account.user,
-      pass: account.pass,
-    },
+    auth: { user: account.user, pass: account.pass },
   });
   etherealUrl = `https://ethereal.email/login?user=${account.user}`;
-  console.log(`[EMAIL] Using Ethereal — view emails at ${etherealUrl}`);
-
+  console.log(`[EMAIL] Using Ethereal fallback — view emails at ${etherealUrl}`);
   return transporter;
 }
 
 async function sendMail(to: string, subject: string, html: string): Promise<boolean> {
   try {
-    const t = await getTransporter();
+    let t = await getDirectTransporter(to);
+    let isEthereal = false;
+
+    if (!t) {
+      t = await getFallbackTransporter();
+      isEthereal = true;
+    }
+
     const info = await t.sendMail({
-      from: `"${APP_NAME}" <noreply@studytrack.app>`,
+      from: `"${process.env.APP_NAME || "StudyTrack"}" <noreply@studytrack.dev>`,
       to,
       subject,
       html,
     });
 
-    const previewUrl = etherealUrl
-      ? `${etherealUrl.replace("/login", "")}/message/${info.messageId}`
-      : nodemailer.getTestMessageUrl(info);
-
-    if (previewUrl) {
+    if (isEthereal) {
+      const previewUrl = etherealUrl
+        ? `${etherealUrl.replace("/login", "")}/message/${info.messageId}`
+        : nodemailer.getTestMessageUrl(info);
       console.log(`[EMAIL] Sent to ${to} — preview: ${previewUrl}`);
     } else {
-      console.log(`[EMAIL] Sent to ${to} (${subject})`);
+      console.log(`[EMAIL] Sent DIRECT to ${to} (${subject})`);
     }
 
     return true;
   } catch (err: any) {
     console.error(`[EMAIL] Failed to send to ${to}:`, err.message);
+    
+    // If direct delivery failed due to network blocks (common on port 25), try fallback
+    if (err.message.includes("connect") || err.message.includes("network") || err.message.includes("ETIMEDOUT")) {
+      try {
+        console.log(`[EMAIL] Retrying with Ethereal fallback for ${to}...`);
+        const t = await getFallbackTransporter();
+        const info = await t.sendMail({
+          from: `"${process.env.APP_NAME || "StudyTrack"}" <noreply@studytrack.dev>`,
+          to,
+          subject,
+          html,
+        });
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log(`[EMAIL] Fallback sent to ${to} — preview: ${previewUrl}`);
+        return true;
+      } catch (fallbackErr: any) {
+        console.error(`[EMAIL] Fallback failed:`, fallbackErr.message);
+      }
+    }
+    
     return false;
   }
 }
