@@ -4,10 +4,10 @@ import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import {
   FileText, Plus, Search, Pin, Tag, Folder, Save, Bold, Italic,
-  Code, List, Link2, Image, Table, Sparkles, Clock, ChevronRight
+  Code, List, Link2, Image, Table, Clock
 } from "lucide-react";
 
 type Note = {

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
+import { PDFParse } from "pdf-parse";
 import { prisma } from "../server";
 import { getFileType } from "../middleware/upload";
 import { saveFile, getFile as getStorageFile, deleteFile as deleteStorageFile, getLocalPath } from "../services/storage.service";
@@ -133,6 +135,57 @@ export const getFile = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error("Get file error:", error);
     res.status(500).json({ error: "Failed to retrieve file" });
+  }
+};
+
+// GET /api/upload/:id/text - extract text from a file (PDFs use pdf-parse)
+export const extractText = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const userId = req.user?.userId as string;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const document = await prisma.document.findUnique({ where: { id } });
+    if (!document) {
+      res.status(404).json({ error: "Document not found" });
+      return;
+    }
+    if (document.userId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    let text = "";
+
+    if (document.mimeType === "application/pdf") {
+      const data = await getStorageFile(document.storageKey);
+      if (!data) {
+        res.status(404).json({ error: "File data not found" });
+        return;
+      }
+      const parser = new PDFParse({ data: Buffer.from(data) });
+      const parsed = await parser.getText();
+      text = parsed.text;
+    } else if (document.mimeType.startsWith("text/")) {
+      const data = await getStorageFile(document.storageKey);
+      if (!data) {
+        res.status(404).json({ error: "File data not found" });
+        return;
+      }
+      text = data.toString("utf-8");
+    } else {
+      res.status(400).json({ error: `Text extraction not supported for ${document.mimeType}` });
+      return;
+    }
+
+    res.json({ text, title: document.originalName });
+  } catch (error) {
+    console.error("Extract text error:", error);
+    res.status(500).json({ error: "Failed to extract text from file" });
   }
 };
 

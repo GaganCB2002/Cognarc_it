@@ -1,20 +1,45 @@
-# StudyTrack — AI Developer Learning OS
+<div align="center">
+  
+# 💎 StudyTrack 💎
+### ✨ AI Developer Learning OS ✨
 
-> Deep work tracker, AI tutor, curriculum planner, and productivity analytics platform.  
-> Built with Next.js 16 (App Router) + Express 5 + PostgreSQL (Prisma) + Gemini AI.
+[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=600&size=24&pause=1000&color=00FF99&center=true&vCenter=true&width=600&lines=Deep+work+tracker;AI+tutor+%26+curriculum+planner;Productivity+analytics+platform;Built+with+Next.js+16+%2B+Gemini+AI)](https://git.io/typing-svg)
+
+🔸 **Next.js 16** 🔹 **Express 5** 🔸 **PostgreSQL** 🔹 **Gemini AI** 🔸
+
+</div>
 
 ---
 
 ## Architecture Overview
 
-```
-frontend/  (Next.js 16, Turbopack, Port 3000)
-     │  API calls (fetch /api/*)
-     ▼
-backend/   (Express 5, ts-node-dev, Port 5000)
-     │  Prisma ORM
-     ▼
-PostgreSQL (via PrismaPg adapter)
+```mermaid
+graph TD
+    subgraph Frontend [Next.js 16 App Router]
+        UI[React Components]
+        Store[Zustand / Context]
+        API_Client[API Fetch Wrapper]
+        
+        UI --> Store
+        UI --> API_Client
+    end
+    
+    subgraph Backend [Express 5 API]
+        Controllers[Controllers]
+        Services[Services & AI]
+        Prisma[Prisma ORM]
+        
+        Controllers --> Services
+        Services --> Prisma
+    end
+    
+    subgraph Database
+        Postgres[(PostgreSQL)]
+    end
+    
+    API_Client -- HTTP/REST --> Controllers
+    API_Client -- Socket.IO --> Backend
+    Prisma -- SQL --> Postgres
 ```
 
 **Real‑time:** Socket.IO for live telemetry (browser extension → backend → dashboard widget).  
@@ -109,18 +134,28 @@ D:\Cognarc it\
 
 ## Auth Flow
 
-```
-Login Page                    Register Page
-  │ email + password + captcha  │ name + email + password + captcha
-  ▼                             ▼
-POST /auth/login              POST /auth/register
-  │                             │
-  ▼                             ▼
-{ token, user }               { token, user }  (isApproved: true)
-  │                             │
-  ▼                             ▼
-localStorage.set("token")     redirect to /login?registered=true
-redirect to /dashboard or /admin
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Backend
+    participant DB
+    
+    Note over User, Frontend: Registration
+    User->>Frontend: Enter Name, Email, Password, Captcha
+    Frontend->>Backend: POST /auth/register
+    Backend->>DB: Create User (isApproved: true)
+    Backend-->>Frontend: Return JWT Token & User Data
+    Frontend->>Frontend: Save to localStorage
+    Frontend-->>User: Redirect to /login?registered=true
+    
+    Note over User, Frontend: Login
+    User->>Frontend: Enter Email, Password, Captcha
+    Frontend->>Backend: POST /auth/login
+    Backend->>DB: Verify Credentials & isApproved
+    Backend-->>Frontend: Return JWT Token
+    Frontend->>Frontend: Save to localStorage
+    Frontend-->>User: Redirect to /dashboard
 ```
 
 - **Captcha**: 6 chars from `abcdefghjkmnpqrstuvwxyz@#$!*+=`, 15‑s auto‑refresh, lowercased client‑side before verification.
@@ -192,6 +227,50 @@ redirect to /dashboard or /admin
 ---
 
 ## Database Schema (25 Models)
+
+```mermaid
+erDiagram
+    User ||--o{ TrackingSession : "has"
+    User ||--o{ Task : "has"
+    User ||--o{ Note : "has"
+    User ||--o{ Document : "uploads"
+    User ||--o{ CalendarEvent : "schedules"
+    User ||--o{ AIConversation : "participates"
+    
+    TrackingSession ||--o{ ActivityEvent : "contains"
+    
+    Document ||--o| DocumentIntelligence : "analyzed by"
+    Note ||--o| NoteIntelligence : "analyzed by"
+    
+    AIConversation ||--o{ AIMessage : "contains"
+    
+    User {
+        String id PK
+        String email
+        String role
+        Boolean isApproved
+    }
+    
+    TrackingSession {
+        String id PK
+        String status
+        DateTime startTime
+        DateTime endTime
+    }
+    
+    Document {
+        String id PK
+        String originalName
+        String storageKey
+    }
+    
+    DocumentIntelligence {
+        String id PK
+        String summary
+        Json mcqs
+        Json flashcards
+    }
+```
 
 Core models:
 - **User** — `id`, `email` (unique), `name`, `password?`, `role` (STUDENT/ADMIN/SUPER_ADMIN/MENTOR/PREMIUM_USER/GUEST), `isApproved`, `provider`, `clerkId?`, `settings?` (JSON)

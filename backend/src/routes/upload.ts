@@ -4,6 +4,7 @@ import { upload } from "../middleware/upload";
 import {
   uploadFile,
   getFile,
+  extractText,
   deleteFile,
   getMyFiles,
   updateFileMetadata,
@@ -17,6 +18,7 @@ router.get("/my-files", authenticate, getMyFiles);
 // File CRUD
 router.post("/", authenticate, upload, uploadFile);
 router.get("/:id", authenticate, getFile);
+router.get("/:id/text", authenticate, extractText);
 router.patch("/:id/metadata", authenticate, updateFileMetadata);
 router.delete("/:id", authenticate, deleteFile);
 

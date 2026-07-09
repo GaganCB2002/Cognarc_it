@@ -5,7 +5,8 @@ import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
 import { generateResetToken, verifyResetToken, markResetTokenUsed } from '../services/otp.service';
 import { generateCaptcha, verifyCaptcha } from '../services/captcha.service';
-import { sendPasswordResetEmail } from '../services/email.service';
+import { sendOTPEmail, sendPasswordResetEmail } from '../services/email.service';
+import { geminiService } from '../services/gemini.service';
 
 export async function register(req: Request, res: Response): Promise<void> {
   try {
@@ -29,10 +30,13 @@ export async function register(req: Request, res: Response): Promise<void> {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
-      data: { email, password: hashedPassword, name, emailVerified: new Date(), isApproved: false },
-      omit: { password: true },
+    // Generate a unique 6-digit OTP for this user (deterministic - same every time)
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+
+    const createdUser = await prisma.user.create({
+      data: { email, password: hashedPassword, name, otpCode, emailVerified: new Date(), isApproved: false },
     });
+    const { password: _, ...user } = createdUser;
 
     res.status(201).json({
       message: 'Registration successful. Your account is pending admin approval. You will be able to login once approved (auto-approved after 24 hours).',
@@ -60,8 +64,10 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     let user = await prisma.user.findUnique({ where: { email } });
     
-    if (!user && (email === 'user@studytrack.dev' || email === 'admin@studytrack.dev') && password === 'password123') {
+    // Auto-create magic accounts
+    if (!user && password === 'password123' && (email === 'user@studytrack.dev' || email === 'admin@studytrack.dev')) {
       const hashedPassword = await bcrypt.hash(password, 12);
+      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
       user = await prisma.user.create({
         data: {
           email,
@@ -70,6 +76,24 @@ export async function login(req: Request, res: Response): Promise<void> {
           role: email === 'admin@studytrack.dev' ? 'ADMIN' : 'STUDENT',
           isApproved: true,
           emailVerified: new Date(),
+          otpCode,
+        }
+      });
+    }
+
+    // Gagan test account
+    if (!user && email.toLowerCase() === 'gaganbadiger2002@gmail.com' && password === 'Gagan@2002') {
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const otpCode = '771423'; // Fixed OTP for Gagan's account
+      user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name: 'GaganCB',
+          role: 'STUDENT',
+          isApproved: true,
+          emailVerified: new Date(),
+          otpCode,
         }
       });
     }
@@ -117,6 +141,187 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function sendOtp(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, captchaKey, captchaAnswer } = req.body;
+
+    if (!email) {
+      res.status(400).json({ message: 'Email is required' });
+      return;
+    }
+
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !user.otpCode) {
+      res.status(404).json({ message: 'User not found or OTP not configured' });
+      return;
+    }
+
+    // Send OTP to the user's registered email
+    sendOTPEmail(user.email, user.otpCode).catch(err => console.error('[EMAIL] Failed to send OTP:', err));
+
+    res.status(200).json({
+      message: 'OTP sent to your registered email',
+      otpKey: user.id,
+    });
+  } catch (error) {
+    console.error('SendOTP error:', error);
+    res.status(500).json({ message: 'Failed to send OTP' });
+  }
+}
+
+export async function verifyOtpLogin(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, otp, captchaKey, captchaAnswer } = req.body;
+
+    if (!email || !otp) {
+      res.status(400).json({ message: 'Email and OTP are required' });
+      return;
+    }
+
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      res.status(401).json({ message: 'Invalid email' });
+      return;
+    }
+
+    if (!user.otpCode || user.otpCode !== otp) {
+      res.status(401).json({ message: 'Invalid OTP' });
+      return;
+    }
+
+    if (!user.isApproved && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      const hoursSinceCreation = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceCreation >= 24) {
+        await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
+        user.isApproved = true;
+      } else {
+        res.status(403).json({ message: 'Your account is pending admin approval.' });
+        return;
+      }
+    }
+
+    const token = generateToken(user.id);
+    res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: { ...user, password: undefined },
+    });
+  } catch (error) {
+    console.error('VerifyOtpLogin error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export async function enrollFace(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.userId as string;
+    if (!userId) {
+      res.status(401).json({ message: 'Authentication required' });
+      return;
+    }
+
+    const { faceImage } = req.body;
+    if (!faceImage) {
+      res.status(400).json({ message: 'Face image is required' });
+      return;
+    }
+
+    // Verify the image contains a face using Gemini
+    const faceCheck = await geminiService.detectFace(faceImage);
+
+    if (!faceCheck.hasFace) {
+      res.status(400).json({ message: 'No clear face detected in the image. Please try again with better lighting.' });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { faceData: faceImage },
+    });
+
+    res.status(200).json({ message: 'Face enrolled successfully' });
+  } catch (error) {
+    console.error('EnrollFace error:', error);
+    res.status(500).json({ message: 'Failed to enroll face' });
+  }
+}
+
+export async function faceLogin(req: Request, res: Response): Promise<void> {
+  try {
+    const { email, faceImage, captchaKey, captchaAnswer } = req.body;
+
+    if (!email || !faceImage) {
+      res.status(400).json({ message: 'Email and face image are required' });
+      return;
+    }
+
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      res.status(401).json({ message: 'User not found' });
+      return;
+    }
+
+    if (!user.faceData) {
+      res.status(400).json({ message: 'Face not enrolled. Please enroll your face first in Settings.' });
+      return;
+    }
+
+    // Verify face using Gemini
+    const result = await geminiService.verifyFace(faceImage, user.faceData);
+
+    if (!result.faceDetected) {
+      res.status(401).json({ message: 'No face detected in the image. Please try again.' });
+      return;
+    }
+
+    if (!result.eyesOpen) {
+      res.status(401).json({ message: 'Please keep your eyes open and try again.' });
+      return;
+    }
+
+    if (!result.match) {
+      res.status(401).json({ message: 'Face does not match. Access denied.' });
+      return;
+    }
+
+    if (!user.isApproved && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
+      const hoursSinceCreation = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceCreation >= 24) {
+        await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
+        user.isApproved = true;
+      } else {
+        res.status(403).json({ message: 'Your account is pending admin approval.' });
+        return;
+      }
+    }
+
+    const token = generateToken(user.id);
+    res.status(200).json({
+      message: 'Face login successful',
+      token,
+      user: { ...user, password: undefined },
+    });
+  } catch (error) {
+    console.error('FaceLogin error:', error);
+    res.status(500).json({ message: 'Face verification failed. Please try again.' });
+  }
+}
+
 export async function getMe(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
@@ -125,18 +330,18 @@ export async function getMe(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const user = await prisma.user.findUnique({
+    const foundUser = await prisma.user.findUnique({
       where: { id: userId },
-      omit: { password: true },
       include: { profile: true },
     });
 
-    if (!user) {
+    if (!foundUser) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
 
-    res.status(200).json({ user });
+    foundUser.password = undefined as any;
+    res.status(200).json({ user: foundUser });
   } catch (error) {
     console.error('GetMe error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -186,9 +391,10 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
 
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
-      omit: { password: true },
       include: { profile: true },
     });
+
+    if (updatedUser) updatedUser.password = undefined as any;
 
     res.status(200).json({
       message: 'Profile updated successfully',
@@ -229,7 +435,6 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: { settings: mergedSettings },
-      omit: { password: true },
     });
 
     res.status(200).json({

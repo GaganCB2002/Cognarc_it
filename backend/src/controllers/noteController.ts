@@ -54,8 +54,8 @@ export async function createNote(req: Request, res: Response): Promise<void> {
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
     const { title, content, tags, folderId } = req.body;
-    if (!title || !content) {
-      res.status(400).json({ success: false, message: 'Title and content are required' });
+    if (!title) {
+      res.status(400).json({ success: false, message: 'Title is required' });
       return;
     }
 

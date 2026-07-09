@@ -14,9 +14,11 @@ model User {
   password      String?
   avatar        String?
   role          Role      @default(STUDENT)
-  isApproved    Boolean   @default(false)
+  isApproved   Boolean    @default(false)
   emailVerified DateTime?
-  provider      AuthProvider @default(LOCAL)
+  otpCode      String?
+  faceData     String?
+  provider     AuthProvider @default(LOCAL)
   providerId    String?
   clerkId       String?   @unique
   refreshToken  String?

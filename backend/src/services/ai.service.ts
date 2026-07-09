@@ -1,5 +1,6 @@
+import { GoogleGenAI } from '@google/genai';
 import { geminiService } from "./gemini.service";
-import { PROJECT_SYSTEM_CONTEXT } from "../data/project-context";
+import { PROJECT_SYSTEM_CONTEXT, CAREER_COACH_CONTEXT } from "../data/project-context";
 
 export const generateSummary = async (text: string) => {
   const result = await geminiService.generateDocumentIntelligenceFromText(text);
@@ -32,6 +33,15 @@ export const askProjectQuestion = async (question: string) => {
   return await geminiService.generateWithContext(question, PROJECT_SYSTEM_CONTEXT);
 };
 
+export const chatWithCareerCoach = async (messages: { role: string; content: string }[]) => {
+  const history = messages.slice(0, -1).map(m => ({
+    role: m.role as 'user' | 'model',
+    content: m.content
+  }));
+  const newMessage = messages[messages.length - 1]?.content || "";
+  return await geminiService.chat(history, newMessage, undefined, CAREER_COACH_CONTEXT);
+};
+
 export const generateAIInsights = async (topics: string[]) => {
   // Using gemini to get a proper profile
   const prompt = `Based on these study topics: ${topics.join(", ")}, generate a JSON profile of the user.
@@ -43,8 +53,7 @@ export const generateAIInsights = async (topics: string[]) => {
     "interviewQuestions": ["string"]
   }`;
   
-  const ai = require('@google/genai').GoogleGenAI;
-  const genai = new ai({ apiKey: process.env.GEMINI_API_KEY });
+  const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   const response = await genai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,

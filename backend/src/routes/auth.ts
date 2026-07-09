@@ -3,6 +3,10 @@ import { authenticate } from '../middleware/auth';
 import {
   register,
   login,
+  sendOtp,
+  verifyOtpLogin,
+  enrollFace,
+  faceLogin,
   getMe,
   updateProfile,
   updateSettings,
@@ -20,6 +24,10 @@ router.get('/captcha', requestCaptcha);
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/send-otp', sendOtp);
+router.post('/verify-otp', verifyOtpLogin);
+router.post('/face-login', faceLogin);
+router.put('/enroll-face', authenticate, enrollFace);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
