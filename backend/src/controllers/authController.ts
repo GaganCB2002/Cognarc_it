@@ -127,7 +127,8 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     if (!user.isApproved && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
-      const hoursSinceCreation = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60);
+      const createdAtTime = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+      const hoursSinceCreation = (Date.now() - createdAtTime) / (1000 * 60 * 60);
       if (hoursSinceCreation >= 24) {
         await prisma.user.update({
           where: { id: user.id },
@@ -219,7 +220,8 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
     }
 
     if (!user.isApproved && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
-      const hoursSinceCreation = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60);
+      const createdAtTime = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+      const hoursSinceCreation = (Date.now() - createdAtTime) / (1000 * 60 * 60);
       if (hoursSinceCreation >= 24) {
         await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
         user.isApproved = true;
@@ -332,7 +334,8 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
     }
 
     if (!user.isApproved && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
-      const hoursSinceCreation = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60);
+      const createdAtTime = user.createdAt ? new Date(user.createdAt).getTime() : Date.now();
+      const hoursSinceCreation = (Date.now() - createdAtTime) / (1000 * 60 * 60);
       if (hoursSinceCreation >= 24) {
         await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
         user.isApproved = true;

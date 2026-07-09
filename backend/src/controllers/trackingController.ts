@@ -191,7 +191,11 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
     }
 
     // Validate session ownership for all events
-    const sessionIds = [...new Set(events.map((e: any) => e.trackingSessionId))];
+    const sessionIds = [...new Set(events.map((e: any) => e.trackingSessionId).filter((id: any) => typeof id === 'string' && id.trim() !== ''))];
+    if (sessionIds.length === 0) {
+      res.status(400).json({ message: 'No valid trackingSessionId found in events' });
+      return;
+    }
     const validSessions = await prisma.trackingSession.findMany({
       where: { id: { in: sessionIds }, userId },
       select: { id: true },
