@@ -221,6 +221,18 @@ JWT_SECRET="your-super-secret-key"
 FRONTEND_URL="https://cognarc-it.vercel.app"
 PORT=5000
 GEMINI_API_KEY="your-google-gemini-key"
+
+# Storage Provider Configuration
+# Set to GOOGLE_DRIVE to enable Google Drive integration, GITHUB, S3, or LOCAL
+STORAGE_PROVIDER="GOOGLE_DRIVE"
+
+# Google Drive Storage Configurations
+GOOGLE_DRIVE_FOLDER_NAME="Cognarc Storage"
+GOOGLE_DRIVE_FOLDER_URL="https://drive.google.com/drive/folders/YOUR_FOLDER_ID"
+GOOGLE_DRIVE_FOLDER_ID="YOUR_FOLDER_ID" # If not provided, automatically derived from GOOGLE_DRIVE_FOLDER_URL
+GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account.json" # Path to service account json file
+GOOGLE_DRIVE_NESTED_FOLDERS="true" # Set to false to store all uploads in a single folder
+GOOGLE_DRIVE_PUBLIC_ACCESS="true" # Set to false to disable public viewing link generation
 ```
 
 **Frontend (`/frontend/.env.local`)**

@@ -8,7 +8,7 @@ import {
 import { generatePeriodicPdfReport } from '../services/pdfReport.service';
 import path from 'path';
 import fs from 'fs';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { queueService } from '../services/queue.service';
 
 export async function createSessionReport(req: Request, res: Response): Promise<void> {
@@ -27,7 +27,8 @@ export async function createSessionReport(req: Request, res: Response): Promise<
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -52,7 +53,8 @@ export async function createPeriodicReport(req: Request, res: Response): Promise
     res.status(201).json({ success: true, data: report });
   } catch (error) {
     console.error('createPeriodicReport error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -69,7 +71,8 @@ export async function listReports(req: Request, res: Response): Promise<void> {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('listReports error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -87,7 +90,8 @@ export async function getReportById(req: Request, res: Response): Promise<void> 
     res.json({ success: true, data: report });
   } catch (error) {
     console.error('getReportById error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -129,7 +133,8 @@ export async function downloadPeriodicPdf(req: Request, res: Response): Promise<
     readStream.pipe(res);
   } catch (error) {
     console.error('downloadPeriodicPdf error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -153,7 +158,8 @@ export async function getDailySummary(req: Request, res: Response): Promise<void
     res.json({ success: true, data: summary });
   } catch (error) {
     console.error('getDailySummary error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -168,7 +174,8 @@ export async function triggerDailySummary(req: Request, res: Response): Promise<
     res.json({ success: true, message: 'Daily summary generation started' });
   } catch (error) {
     console.error('triggerDailySummary error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 

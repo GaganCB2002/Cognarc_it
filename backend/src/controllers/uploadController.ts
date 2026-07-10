@@ -1,12 +1,16 @@
 import { Request, Response } from "express";
 import path from "path";
 import fs from "fs/promises";
-import fsSync from "fs";
-import { PDFParse } from "pdf-parse";
-import { prisma } from "../server";
+import { prisma } from "../lib/prisma";
 import { getFileType } from "../middleware/upload";
-import { saveFile, getFile as getStorageFile, deleteFile as deleteStorageFile, getLocalPath } from "../services/storage.service";
+import { 
+  saveFile, 
+  getFile as getStorageFile, 
+  deleteFile as deleteStorageFile, 
+  renameFile as renameStorageFile 
+} from "../services/storage.service";
 import { queueService } from "../services/queue.service";
+import { validateFile } from "../utils/fileValidation";
 
 interface AuthRequest extends Request {
   user?: { userId: string };
@@ -14,6 +18,89 @@ interface AuthRequest extends Request {
 
 const getParamId = (req: AuthRequest): string => req.params.id as string;
 
+// Helper to check user ownership
+async function checkOwnership(documentId: string, userId: string) {
+  const document = await prisma.document.findUnique({ where: { id: documentId } });
+  if (!document) return { error: "File not found", status: 404 };
+  if (document.userId !== userId) return { error: "Forbidden", status: 403 };
+  if (document.status === "DELETED") return { error: "File has been deleted", status: 410 };
+  return { document };
+}
+
+/**
+ * Handle a single file upload logic
+ */
+async function processUpload(
+  userId: string,
+  file: Express.Multer.File,
+  titleBody?: string
+) {
+  const { originalname, mimetype, buffer, size } = file;
+  const title = titleBody || originalname;
+
+  // Validation
+  const validation = validateFile(mimetype, size, originalname);
+  if (!validation.isValid) {
+    throw new Error(validation.error || "Invalid file");
+  }
+
+  // Save to storage (local, GitHub, or Google Drive)
+  const stored = await saveFile(userId, mimetype, originalname, buffer);
+
+  // Construct metadata JSON
+  const fileMetadata = {
+    downloadUrl: stored.metadata?.downloadUrl || stored.publicUrl,
+    thumbnailUrl: stored.metadata?.thumbnailUrl,
+    uploadedBy: userId,
+  };
+
+  // Create Document record
+  const document = await prisma.document.create({
+    data: {
+      userId,
+      originalName: originalname,
+      mimeType: mimetype,
+      size,
+      storageProvider: stored.provider,
+      storageKey: stored.storageKey,
+      publicUrl: stored.publicUrl,
+      resourceType: getFileType(mimetype),
+      status: "READY",
+      tags: [],
+      metadata: fileMetadata,
+    },
+  });
+
+  // Create Resource record
+  const resource = await prisma.resource.create({
+    data: {
+      title,
+      type: getFileType(mimetype),
+      fileKey: stored.storageKey,
+      fileSize: size,
+      mimeType: mimetype,
+      isUpload: true,
+      userId,
+    },
+  });
+
+  // Link Document to Resource
+  const updatedDoc = await prisma.document.update({
+    where: { id: document.id },
+    data: { resourceId: resource.id },
+  });
+
+  // Trigger asynchronous AI processing if it's a PDF
+  if (getFileType(mimetype) === "PDF") {
+    queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: document.id });
+  }
+
+  return { document: updatedDoc, resource };
+}
+
+/**
+ * Upload single file
+ */
 export const uploadFile = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
@@ -27,60 +114,50 @@ export const uploadFile = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const { originalname, mimetype, buffer, size } = req.file;
-    const title = req.body.title || originalname;
-
-    // Save to persistent storage (local or S3)
-    const stored = await saveFile(userId, mimetype, originalname, buffer);
-
-    // Create Document record for long-term tracking
-    const document = await prisma.document.create({
-      data: {
-        userId,
-        originalName: originalname,
-        mimeType: mimetype,
-        size,
-        storageProvider: stored.provider,
-        storageKey: stored.storageKey,
-        publicUrl: stored.publicUrl,
-        resourceType: getFileType(mimetype),
-        status: "READY",
-        tags: [],
-      },
-    });
-
-    // Create Resource record for display in dashboard
-    const resource = await prisma.resource.create({
-      data: {
-        title,
-        type: getFileType(mimetype),
-        fileKey: stored.storageKey,
-        fileSize: size,
-        mimeType: mimetype,
-        isUpload: true,
-        userId,
-      },
-    });
-
-    // Link Document to Resource
-    await prisma.document.update({
-      where: { id: document.id },
-      data: { resourceId: resource.id },
-    });
-
-    // Trigger asynchronous AI processing
-    queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: document.id });
-
-    res.status(201).json({
-      document,
-      resource,
-    });
-  } catch (error) {
+    const result = await processUpload(userId, req.file, req.body.title);
+    res.status(201).json(result);
+  } catch (error: any) {
     console.error("Upload error:", error);
-    res.status(500).json({ error: "Failed to upload file" });
+    res.status(500).json({ error: error.message || "Failed to upload file" });
   }
 };
 
+/**
+ * Upload multiple files
+ */
+export const uploadMultipleFiles = async (req: AuthRequest, res: Response) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: "No files provided" });
+      return;
+    }
+
+    const userId = req.user?.userId as string;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const uploadPromises = files.map((file) =>
+      processUpload(userId, file).catch((err) => ({
+        error: true,
+        fileName: file.originalname,
+        message: err.message,
+      }))
+    );
+
+    const results = await Promise.all(uploadPromises);
+    res.status(200).json(results);
+  } catch (error: any) {
+    console.error("Multiple uploads error:", error);
+    res.status(500).json({ error: error.message || "Failed to upload files" });
+  }
+};
+
+/**
+ * Get file stream / content
+ */
 export const getFile = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
@@ -91,46 +168,22 @@ export const getFile = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Try Document first, fall back to Resource
-    let document = await prisma.document.findUnique({ where: { id } });
-
-    if (!document) {
-      const resource = await prisma.resource.findUnique({ where: { id } });
-      if (!resource || !resource.fileKey) {
-        res.status(404).json({ error: "File not found" });
-        return;
-      }
-      if (resource.userId !== userId) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-      // Serve via legacy fileKey path
-      const filePath = path.resolve(resource.fileKey);
-      res.sendFile(filePath);
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
       return;
     }
 
-    // Ownership check on Document
-    if (document.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-
-    if (document.status === "DELETED") {
-      res.status(410).json({ error: "File has been deleted" });
-      return;
-    }
-
-    // Serve via storage service
-    const data = await getStorageFile(document.storageKey);
+    const doc = check.document!;
+    const data = await getStorageFile(doc.storageKey);
     if (!data) {
       res.status(404).json({ error: "File data not found on storage" });
       return;
     }
 
-    res.setHeader("Content-Type", document.mimeType);
-    res.setHeader("Content-Disposition", `inline; filename="${document.originalName}"`);
-    res.setHeader("Content-Length", document.size);
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader("Content-Disposition", `inline; filename="${doc.originalName}"`);
+    res.setHeader("Content-Length", doc.size);
     res.send(data);
   } catch (error) {
     console.error("Get file error:", error);
@@ -138,8 +191,10 @@ export const getFile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// GET /api/upload/:id/text - extract text from a file (PDFs use pdf-parse)
-export const extractText = async (req: AuthRequest, res: Response) => {
+/**
+ * Download file as attachment
+ */
+export const downloadFile = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
     const userId = req.user?.userId as string;
@@ -149,46 +204,208 @@ export const extractText = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const document = await prisma.document.findUnique({ where: { id } });
-    if (!document) {
-      res.status(404).json({ error: "Document not found" });
-      return;
-    }
-    if (document.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
       return;
     }
 
-    let text = "";
-
-    if (document.mimeType === "application/pdf") {
-      const data = await getStorageFile(document.storageKey);
-      if (!data) {
-        res.status(404).json({ error: "File data not found" });
-        return;
-      }
-      const parser = new PDFParse({ data: Buffer.from(data) });
-      const parsed = await parser.getText();
-      text = parsed.text;
-    } else if (document.mimeType.startsWith("text/")) {
-      const data = await getStorageFile(document.storageKey);
-      if (!data) {
-        res.status(404).json({ error: "File data not found" });
-        return;
-      }
-      text = data.toString("utf-8");
-    } else {
-      res.status(400).json({ error: `Text extraction not supported for ${document.mimeType}` });
+    const doc = check.document!;
+    const data = await getStorageFile(doc.storageKey);
+    if (!data) {
+      res.status(404).json({ error: "File data not found on storage" });
       return;
     }
 
-    res.json({ text, title: document.originalName });
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader("Content-Disposition", `attachment; filename="${doc.originalName}"`);
+    res.setHeader("Content-Length", doc.size);
+    res.send(data);
   } catch (error) {
-    console.error("Extract text error:", error);
-    res.status(500).json({ error: "Failed to extract text from file" });
+    console.error("Download file error:", error);
+    res.status(500).json({ error: "Failed to download file" });
   }
 };
 
+/**
+ * Preview file (redirect or stream depending on config/metadata)
+ */
+export const previewFile = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const userId = req.user?.userId as string;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
+      return;
+    }
+
+    const doc = check.document!;
+
+    // If Google Drive and has public/private URL config, we can redirect to webViewLink directly
+    if (doc.storageProvider === "GOOGLE_DRIVE" && doc.publicUrl) {
+      res.redirect(doc.publicUrl);
+      return;
+    }
+
+    // Otherwise stream it inline
+    const data = await getStorageFile(doc.storageKey);
+    if (!data) {
+      res.status(404).json({ error: "File data not found on storage" });
+      return;
+    }
+
+    res.setHeader("Content-Type", doc.mimeType);
+    res.setHeader("Content-Disposition", `inline; filename="${doc.originalName}"`);
+    res.setHeader("Content-Length", doc.size);
+    res.send(data);
+  } catch (error) {
+    console.error("Preview file error:", error);
+    res.status(500).json({ error: "Failed to preview file" });
+  }
+};
+
+/**
+ * Replace file contents
+ */
+export const replaceFile = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "No file provided" });
+      return;
+    }
+
+    const id = getParamId(req);
+    const userId = req.user?.userId as string;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
+      return;
+    }
+
+    const doc = check.document!;
+    const { originalname, mimetype, buffer, size } = req.file;
+
+    // Delete old file from storage
+    await deleteStorageFile(doc.storageKey);
+
+    // Save new file to storage
+    const stored = await saveFile(userId, mimetype, originalname, buffer);
+
+    const fileMetadata = {
+      downloadUrl: stored.metadata?.downloadUrl || stored.publicUrl,
+      thumbnailUrl: stored.metadata?.thumbnailUrl,
+      uploadedBy: userId,
+    };
+
+    // Update document record
+    const updatedDoc = await prisma.document.update({
+      where: { id },
+      data: {
+        originalName: originalname,
+        mimeType: mimetype,
+        size,
+        storageProvider: stored.provider,
+        storageKey: stored.storageKey,
+        publicUrl: stored.publicUrl,
+        resourceType: getFileType(mimetype),
+        metadata: fileMetadata,
+        status: "READY",
+      },
+    });
+
+    // Update resource details
+    if (doc.resourceId) {
+      await prisma.resource.update({
+        where: { id: doc.resourceId },
+        data: {
+          title: originalname,
+          type: getFileType(mimetype),
+          fileKey: stored.storageKey,
+          fileSize: size,
+          mimeType: mimetype,
+        },
+      });
+    }
+
+    // Re-trigger AI process if PDF
+    if (getFileType(mimetype) === "PDF") {
+      queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: doc.id });
+    }
+
+    res.status(200).json(updatedDoc);
+  } catch (error: any) {
+    console.error("Replace file error:", error);
+    res.status(500).json({ error: error.message || "Failed to replace file" });
+  }
+};
+
+/**
+ * Rename file
+ */
+export const renameFile = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const userId = req.user?.userId as string;
+    const { name } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "Valid new name is required" });
+      return;
+    }
+
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
+      return;
+    }
+
+    const doc = check.document!;
+
+    // Rename on storage (only applicable to GOOGLE_DRIVE or LOCAL)
+    await renameStorageFile(doc.storageKey, name);
+
+    // Update document original name
+    const updatedDoc = await prisma.document.update({
+      where: { id },
+      data: { originalName: name },
+    });
+
+    // Update Resource title
+    if (doc.resourceId) {
+      await prisma.resource.update({
+        where: { id: doc.resourceId },
+        data: { title: name },
+      });
+    }
+
+    res.status(200).json(updatedDoc);
+  } catch (error: any) {
+    console.error("Rename file error:", error);
+    res.status(500).json({ error: error.message || "Failed to rename file" });
+  }
+};
+
+/**
+ * Delete file
+ */
 export const deleteFile = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
@@ -199,49 +416,27 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Try Document first
-    const document = await prisma.document.findUnique({ where: { id } });
-
-    if (document) {
-      if (document.userId !== userId) {
-        res.status(403).json({ error: "Forbidden" });
-        return;
-      }
-
-      // Delete from storage
-      await deleteStorageFile(document.storageKey);
-
-      // Soft-delete the document record
-      await prisma.document.update({
-        where: { id },
-        data: { status: "DELETED" },
-      });
-
-      // Also delete linked Resource if exists
-      if (document.resourceId) {
-        await prisma.resource.delete({ where: { id: document.resourceId } }).catch(() => {});
-      }
-
-      res.status(200).json({ message: "File deleted successfully" });
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
       return;
     }
 
-    // Fallback to legacy Resource-based file
-    const resource = await prisma.resource.findUnique({ where: { id } });
-    if (!resource) {
-      res.status(404).json({ error: "Resource not found" });
-      return;
-    }
-    if (resource.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
+    const doc = check.document!;
 
-    // Legacy deletion
-    if (resource.fileKey) {
-      await fs.unlink(resource.fileKey).catch(() => {});
+    // Delete from storage
+    await deleteStorageFile(doc.storageKey);
+
+    // Soft-delete the document record
+    await prisma.document.update({
+      where: { id },
+      data: { status: "DELETED" },
+    });
+
+    // Also delete linked Resource if exists
+    if (doc.resourceId) {
+      await prisma.resource.delete({ where: { id: doc.resourceId } }).catch(() => {});
     }
-    await prisma.resource.delete({ where: { id } });
 
     res.status(200).json({ message: "File deleted successfully" });
   } catch (error) {
@@ -250,7 +445,9 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// GET /api/upload/my-files - list all documents for the current user
+/**
+ * List user files
+ */
 export const getMyFiles = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId as string;
@@ -290,6 +487,7 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
         tags: true,
         createdAt: true,
         publicUrl: true,
+        metadata: true,
         resource: {
           select: {
             id: true,
@@ -300,8 +498,7 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    // Map to frontend-friendly format
-    const files = documents.map((doc) => ({
+    const files = documents.map((doc: any) => ({
       id: doc.id,
       name: doc.originalName,
       title: doc.resource?.title || doc.originalName,
@@ -314,6 +511,8 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
       isFavorite: doc.resource?.isFavorite || false,
       resourceId: doc.resource?.id,
       publicUrl: doc.publicUrl,
+      downloadUrl: doc.metadata?.downloadUrl || doc.publicUrl,
+      thumbnailUrl: doc.metadata?.thumbnailUrl,
       uploadedAt: doc.createdAt,
     }));
 
@@ -324,7 +523,9 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// PATCH /api/upload/:id/metadata - update file metadata (folder, tags, favorite)
+/**
+ * Update metadata
+ */
 export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
   try {
     const id = getParamId(req);
@@ -335,16 +536,13 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const document = await prisma.document.findUnique({ where: { id } });
-    if (!document) {
-      res.status(404).json({ error: "Document not found" });
-      return;
-    }
-    if (document.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
       return;
     }
 
+    const doc = check.document!;
     const { folder, tags, title, isFavorite } = req.body;
 
     const docData: Record<string, unknown> = {};
@@ -356,13 +554,12 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
       data: docData,
     });
 
-    // Update linked resource if present
-    if (document.resourceId && (title !== undefined || isFavorite !== undefined)) {
+    if (doc.resourceId && (title !== undefined || isFavorite !== undefined)) {
       const resData: Record<string, unknown> = {};
       if (title !== undefined) resData.title = title;
       if (isFavorite !== undefined) resData.isFavorite = isFavorite;
       await prisma.resource.update({
-        where: { id: document.resourceId },
+        where: { id: doc.resourceId },
         data: resData,
       });
     }
@@ -371,5 +568,52 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error("Update metadata error:", error);
     res.status(500).json({ error: "Failed to update metadata" });
+  }
+};
+
+/**
+ * Text extraction from document
+ */
+export const extractText = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = getParamId(req);
+    const userId = req.user?.userId as string;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const check = await checkOwnership(id, userId);
+    if (check.error) {
+      res.status(check.status || 500).json({ error: check.error });
+      return;
+    }
+
+    const doc = check.document!;
+    let text = "";
+
+    // PDF parse or text parse
+    const data = await getStorageFile(doc.storageKey);
+    if (!data) {
+      res.status(404).json({ error: "File data not found" });
+      return;
+    }
+
+    if (doc.mimeType === "application/pdf") {
+      const PDFParse = require("pdf-parse");
+      const parsed = await PDFParse(data);
+      text = parsed.text;
+    } else if (doc.mimeType.startsWith("text/")) {
+      text = data.toString("utf-8");
+    } else {
+      res.status(400).json({ error: `Text extraction not supported for ${doc.mimeType}` });
+      return;
+    }
+
+    res.json({ text, title: doc.originalName });
+  } catch (error) {
+    console.error("Extract text error:", error);
+    res.status(500).json({ error: "Failed to extract text from file" });
   }
 };

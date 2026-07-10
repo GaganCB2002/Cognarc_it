@@ -57,15 +57,16 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
   }, [pathname, sessionId, isActive]);
 
   const flushEvents = useCallback(async () => {
-    if (eventQueue.current.length === 0) return;
-    const eventsToSend = [...eventQueue.current];
-    eventQueue.current = [];
+    if (eventQueue.current.length === 0 || !sessionId) return;
+    const eventsToSend = [...eventQueue.current].filter(e => e.trackingSessionId === sessionId);
+    if (eventsToSend.length === 0) return;
+    eventQueue.current = eventQueue.current.filter(e => e.trackingSessionId !== sessionId);
     try {
       await api.post(`/tracking/sessions/batch-activities`, { events: eventsToSend });
     } catch {
       eventQueue.current.push(...eventsToSend);
     }
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
     if (!isActive || !sessionId) return;

@@ -11,30 +11,7 @@ import {
   Image, Upload, Zap, Shield, Layers, GitBranch, Trophy,
   Menu, X, Star, ChevronRight, Database, HardDrive
 } from "lucide-react";
-import { useAuth } from "@/lib/auth-context";
-
-const SignedIn = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : null;
-};
-
-const SignedOut = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  return !isAuthenticated ? <>{children}</> : null;
-};
-
-const SignInButton = ({ children }: { children: React.ReactNode; mode?: string }) => {
-  return <Link href="/login">{children}</Link>;
-};
-
-const SignUpButton = ({ children }: { children: React.ReactNode; mode?: string }) => {
-  return <Link href="/register">{children}</Link>;
-};
-
-const UserButton = ({ afterSignOutUrl }: { afterSignOutUrl?: string }) => {
-  const { logout } = useAuth();
-  return <Button variant="outline" size="sm" onClick={logout}>Sign Out</Button>;
-};
+import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 const curriculumModules = [
   { id: 1, name: "Foundations", topics: 12, progress: 100, color: "#4F6BED", description: "Computer science fundamentals, data structures, and algorithmic thinking." },
@@ -62,6 +39,7 @@ const features = [
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const containerRef = useRef(null);
+  const { isSignedIn } = useAuth();
 
   // Global scroll progress
   const { scrollYProgress } = useScroll();
@@ -141,22 +119,26 @@ export default function Home() {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="ghost" className="text-sm">Sign In</Button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <Button className="text-sm bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0">
-                  Get Started Free
-                </Button>
-              </SignUpButton>
-            </SignedOut>
-            <SignedIn>
-              <Link href="/dashboard">
-                <Button variant="ghost" className="text-sm">Go to Dashboard</Button>
-              </Link>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
+            {!isSignedIn && (
+              <>
+                <SignInButton mode="modal">
+                  <Button variant="ghost" className="text-sm">Sign In</Button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <Button className="text-sm bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0">
+                    Get Started Free
+                  </Button>
+                </SignUpButton>
+              </>
+            )}
+            {isSignedIn && (
+              <>
+                <Link href="/dashboard">
+                  <Button variant="ghost" className="text-sm">Go to Dashboard</Button>
+                </Link>
+                <UserButton />
+              </>
+            )}
           </div>
 
           <button className="md:hidden text-st-text-primary" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -174,19 +156,24 @@ export default function Home() {
               <Link href="#features" className="text-st-text-secondary hover:text-st-text-primary py-2" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             </nav>
             <div className="flex flex-col gap-3 pt-2 border-t border-st-border">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <Button variant="ghost" className="w-full">Sign In</Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <Button className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0">Get Started Free</Button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <Link href="/dashboard">
-                  <Button variant="ghost" className="w-full">Go to Dashboard</Button>
-                </Link>
-              </SignedIn>
+              {!isSignedIn && (
+                <>
+                  <SignInButton mode="modal">
+                    <Button variant="ghost" className="w-full">Sign In</Button>
+                  </SignInButton>
+                  <SignUpButton mode="modal">
+                    <Button className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0">Get Started Free</Button>
+                  </SignUpButton>
+                </>
+              )}
+              {isSignedIn && (
+                <>
+                  <Link href="/dashboard">
+                    <Button variant="ghost" className="w-full">Go to Dashboard</Button>
+                  </Link>
+                  <UserButton />
+                </>
+              )}
             </div>
           </div>
         )}
@@ -250,7 +237,7 @@ export default function Home() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-                  <SignedOut>
+                  {!isSignedIn && (
                     <SignUpButton mode="modal">
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button size="lg" className="text-base px-8 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-xl shadow-st-accent/20">
@@ -258,8 +245,8 @@ export default function Home() {
                         </Button>
                       </motion.div>
                     </SignUpButton>
-                  </SignedOut>
-                  <SignedIn>
+                  )}
+                  {isSignedIn && (
                     <Link href="/dashboard">
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button size="lg" className="text-base px-8 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-xl shadow-st-accent/20">
@@ -267,7 +254,7 @@ export default function Home() {
                         </Button>
                       </motion.div>
                     </Link>
-                  </SignedIn>
+                  )}
                   <Link href="#curriculum">
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button variant="outline" size="lg" className="text-base px-8 border-st-border hover:border-st-accent/50">
@@ -659,20 +646,20 @@ export default function Home() {
             </div>
 
             <div className="mt-12 text-center">
-              <SignedOut>
+              {!isSignedIn && (
                 <SignUpButton mode="modal">
                   <Button size="lg" className="bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 shadow-xl shadow-st-accent/20">
                     Join the Community <ArrowRight size={18} className="ml-2" />
                   </Button>
                 </SignUpButton>
-              </SignedOut>
-              <SignedIn>
+              )}
+              {isSignedIn && (
                 <Link href="/dashboard">
                   <Button size="lg" className="bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 shadow-xl shadow-st-accent/20">
                     Go to Dashboard <ArrowRight size={18} className="ml-2" />
                   </Button>
                 </Link>
-              </SignedIn>
+              )}
             </div>
           </div>
         </section>
@@ -798,23 +785,25 @@ export default function Home() {
               Join thousands of engineers who have accelerated their careers through systematic, structured mastery. Start your journey today.
             </p>
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
-              <SignedOut>
-                <SignUpButton mode="modal">
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button size="lg" className="text-base px-10 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-2xl shadow-st-accent/20">
-                      Start Free <ArrowRight size={18} className="ml-2" />
-                    </Button>
-                  </motion.div>
-                </SignUpButton>
-                <SignInButton mode="modal">
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button variant="outline" size="lg" className="text-base px-10">
-                      Sign In
-                    </Button>
-                  </motion.div>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
+              {!isSignedIn && (
+                <>
+                  <SignUpButton mode="modal">
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button size="lg" className="text-base px-10 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-2xl shadow-st-accent/20">
+                        Start Free <ArrowRight size={18} className="ml-2" />
+                      </Button>
+                    </motion.div>
+                  </SignUpButton>
+                  <SignInButton mode="modal">
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button variant="outline" size="lg" className="text-base px-10">
+                        Sign In
+                      </Button>
+                    </motion.div>
+                  </SignInButton>
+                </>
+              )}
+              {isSignedIn && (
                 <Link href="/dashboard">
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button size="lg" className="text-base px-10 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-2xl shadow-st-accent/20">
@@ -822,7 +811,7 @@ export default function Home() {
                     </Button>
                   </motion.div>
                 </Link>
-              </SignedIn>
+              )}
             </div>
             <p className="text-xs text-st-text-muted mt-6">No credit card required. Free tier includes full curriculum access.</p>
           </motion.div>

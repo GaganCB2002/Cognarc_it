@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { generateSummary, generateQuiz, chatWithTutor, chatWithCareerCoach } from "../services/ai.service";
-import { prisma } from "../server";
+import { prisma } from "../lib/prisma";
 import { projectIndexer } from "../services/project-indexer.service";
 import { geminiService } from "../services/gemini.service";
 import { agentService } from "../services/agent.service";

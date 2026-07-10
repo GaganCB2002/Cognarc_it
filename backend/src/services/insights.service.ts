@@ -1,4 +1,4 @@
-import { prisma } from "../server";
+import { prisma } from "../lib/prisma";
 
 export const generateProductivityInsights = async (userId: string) => {
   const thirtyDaysAgo = new Date();

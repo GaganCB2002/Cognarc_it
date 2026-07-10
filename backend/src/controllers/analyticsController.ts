@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { getAggregatedStats } from '../services/analytics.service';
 import { generateProductivityInsights } from '../services/insights.service';
 import { getSessionHistory } from '../services/tracking.service';
@@ -25,7 +25,8 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     });
   } catch (error) {
     console.error('getDashboardStats error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -60,7 +61,8 @@ export async function getWeeklyTrends(req: Request, res: Response): Promise<void
     res.json({ success: true, data: trends });
   } catch (error) {
     console.error('getWeeklyTrends error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -88,7 +90,8 @@ export async function getCategoryBreakdown(req: Request, res: Response): Promise
     res.json({ success: true, data: breakdown });
   } catch (error) {
     console.error('getCategoryBreakdown error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -107,6 +110,7 @@ export async function getProductivityTrend(req: Request, res: Response): Promise
     res.json({ success: true, data: reports.reverse() });
   } catch (error) {
     console.error('getProductivityTrend error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }

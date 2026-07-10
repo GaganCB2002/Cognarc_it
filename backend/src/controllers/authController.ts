@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
+import jwt from 'jsonwebtoken';
 import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
 import { generateResetToken, verifyResetToken, markResetTokenUsed } from '../services/otp.service';
@@ -33,10 +34,10 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-    //   return;
-    // }
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -186,10 +187,10 @@ export async function sendOtp(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-    //   return;
-    // }
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
@@ -220,10 +221,10 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-    //   return;
-    // }
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
@@ -312,10 +313,10 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-    //   return;
-    // }
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
@@ -427,7 +428,8 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     res.status(200).json({ user: foundUser });
   } catch (error) {
     console.error('GetMe error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -502,7 +504,8 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('UpdateProfile error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -543,7 +546,8 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('UpdateSettings error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -564,7 +568,8 @@ export async function getSettings(req: Request, res: Response): Promise<void> {
     res.status(200).json({ settings: user.settings || {} });
   } catch (error) {
     console.error('GetSettings error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -608,7 +613,8 @@ export async function changePassword(req: Request, res: Response): Promise<void>
     res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('ChangePassword error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -641,7 +647,8 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('ForgotPassword error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -677,7 +684,8 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
     res.status(200).json({ message: 'Password reset successfully. You can now login with your new password.' });
   } catch (error) {
     console.error('ResetPassword error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -690,7 +698,98 @@ export async function requestCaptcha(req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Captcha error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
+  }
+}
+
+export async function clerkExchange(req: Request, res: Response): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ message: 'Clerk session token required' });
+      return;
+    }
+
+    const clerkToken = authHeader.split(' ')[1];
+
+    // Decode the Clerk JWT to extract the user ID (sub claim) without verifying signature.
+    // Verification is done by calling Clerk's REST API with the secret key.
+    let decoded: any;
+    try {
+      decoded = jwt.decode(clerkToken);
+    } catch {
+      res.status(401).json({ message: 'Invalid Clerk token format' });
+      return;
+    }
+
+    const clerkId = decoded.sub;
+    if (!clerkId) {
+      res.status(401).json({ message: 'Invalid Clerk token' });
+      return;
+    }
+
+    // Verify the user exists in Clerk by calling Clerk's API directly
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      res.status(500).json({ message: 'Clerk secret key not configured' });
+      return;
+    }
+
+    let clerkUserData: any;
+    try {
+      const clerkRes = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+        headers: { Authorization: `Bearer ${secretKey}` },
+      });
+      if (!clerkRes.ok) {
+        res.status(401).json({ message: 'Invalid or expired Clerk session' });
+        return;
+      }
+      clerkUserData = await clerkRes.json();
+    } catch {
+      res.status(401).json({ message: 'Invalid or expired Clerk session' });
+      return;
+    }
+
+    let user = await prisma.user.findUnique({ where: { clerkId } });
+
+    if (!user) {
+      const email = clerkUserData.email_addresses?.[0]?.email_address || clerkUserData.email || '';
+      const name = clerkUserData.first_name
+        ? `${clerkUserData.first_name} ${clerkUserData.last_name || ''}`.trim()
+        : clerkUserData.username || 'User';
+
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name || email.split('@')[0] || 'User',
+          clerkId,
+          role: 'STUDENT',
+          isApproved: true,
+          emailVerified: new Date().toISOString(),
+        },
+      });
+    }
+
+    const { accessToken, refreshToken } = generateToken(user.id);
+
+    res.json({
+      message: 'Authenticated via Clerk',
+      token: accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        role: user.role,
+        emailVerified: user.emailVerified,
+      },
+    });
+  } catch (error) {
+    console.error('Clerk exchange error:', error);
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -718,6 +817,7 @@ export async function logout(req: Request, res: Response): Promise<void> {
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }

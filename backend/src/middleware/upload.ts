@@ -1,31 +1,28 @@
-import multer from 'multer';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { generateStorageKey } from '../services/storage.service';
+import multer from "multer";
+import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE } from "../constants/upload.constants";
 
 export enum ResourceType {
-  IMAGE = 'IMAGE',
-  PDF = 'PDF',
-  VIDEO = 'VIDEO',
-  OTHER = 'OTHER',
+  IMAGE = "IMAGE",
+  PDF = "PDF",
+  VIDEO = "VIDEO",
+  OTHER = "OTHER",
 }
 
 const MIME_TYPE_MAP: Record<string, ResourceType> = {
-  'image/jpeg': ResourceType.IMAGE,
-  'image/png': ResourceType.IMAGE,
-  'image/gif': ResourceType.IMAGE,
-  'image/webp': ResourceType.IMAGE,
-  'application/pdf': ResourceType.PDF,
-  'video/mp4': ResourceType.VIDEO,
-  'video/webm': ResourceType.VIDEO,
-  'video/quicktime': ResourceType.VIDEO,
+  "image/jpeg": ResourceType.IMAGE,
+  "image/png": ResourceType.IMAGE,
+  "image/gif": ResourceType.IMAGE,
+  "image/webp": ResourceType.IMAGE,
+  "image/svg+xml": ResourceType.IMAGE,
+  "application/pdf": ResourceType.PDF,
+  "video/mp4": ResourceType.VIDEO,
+  "video/webm": ResourceType.VIDEO,
+  "video/quicktime": ResourceType.VIDEO,
 };
 
 export function getFileType(mimetype: string): ResourceType {
   return MIME_TYPE_MAP[mimetype] || ResourceType.OTHER;
 }
-
-const ALLOWED_MIME_TYPES = Object.keys(MIME_TYPE_MAP);
 
 const storage = multer.memoryStorage();
 
@@ -34,17 +31,22 @@ const fileFilter = (
   file: Express.Multer.File,
   cb: multer.FileFilterCallback
 ) => {
-  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  // Broaden file type acceptance, only reject completely unrecognized/malicious MIME types if needed
+  // But let's allow all MIME types listed in ALLOWED_MIME_TYPES
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype) || file.mimetype.startsWith("application/octet-stream")) {
     cb(null, true);
   } else {
     cb(new Error(`Unsupported file type: ${file.mimetype}`));
   }
 };
 
-export const upload = multer({
+const multerInstance = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: MAX_FILE_SIZE,
   },
-}).single('file');
+});
+
+export const upload = multerInstance.single("file");
+export const uploadMultiple = multerInstance.array("files", 10);

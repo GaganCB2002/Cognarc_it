@@ -1,4 +1,4 @@
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { generateAIInsights } from './ai.service';
 
 export const getAggregatedStats = async (userId: string) => {

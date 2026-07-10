@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 export interface GeneratePdfOptions {
   outputPath?: string;

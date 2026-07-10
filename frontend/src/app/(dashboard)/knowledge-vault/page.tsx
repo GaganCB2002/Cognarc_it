@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import api from "@/lib/api";
+import { UploadModal } from "@/components/dashboard/UploadModal";
 import {
   Database, Upload, Search, Star, Grid, List, FileText, Video, Image,
   Link2, Code, FolderOpen, Heart, Trash2, ExternalLink,
@@ -69,6 +70,7 @@ export default function KnowledgeVaultPage() {
   const [urlInput, setUrlInput] = useState("");
   const [urlType, setUrlType] = useState<"LINK" | "VIDEO">("LINK");
   const [urlTitle, setUrlTitle] = useState("");
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -226,10 +228,9 @@ export default function KnowledgeVaultPage() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <input ref={fileInputRef} type="file" onChange={handleUpload} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov" />
-          <Button variant="primary" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          <Button variant="primary" size="sm" onClick={() => setShowUploadModal(true)}>
             <Upload className="w-4 h-4 mr-1" />
-            {uploading ? "Uploading..." : "Upload"}
+            Upload
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowUrlModal(true)}>
             <Link2 className="w-4 h-4 mr-1" />Add Link
@@ -421,6 +422,12 @@ export default function KnowledgeVaultPage() {
           </Card>
         </div>
       )}
+      {/* Upload Modal */}
+      <UploadModal 
+        isOpen={showUploadModal} 
+        onClose={() => setShowUploadModal(false)} 
+        onUploadSuccess={fetchFiles} 
+      />
     </div>
   );
 }

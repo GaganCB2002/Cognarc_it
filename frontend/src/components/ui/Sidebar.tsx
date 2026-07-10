@@ -125,17 +125,13 @@ export function Sidebar() {
       <div className={cn("flex items-center border-b border-st-border shrink-0", isCollapsed ? "p-3 justify-center" : "p-4 justify-between")}>
         {!isCollapsed && (
           <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 bg-st-accent rounded-md flex items-center justify-center shrink-0">
-              <span className="font-bold text-black text-sm">S</span>
-            </div>
+            <img src="/logo.svg" alt="StudyTrack Logo" className="w-7 h-7 shrink-0" />
             <span className="text-lg font-semibold tracking-tight text-st-text-primary truncate">StudyTrack</span>
           </Link>
         )}
         {isCollapsed && (
           <Link href="/dashboard" className="flex items-center justify-center">
-            <div className="w-7 h-7 bg-st-accent rounded-md flex items-center justify-center">
-              <span className="font-bold text-black text-sm">S</span>
-            </div>
+            <img src="/logo.svg" alt="StudyTrack Logo" className="w-7 h-7 shrink-0" />
           </Link>
         )}
         <button

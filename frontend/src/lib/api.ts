@@ -69,77 +69,69 @@ class ApiClient {
       }
     }
 
+    let response: Response;
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers,
         credentials: "include",
         signal: controller?.signal ?? options.signal,
       });
-
-      if (response.status === 401 && this.refreshToken && !endpoint.includes('/refresh-token')) {
-        // Attempt token refresh
-        try {
-          const refreshController = timeoutMs ? new AbortController() : undefined;
-          const refreshTimeoutId = timeoutMs && refreshController ? setTimeout(() => refreshController.abort(), timeoutMs) : undefined;
-          const refreshRes = await fetch(`${API_URL}/auth/refresh-token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: this.refreshToken }),
-            credentials: 'include',
-            signal: refreshController?.signal,
-          });
-          if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json() as RefreshTokenResponse;
-            this.accessToken = refreshData.token;
-            localStorage.setItem('accessToken', refreshData.token);
-            headers['Authorization'] = `Bearer ${refreshData.token}`;
-            // Retry original request with new token
-            const retryResponse = await fetch(`${API_URL}${endpoint}`, {
-              ...options,
-              headers,
-              credentials: 'include',
-              signal: controller?.signal ?? options.signal,
-            });
-            if (retryResponse.ok) {
-              return retryResponse.json();
-            }
-          }
-        } catch {
-          // Refresh failed, proceed with normal 401 handling
-        }
-        this.setToken(null);
-        if (this.onUnauthorized) {
-          this.onUnauthorized();
-        }
-        const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
-        throw new Error(errorData.message || errorData.error || "Authentication required");
-      }
-
-      if (response.status === 401) {
-        this.setToken(null);
-        if (this.onUnauthorized) {
-          this.onUnauthorized();
-        }
-        const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
-        throw new Error(errorData.message || errorData.error || "Authentication required");
-      }
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: "Request failed" })) as { message?: string; error?: string };
-        throw new Error(error.message || error.error || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+    } catch (fetchError) {
+      if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
         throw new Error("Request timed out. Please try again.");
       }
-      throw error;
+      throw new Error(`Network error: Unable to connect to server. Please check your connection.`);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
+
+    if (response.status === 401 && this.refreshToken && !endpoint.includes('/refresh-token')) {
+      try {
+        const refreshRes = await fetch(`${API_URL}/auth/refresh-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: this.refreshToken }),
+          credentials: 'include',
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json() as RefreshTokenResponse;
+          this.accessToken = refreshData.token;
+          localStorage.setItem('accessToken', refreshData.token);
+          headers['Authorization'] = `Bearer ${refreshData.token}`;
+          const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers,
+            credentials: 'include',
+            signal: controller?.signal ?? options.signal,
+          });
+          if (retryResponse.ok) {
+            return retryResponse.json();
+          }
+        }
+      } catch {
+        // Refresh failed
+      }
+      this.setToken(null);
+      if (this.onUnauthorized) this.onUnauthorized();
+      const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
+      throw new Error(errorData.message || errorData.error || "Authentication required");
+    }
+
+    if (response.status === 401) {
+      this.setToken(null);
+      if (this.onUnauthorized) this.onUnauthorized();
+      const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
+      throw new Error(errorData.message || errorData.error || "Authentication required");
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Request failed" })) as { message?: string; error?: string };
+      const errMsg = error.message || error.error || `HTTP ${response.status}`;
+      throw new Error(errMsg);
+    }
+
+    return response.json();
   }
 
   get<T>(endpoint: string) {

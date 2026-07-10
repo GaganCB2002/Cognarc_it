@@ -8,26 +8,16 @@ echo                 RUN BOT
 echo ===================================================
 echo.
 
-echo [1/4] Checking/Starting PostgreSQL Database Service...
-:: Tries to start common PostgreSQL windows services just in case it's stopped.
-net start postgresql-x64-16 >nul 2>&1
-net start postgresql-x64-15 >nul 2>&1
-net start postgresql-x64-14 >nul 2>&1
-echo Database service step completed. (It will connect using the URL in backend/.env)
-echo.
-
-echo [2/4] Generating Prisma Client...
+echo [1/3] Generating Prisma Client...
 cd backend
 call npx prisma generate
 cd ..
 echo.
 
-echo [3/4] Starting Backend (Express 5)...
-:: Opens a new command prompt for the backend
+echo [2/3] Starting Backend (Express 5)...
 start "StudyTrack Backend" cmd /k "title StudyTrack Backend && color 0D && cd backend && echo Starting Backend... && npm run dev"
 
-echo [4/4] Starting Frontend (Next.js 16)...
-:: Opens a new command prompt for the frontend
+echo [3/3] Starting Frontend (Next.js 16)...
 start "StudyTrack Frontend" cmd /k "title StudyTrack Frontend && color 0E && cd frontend && echo Starting Frontend... && npm run dev"
 
 echo.

@@ -4,11 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "start": "node -r dotenv/config dist/server.js",
+    "dev": "ts-node-dev -r dotenv/config --respawn --transpile-only src/server.ts",
     "build": "npx prisma generate && npx tsc",
     "postinstall": "npx prisma generate && npx tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

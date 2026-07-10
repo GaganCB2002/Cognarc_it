@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { queueService } from '../services/queue.service';
 export async function getNotes(req: Request, res: Response): Promise<void> {
   try {
@@ -28,7 +28,8 @@ export async function getNotes(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: notes, total, page: parseInt(page as string), limit: take });
   } catch (error) {
     console.error('getNotes error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -44,7 +45,8 @@ export async function getNoteById(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: note });
   } catch (error) {
     console.error('getNoteById error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -69,7 +71,8 @@ export async function createNote(req: Request, res: Response): Promise<void> {
     res.status(201).json({ success: true, data: note });
   } catch (error) {
     console.error('createNote error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -97,7 +100,8 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: note });
   } catch (error) {
     console.error('updateNote error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -115,7 +119,8 @@ export async function deleteNote(req: Request, res: Response): Promise<void> {
     res.json({ success: true, message: 'Note deleted successfully' });
   } catch (error) {
     console.error('deleteNote error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -136,6 +141,7 @@ export async function pinNote(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: note });
   } catch (error) {
     console.error('pinNote error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }

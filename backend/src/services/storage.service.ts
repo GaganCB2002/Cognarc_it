@@ -17,11 +17,12 @@ interface StorageConfig {
   publicBaseUrl?: string;
 }
 
-interface StoredFile {
+export interface StoredFile {
   storageKey: string;
   provider: StorageProvider;
   publicUrl: string | null;
   size: number;
+  metadata?: any;
 }
 
 const config: StorageConfig = {
@@ -38,7 +39,7 @@ function getUserFolder(userId: string): string {
   // Organize by user: uploads/users/{userId}/{type}/
   // The userId is partitioned to avoid too many files in one directory
   const partition = userId.substring(0, 2);
-  return path.join("users", partition, userId);
+  return path.join("users", partition, userId).replace(/\\/g, "/");
 }
 
 function getMimeSubDir(mimeType: string): string {
@@ -83,9 +84,6 @@ async function existsOnLocal(storageKey: string): Promise<boolean> {
 
 async function saveToS3(storageKey: string, buffer: Buffer): Promise<void> {
   // S3 integration placeholder - implement with @aws-sdk/client-s3
-  // const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-  // const client = new S3Client({ region: config.s3Region, credentials: { ... } });
-  // await client.send(new PutObjectCommand({ Bucket: config.s3Bucket, Key: storageKey, Body: buffer }));
   throw new Error("S3 storage not configured. Set STORAGE_PROVIDER=LOCAL or configure S3 credentials.");
 }
 
@@ -95,13 +93,24 @@ export async function saveFile(
   originalName: string,
   buffer: Buffer
 ): Promise<StoredFile> {
-  const storageKey = generateStorageKey(userId, mimeType, originalName);
+  if (config.provider === "GOOGLE_DRIVE") {
+    const driveResult = await googleDriveStorage.saveFile(userId, mimeType, originalName, buffer);
+    return {
+      storageKey: driveResult.fileId,
+      provider: "GOOGLE_DRIVE",
+      publicUrl: driveResult.viewUrl,
+      size: buffer.length,
+      metadata: {
+        downloadUrl: driveResult.downloadUrl,
+        thumbnailUrl: driveResult.thumbnailUrl,
+      },
+    };
+  }
 
+  const storageKey = generateStorageKey(userId, mimeType, originalName);
   let publicUrl: string | null = null;
 
-  if (config.provider === "GOOGLE_DRIVE") {
-    publicUrl = await googleDriveStorage.saveFile(storageKey, buffer);
-  } else if (config.provider === "S3") {
+  if (config.provider === "S3") {
     await saveToS3(storageKey, buffer);
     if (config.publicBaseUrl) {
       publicUrl = `${config.publicBaseUrl.replace(/\/$/, "")}/${storageKey}`;
@@ -164,4 +173,14 @@ export async function fileExists(storageKey: string): Promise<boolean> {
 
 export function getLocalPath(storageKey: string): string {
   return path.join(config.localBasePath, storageKey);
+}
+
+export async function renameFile(storageKey: string, newName: string): Promise<void> {
+  if (config.provider === "GOOGLE_DRIVE") {
+    await googleDriveStorage.renameFile(storageKey, newName);
+  } else if (config.provider === "LOCAL") {
+    const oldPath = getLocalPath(storageKey);
+    const newPath = path.join(path.dirname(oldPath), newName);
+    await fs.rename(oldPath, newPath).catch(() => {});
+  }
 }

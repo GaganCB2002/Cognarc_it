@@ -1,19 +1,15 @@
-import dotenv from "dotenv";
+// MUST be first import — loads .env before any module reads process.env
+import "./bootstrap";
 import path from "path";
-// Load env from project root (../env.backend) for easy local development
-// In production, env vars come from the hosting provider (Render/Vercel)
-dotenv.config({ path: path.resolve(__dirname, "..", "..", "env.backend"), override: false });
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { prisma, pool } from "./lib/prisma";
 
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
@@ -48,25 +44,14 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Configure database pool with SSL (required by Neon and Render PostgreSQL)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
-const adapter = new PrismaPg(pool);
-export const prisma = new PrismaClient({ adapter });
+export { prisma, pool };
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 
 // Parse allowed origins
-const rawFrontendUrls = (process.env.FRONTEND_URL || "https://cognarc-it.vercel.app,http://localhost:3001");
+const rawFrontendUrls = (process.env.FRONTEND_URL || "https://cognarc-it.vercel.app");
 const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
 
 function isOriginAllowed(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
@@ -138,7 +123,9 @@ app.use("/api/upload", uploadRoutes);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Apply rate limiters
 app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 

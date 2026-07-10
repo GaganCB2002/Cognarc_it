@@ -117,7 +117,7 @@ ${text.substring(0, 500000)}
   /**
    * Extracts a structured JSON summary and intelligence using the Gemini File API.
    */
-  async generateDocumentIntelligenceFromFile(geminiFileUri: string) {
+  async generateDocumentIntelligenceFromFile(geminiFileUri: string, mimeType: string) {
     const prompt = `Analyze the provided document/media and extract structured intelligence.
 You must return ONLY valid JSON matching this schema:
 {
@@ -138,7 +138,7 @@ You must return ONLY valid JSON matching this schema:
         {
           fileData: {
             fileUri: geminiFileUri,
-            mimeType: 'application/pdf', // This is overridden by the actual file type inside the file reference, but typings might require it. We will just pass the URI.
+            mimeType: mimeType,
           }
         },
         prompt

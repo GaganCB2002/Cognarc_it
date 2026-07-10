@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 import { generateSessionReport } from '../services/report.service';
 import { generateSessionPdfReport } from '../services/pdfReport.service';
 import fs from 'fs';
@@ -31,8 +31,9 @@ export async function startSession(req: Request, res: Response): Promise<void> {
     const session = await startTrackingSession({ userId, deviceId, deviceName, projectName });
     res.status(201).json({ success: true, data: session });
   } catch (error) {
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     console.error('startSession error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -52,7 +53,7 @@ export async function pauseSession(req: Request, res: Response): Promise<void> {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
   }
 }
 
@@ -72,7 +73,7 @@ export async function resumeSession(req: Request, res: Response): Promise<void> 
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
   }
 }
 
@@ -108,7 +109,7 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
   }
 }
 
@@ -144,7 +145,8 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
     pdfStream.pipe(res);
   } catch (error) {
     console.error('downloadSessionPdf error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -175,7 +177,8 @@ export async function logActivity(req: Request, res: Response): Promise<void> {
     res.status(201).json({ success: true, data: event });
   } catch (error) {
     console.error('logActivity error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -229,7 +232,8 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
     res.status(201).json({ success: true, data: created, count: created.length });
   } catch (error) {
     console.error('batchLogActivities error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -241,8 +245,9 @@ export async function getCurrentSession(req: Request, res: Response): Promise<vo
     const session = await getActiveSession(userId);
     res.json({ success: true, data: session });
   } catch (error) {
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     console.error('getCurrentSession error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -260,7 +265,8 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('getSessions error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -278,7 +284,8 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
     res.json({ success: true, data: session });
   } catch (error) {
     console.error('getSessionById error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -298,7 +305,7 @@ export async function getSessionStats(req: Request, res: Response): Promise<void
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
   }
 }
 
@@ -315,7 +322,8 @@ export async function getSessionActivitiesHandler(req: Request, res: Response): 
     res.json({ success: true, data: activities });
   } catch (error) {
     console.error('getSessionActivities error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -373,7 +381,8 @@ export async function getLiveTelemetry(req: Request, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('getLiveTelemetry error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -431,6 +440,7 @@ export async function getDashboardData(req: Request, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('getDashboardData error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }

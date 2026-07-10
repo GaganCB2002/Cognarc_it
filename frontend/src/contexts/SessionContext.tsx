@@ -97,7 +97,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         } : prev);
       }
     } catch (error) {
-      console.error('Failed to fetch current session', error);
+      console.error('Failed to fetch current session:', error);
+      setSession(prev => prev.status !== 'IDLE' ? {
+        ...prev, status: 'IDLE' as SessionStatus, sessionId: null, duration: 0
+      } : prev);
     } finally {
       setIsInitializing(false);
     }

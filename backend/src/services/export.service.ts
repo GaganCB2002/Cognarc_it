@@ -1,4 +1,4 @@
-import { prisma } from "../server";
+import { prisma } from "../lib/prisma";
 
 function escapeCsv(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {

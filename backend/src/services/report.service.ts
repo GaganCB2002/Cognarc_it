@@ -1,4 +1,4 @@
-import { prisma } from "../server";
+import { prisma } from "../lib/prisma";
 
 export const generateSessionReport = async (sessionId: string, userId: string) => {
   const session = await prisma.trackingSession.findFirst({

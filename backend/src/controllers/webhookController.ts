@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { Webhook } from 'svix';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 export const clerkWebhookHandler = async (req: Request, res: Response) => {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;

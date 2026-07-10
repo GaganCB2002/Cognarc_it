@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
@@ -25,7 +25,8 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     res.json({ success: true, data: sessions, total, page: parseInt(page as string), limit: take });
   } catch (error) {
     console.error('getSessions error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -47,7 +48,8 @@ export async function getTodaySessions(req: Request, res: Response): Promise<voi
     res.json({ success: true, data: sessions });
   } catch (error) {
     console.error('getTodaySessions error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -66,7 +68,8 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
     res.json({ success: true, data: session });
   } catch (error) {
     console.error('getSessionById error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -88,7 +91,8 @@ export async function createSession(req: Request, res: Response): Promise<void> 
     res.status(201).json({ success: true, data: session });
   } catch (error) {
     console.error('createSession error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -116,7 +120,8 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
     res.json({ success: true, data: session });
   } catch (error) {
     console.error('updateSession error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -134,6 +139,7 @@ export async function deleteSession(req: Request, res: Response): Promise<void> 
     res.json({ success: true, message: 'Session deleted successfully' });
   } catch (error) {
     console.error('deleteSession error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }

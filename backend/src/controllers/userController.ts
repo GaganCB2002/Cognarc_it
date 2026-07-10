@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../server';
+import { prisma } from '../lib/prisma';
 
 export async function getUsers(req: Request, res: Response): Promise<void> {
   try {
@@ -38,7 +38,8 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('GetUsers error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -63,7 +64,8 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
     res.status(200).json({ user });
   } catch (error) {
     console.error('GetUserById error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -92,7 +94,8 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('DeleteUser error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -120,7 +123,8 @@ export async function getUserStats(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('GetUserStats error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -162,7 +166,8 @@ export async function getPendingUsers(req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('GetPendingUsers error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -187,7 +192,8 @@ export async function approveUser(req: Request, res: Response): Promise<void> {
     res.status(200).json({ message: 'User approved successfully' });
   } catch (error) {
     console.error('ApproveUser error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -211,7 +217,8 @@ export async function rejectUser(req: Request, res: Response): Promise<void> {
     res.status(200).json({ message: 'User rejected and deleted successfully' });
   } catch (error) {
     console.error('RejectUser error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }
 
@@ -255,6 +262,7 @@ export async function getAdminDashboardStats(req: Request, res: Response): Promi
     });
   } catch (error) {
     console.error('GetAdminDashboardStats error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ message: msg });
   }
 }

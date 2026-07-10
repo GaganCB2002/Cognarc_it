@@ -42,7 +42,8 @@ export async function createCalendarEvent(req: Request, res: Response): Promise<
     res.status(201).json({ success: true, data: event });
   } catch (error) {
     console.error('createCalendarEvent error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -62,7 +63,8 @@ export async function updateCalendarEvent(req: Request, res: Response): Promise<
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -82,7 +84,8 @@ export async function deleteCalendarEvent(req: Request, res: Response): Promise<
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -100,7 +103,8 @@ export async function getCalendarEvent(req: Request, res: Response): Promise<voi
     res.json({ success: true, data: event });
   } catch (error) {
     console.error('getCalendarEvent error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -127,7 +131,8 @@ export async function listCalendarEvents(req: Request, res: Response): Promise<v
     res.json({ success: true, data: events });
   } catch (error) {
     console.error('listCalendarEvents error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -143,7 +148,8 @@ export async function searchCalendarEvents(req: Request, res: Response): Promise
     res.json({ success: true, data: events });
   } catch (error) {
     console.error('searchCalendarEvents error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -162,6 +168,7 @@ export async function getCalendarStats(req: Request, res: Response): Promise<voi
     res.json({ success: true, data: stats });
   } catch (error) {
     console.error('getCalendarStats error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
+    res.status(500).json({ success: false, message: msg });
   }
 }
