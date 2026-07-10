@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Calendar as CalendarIcon, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -28,6 +28,12 @@ export function SyncModal({ isOpen, onClose }: SyncModalProps) {
       }, 1000);
     }, 1500);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      handleSync('Google Calendar');
+    }
+  }, [isOpen]);
 
   return (
     <AnimatePresence>

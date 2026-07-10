@@ -32,6 +32,12 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [view, setView] = useState<ExtendedView>(Views.MONTH);
   const [date, setDate] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Flow diagram modal states
   const [isFlowOpen, setIsFlowOpen] = useState(false);
@@ -137,6 +143,39 @@ export default function CalendarPage() {
     };
   };
 
+  const dayPropGetter = (date: Date) => {
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+
+    const isToday = date.getDate() === today.getDate() &&
+                    date.getMonth() === today.getMonth() &&
+                    date.getFullYear() === today.getFullYear();
+
+    const isTomorrow = date.getDate() === tomorrow.getDate() &&
+                       date.getMonth() === tomorrow.getMonth() &&
+                       date.getFullYear() === tomorrow.getFullYear();
+
+    if (isToday) {
+      return {
+        style: {
+          backgroundColor: "rgba(204, 255, 0, 0.08)",
+          color: "#ccff00",
+        }
+      };
+    }
+
+    if (isTomorrow) {
+      return {
+        style: {
+          backgroundColor: "rgba(139, 92, 246, 0.08)",
+        }
+      };
+    }
+
+    return {};
+  };
+
   const renderCustomView = () => {
     if (view === "year") {
       return (
@@ -167,6 +206,7 @@ export default function CalendarPage() {
           date={date}
           onNavigate={setDate}
           eventPropGetter={eventStyleGetter}
+          dayPropGetter={dayPropGetter}
           popup
           selectable
           onSelectEvent={handleSelectEvent}
@@ -185,7 +225,11 @@ export default function CalendarPage() {
           <h1 className="text-3xl font-bold text-st-text-primary">Master Calendar</h1>
           <p className="text-st-text-secondary mt-1">Sync your study sessions, meetings, and 100-year milestones.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          <div className="text-xs font-semibold font-mono text-st-accent bg-st-bg-elevated border border-st-border px-3 py-1.5 rounded-lg flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-st-accent animate-pulse" />
+            {format(currentTime, "yyyy-MM-dd HH:mm:ss")}
+          </div>
           <Button variant="outline" size="sm" onClick={() => setIsSyncOpen(true)}>
             <Settings className="w-4 h-4 mr-2" />Sync External
           </Button>

@@ -66,7 +66,7 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
     doc.moveDown(1.5);
 
     // 2. Metrics Cards (2x2 Grid)
-    const durationMin = Math.round((session.endTime ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) / 1000 : 0) / 60);
+    const durationMin = Math.round(Math.max(0, (session.endTime ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) / 1000 : 0)) / 60);
     const prodScore = report?.productivityScore || 0;
     const focusScore = report?.focusScore || 0;
     const totalEvents = session.activities.length;
@@ -229,10 +229,13 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
 
     if (options.outputPath) {
       const writeStream = fs.createWriteStream(options.outputPath);
+      writeStream.on('error', (err) => {
+        console.error('PDF write stream error:', err);
+        reject(err);
+      });
       doc.pipe(writeStream);
     }
 
-    // Complete the document
     doc.end();
   });
 }
@@ -401,6 +404,10 @@ export async function generatePeriodicPdfReport(reportId: string, userId: string
 
     if (options.outputPath) {
       const writeStream = fs.createWriteStream(options.outputPath);
+      writeStream.on('error', (err) => {
+        console.error('PDF write stream error:', err);
+        reject(err);
+      });
       doc.pipe(writeStream);
     }
 

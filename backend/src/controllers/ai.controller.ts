@@ -6,6 +6,7 @@ import { geminiService } from "../services/gemini.service";
 import { agentService } from "../services/agent.service";
 import { getFile } from "../services/storage.service";
 import { PROJECT_SYSTEM_CONTEXT } from "../data/project-context";
+import { lifelog } from "../services/lifelog.service";
 
 interface AuthRequest extends Request {
   user?: { userId: string };
@@ -186,6 +187,14 @@ export const chat = async (req: AuthRequest, res: Response) => {
       }
     });
 
+    lifelog.conversation(userId, "CHAT_MESSAGE", `Chat: ${newMessageContent.substring(0, 80)}`, {
+      conversationId: conversation.id,
+      userMessage: newMessageContent,
+      aiMessage: aiResponseText,
+      messageCount: conversation.messages.length + 2,
+      documentId: conversation.documentId || undefined,
+    });
+
     res.json({ reply: aiResponseText, conversationId: conversation.id, messageId: aiMessage.id });
   } catch (error) {
     console.error("Chat error:", error);
@@ -222,6 +231,10 @@ export const careerChat = async (req: AuthRequest, res: Response) => {
     }
 
     const aiResponseText = await chatWithCareerCoach(messages);
+    lifelog.conversation(userId, "CAREER_CHAT", `Career chat: ${messages[messages.length - 1]?.content?.substring(0, 80) || ""}`, {
+      messages,
+      reply: aiResponseText,
+    });
     res.json({ reply: aiResponseText });
   } catch (error) {
     console.error("Career chat error:", error);
@@ -285,6 +298,13 @@ export const queryProject = async (req: AuthRequest, res: Response) => {
         data: { title: question.substring(0, 50) }
       });
     }
+
+    lifelog.conversation(userId, "PROJECT_QUERY", `Project query: ${question.substring(0, 80)}`, {
+      conversationId: conversation.id,
+      question,
+      answer,
+      hasContext: !!relevantContext,
+    });
 
     res.json({ reply: answer, conversationId: conversation.id });
   } catch (error) {

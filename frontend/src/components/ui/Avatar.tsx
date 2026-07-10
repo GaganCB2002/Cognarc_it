@@ -27,7 +27,7 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "relative flex shrink-0 overflow-hidden rounded-full border border-st-border bg-st-bg-elevated",
+        "relative flex shrink-0 overflow-hidden rounded-full border border-st-border/60 bg-gradient-to-br from-st-bg-elevated to-st-bg-card shadow-sm",
         sizeClasses[size],
         className
       )}
@@ -41,8 +41,8 @@ export function Avatar({
           className="aspect-square h-full w-full object-cover"
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center font-medium text-st-text-secondary bg-st-bg-elevated">
-          {initials || alt.charAt(0).toUpperCase() || "?"}
+        <div className="flex h-full w-full items-center justify-center font-semibold text-st-text-muted bg-gradient-to-br from-st-bg-elevated to-st-bg-card">
+          {initials || alt?.charAt(0).toUpperCase() || "?"}
         </div>
       )}
     </div>

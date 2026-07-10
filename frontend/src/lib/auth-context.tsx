@@ -105,11 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const clearAuthState = () => {
-      setToken(null);
-      setUser(null);
-      writeStoredUser(null);
-      clearAllLocalData();
-      setUserKey(k => k + 1);
+      setToken(prev => {
+        if (prev !== null) {
+          setUser(null);
+          writeStoredUser(null);
+          clearAllLocalData();
+          setUserKey(k => k + 1);
+        }
+        return null;
+      });
     };
 
     api.setOnUnauthorized(() => {
@@ -126,17 +130,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (savedUser) {
         setUser(savedUser);
       }
-      setIsLoading(false);
-
       void api.get<{ user: User }>("/auth/me").then((res) => {
         if (cancelled) return;
         setUser(res.user);
         writeStoredUser(res.user);
+        setIsLoading(false);
       }).catch((err) => {
         if (cancelled) return;
         if (err.message?.includes('Authentication required') || err.message?.includes('Invalid token') || err.message?.includes('401')) {
           clearAuthState();
           api.setToken(null);
+          if (!clerkSignedIn) {
+            setIsLoading(false);
+          }
+        } else {
+          setIsLoading(false);
         }
       });
       return;
@@ -262,7 +270,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     writeStoredUser(null);
     clearAllLocalData();
     setUserKey(k => k + 1);
-    router.push("/");
+    window.location.replace("/");
   }, [router]);
 
   return (

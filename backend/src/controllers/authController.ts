@@ -8,6 +8,7 @@ import { generateResetToken, verifyResetToken, markResetTokenUsed } from '../ser
 import { generateCaptcha, verifyCaptcha } from '../services/captcha.service';
 import { sendOTPEmail } from '../services/email.service';
 import { geminiService } from '../services/gemini.service';
+import { lifelog } from '../services/lifelog.service';
 
 export async function register(req: Request, res: Response): Promise<void> {
   try {
@@ -52,6 +53,12 @@ export async function register(req: Request, res: Response): Promise<void> {
       data: { email, password: hashedPassword, name, otpCode, emailVerified: new Date(), isApproved: true },
     });
     const { password: _, ...user } = createdUser;
+
+    lifelog.auth(createdUser.id, "REGISTER", `User registered: ${email}`, {
+      email,
+      name,
+      userId: createdUser.id,
+    });
 
     res.status(201).json({
       message: 'Registration successful. You can now login.',
@@ -165,6 +172,12 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     const tokens = generateToken(user.id);
+
+    lifelog.auth(user.id, "LOGIN", `User logged in: ${email}`, {
+      email,
+      userId: user.id,
+      role: user.role,
+    });
 
     res.status(200).json({
       message: 'Login successful',
@@ -813,6 +826,10 @@ export async function logout(req: Request, res: Response): Promise<void> {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
     });
+
+    if (userId) {
+      lifelog.auth(userId, "LOGOUT", `User logged out`, { userId });
+    }
 
     res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {

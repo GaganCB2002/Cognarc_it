@@ -1,11 +1,14 @@
 import activeWin from 'active-win';
 import axios from 'axios';
 
-// Read from env or default to dev settings
 const API_BASE = process.env.STUDYTRACK_API_BASE || "https://cognarc-it-1.onrender.com/api";
 const TELEMETRY_URL = `${API_BASE}/telemetry/desktop`;
 const SESSION_URL = `${API_BASE}/tracking/sessions/current`;
-const USER_TOKEN = process.env.STUDYTRACK_USER_TOKEN || "temp-user-id";
+const AUTH_TOKEN = process.env.STUDYTRACK_AUTH_TOKEN || "";
+
+function authUrl(baseUrl) {
+  return AUTH_TOKEN ? `${baseUrl}?token=${encodeURIComponent(AUTH_TOKEN)}` : baseUrl;
+}
 
 let currentWindow = null;
 let startTime = Date.now();
@@ -27,9 +30,7 @@ function categorizeApp(ownerName) {
 
 async function checkActiveSession() {
   try {
-    const res = await axios.get(SESSION_URL, {
-      headers: { "Authorization": `Bearer ${USER_TOKEN}` }
-    });
+    const res = await axios.get(authUrl(SESSION_URL));
     if (res.data && res.data.success && res.data.data && res.data.data.status === 'ACTIVE') {
       if (activeSessionId !== res.data.data.id) {
         console.log(`[Session Started] ID: ${res.data.data.id}`);
@@ -62,16 +63,14 @@ async function sendTelemetry(win, durationSec) {
   const category = categorizeApp(win.owner.name);
   
   try {
-    await axios.post(TELEMETRY_URL, {
+    await axios.post(authUrl(TELEMETRY_URL), {
       trackingSessionId: activeSessionId,
       activeApp: win.owner.name,
       windowTitle: win.title,
       processName: win.owner.name,
       duration: durationSec,
-      isIdle: false, // native idle detection can be added in future
+      isIdle: false,
       category: category
-    }, {
-      headers: { "Authorization": `Bearer ${USER_TOKEN}` }
     });
     console.log(`Sent telemetry: ${win.owner.name} [${category}] for ${durationSec}s`);
   } catch (err) {
@@ -86,13 +85,15 @@ async function pollActiveWindow() {
     const win = await activeWin();
     if (!win) return;
 
+    const now = Date.now();
+    const durationSec = Math.floor((now - startTime) / 1000);
+
+    // Stream telemetry if window changed OR if we've been on the same window for 5+ seconds
     if (!currentWindow || 
         currentWindow.title !== win.title || 
-        currentWindow.owner.name !== win.owner.name) {
+        currentWindow.owner.name !== win.owner.name ||
+        durationSec >= 5) {
       
-      const now = Date.now();
-      const durationSec = Math.floor((now - startTime) / 1000);
-
       if (currentWindow && durationSec > 0) {
         await sendTelemetry(currentWindow, durationSec);
       }

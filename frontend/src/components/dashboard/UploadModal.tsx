@@ -66,7 +66,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
     setQueue(prev => [...prev, ...items]);
   };
 
-  const   removeFile = (id: string) => {
+  const removeFile = (id: string) => {
     setQueue(prev => prev.filter(f => f.id !== id));
   };
 
@@ -129,7 +129,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
 
     if (file.type.startsWith("image/")) {
       return (
-        <div className="relative w-12 h-12 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
+        <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-st-bg-elevated flex items-center justify-center">
           <img src={url} alt={file.name} className="object-cover w-full h-full" />
         </div>
       );
@@ -137,39 +137,39 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
 
     if (file.type.startsWith("video/")) {
       return (
-        <div className="relative w-12 h-12 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
-          <VideoIcon className="w-6 h-6 text-purple-400" />
+        <div className="relative w-10 h-10 rounded-lg bg-st-bg-elevated flex items-center justify-center">
+          <VideoIcon className="w-5 h-5 text-purple-400" />
         </div>
       );
     }
 
     if (file.type === "application/pdf") {
       return (
-        <div className="relative w-12 h-12 rounded bg-zinc-800 flex items-center justify-center">
-          <FileText className="w-6 h-6 text-red-400" />
+        <div className="relative w-10 h-10 rounded-lg bg-st-bg-elevated flex items-center justify-center">
+          <FileText className="w-5 h-5 text-red-400" />
         </div>
       );
     }
 
     return (
-      <div className="relative w-12 h-12 rounded bg-zinc-800 flex items-center justify-center">
-        <HelpCircle className="w-6 h-6 text-zinc-400" />
+      <div className="relative w-10 h-10 rounded-lg bg-st-bg-elevated flex items-center justify-center">
+        <HelpCircle className="w-5 h-5 text-st-text-muted" />
       </div>
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-2xl bg-zinc-950 border-zinc-800 text-white rounded-xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
+      <Card className="w-full max-w-2xl flex flex-col max-h-[85vh] overflow-hidden shadow-2xl shadow-black/40 border-st-border/80">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800/80">
+        <div className="flex items-center justify-between p-5 border-b border-st-border/60">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">Upload Files to Google Drive</h2>
-            <p className="text-xs text-zinc-400 mt-1">Files are organized automatically inside Google Drive folders</p>
+            <h2 className="text-lg font-semibold text-st-text-primary tracking-tight">Upload Files</h2>
+            <p className="text-xs text-st-text-muted mt-0.5">Files are organized automatically in storage</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-800 rounded transition">
-            <X className="w-5 h-5 text-zinc-400 hover:text-white" />
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-st-bg-elevated transition-colors">
+            <X className="w-4 h-4 text-st-text-muted hover:text-st-text-primary transition-colors" />
           </button>
         </div>
 
@@ -180,10 +180,10 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
             onDragOver={handleDrag}
             onDragLeave={handleDrag}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition flex flex-col items-center justify-center gap-3 ${
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 ${
               dragActive 
-                ? "border-primary bg-primary/10" 
-                : "border-zinc-800 hover:border-zinc-700 bg-zinc-900/40 hover:bg-zinc-900/60"
+                ? "border-st-accent/40 bg-st-accent/[0.04]" 
+                : "border-st-border hover:border-st-border-light bg-st-bg-card/30 hover:bg-st-bg-elevated/30"
             }`}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -194,102 +194,102 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
               multiple
               className="hidden"
             />
-            <div className="p-3 bg-zinc-800/60 rounded-full text-zinc-400 border border-zinc-700/50">
-              <Upload className="w-7 h-7" />
+            <div className={`p-3 rounded-full transition-colors ${dragActive ? 'bg-st-accent/10 text-st-accent' : 'bg-st-bg-elevated text-st-text-muted'}`}>
+              <Upload className="w-6 h-6" />
             </div>
             <div>
-              <p className="font-medium text-sm text-zinc-200">Drag & Drop files here, or <span className="text-blue-400 underline">browse</span></p>
-              <p className="text-xs text-zinc-500 mt-1.5">Supports images, videos, PDFs, zip, Excel, Word up to 100MB</p>
+              <p className="font-medium text-sm text-st-text-secondary">
+                {dragActive ? 'Drop files here' : 'Drag & drop files here, or '}
+                <span className="text-st-accent hover:text-st-accent-hover transition-colors underline underline-offset-2">browse</span>
+              </p>
+              <p className="text-xs text-st-text-muted/60 mt-1">Supports images, videos, PDFs, zip, Excel, Word up to 100MB</p>
             </div>
           </div>
 
           {/* Queue List */}
           {queue.length > 0 && (
-            <div className="flex flex-col gap-2 mt-2">
+            <div className="flex flex-col gap-2 mt-1">
               <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Upload Queue ({queue.length})</span>
-                <button onClick={() => setQueue([])} className="text-xs text-zinc-500 hover:text-red-400 transition">Clear Queue</button>
+                <span className="text-xs font-semibold text-st-text-muted uppercase tracking-wider">Upload Queue ({queue.length})</span>
+                <button onClick={() => setQueue([])} className="text-[10px] text-st-text-muted hover:text-st-danger transition-colors">Clear</button>
               </div>
 
-              <div className="flex flex-col gap-2 max-h-[30vh] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-2 max-h-[30vh] overflow-y-auto pr-1 scrollbar-thin">
                 {queue.map(item => (
-                  <div key={item.id} className="p-3 bg-zinc-900/80 border border-zinc-800/60 rounded-lg flex items-center justify-between gap-4">
+                  <div key={item.id} className="p-3 bg-st-bg-elevated/40 border border-st-border/60 rounded-xl flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {renderPreview(item)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium text-zinc-200 truncate">{item.file.name}</p>
-                          <span className="text-[10px] text-zinc-500 shrink-0">{formatBytes(item.file.size)}</span>
+                          <p className="text-sm font-medium text-st-text-primary truncate">{item.file.name}</p>
+                          <span className="text-[10px] text-st-text-muted shrink-0">{formatBytes(item.file.size)}</span>
                         </div>
 
-                        {/* Progress Bar */}
                         <div className="mt-2 flex items-center gap-2">
-                          <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="w-full bg-st-bg-elevated rounded-full h-1.5 overflow-hidden">
                             <div 
-                              className={`h-full transition-all duration-300 ${
-                                item.status === "success" ? "bg-emerald-500" :
-                                item.status === "error" ? "bg-rose-500" :
-                                item.status === "cancelled" ? "bg-zinc-600" : "bg-blue-500"
+                              className={`h-full transition-all duration-300 rounded-full ${
+                                item.status === "success" ? "bg-st-success" :
+                                item.status === "error" ? "bg-st-danger" :
+                                item.status === "cancelled" ? "bg-st-text-muted" : "bg-st-accent"
                               }`}
                               style={{ width: `${item.progress}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-semibold text-zinc-400 shrink-0 w-8 text-right">{item.progress}%</span>
+                          <span className="text-[10px] font-semibold text-st-text-muted shrink-0 w-8 text-right tabular-nums">{item.progress}%</span>
                         </div>
 
-                        {/* Speed & Error Details */}
                         <div className="flex justify-between items-center mt-1">
                           {item.status === "uploading" && (
-                            <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin text-blue-400" /> {item.speed}
+                            <span className="text-[10px] text-st-text-muted flex items-center gap-1">
+                              <Loader2 className="w-2.5 h-2.5 animate-spin text-st-accent" /> {item.speed}
                             </span>
                           )}
                           {item.status === "success" && (
-                            <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-                              <CheckCircle className="w-3 h-3" /> Uploaded to Drive
+                            <span className="text-[10px] text-st-success flex items-center gap-1">
+                              <CheckCircle className="w-2.5 h-2.5" /> Uploaded successfully
                             </span>
                           )}
                           {item.status === "error" && (
-                            <span className="text-[10px] text-rose-400 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" /> {item.errorMsg || "Upload failed"}
+                            <span className="text-[10px] text-st-danger flex items-center gap-1">
+                              <AlertTriangle className="w-2.5 h-2.5" /> {item.errorMsg || "Upload failed"}
                             </span>
                           )}
                           {item.status === "cancelled" && (
-                            <span className="text-[10px] text-zinc-500">Cancelled</span>
+                            <span className="text-[10px] text-st-text-muted">Cancelled</span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       {item.status === "uploading" && (
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-8 w-8 p-0 hover:bg-zinc-800"
+                          className="h-7 w-7 p-0"
                           onClick={() => cancelUpload(item.id)}
                         >
-                          <X className="w-4 h-4 text-zinc-400 hover:text-white" />
+                          <X className="w-3.5 h-3.5 text-st-text-muted" />
                         </Button>
                       )}
                       {(item.status === "pending" || item.status === "cancelled" || item.status === "error") && (
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-8 w-8 p-0 hover:bg-zinc-800"
+                          className="h-7 w-7 p-0"
                           onClick={() => retryUpload(item.id)}
                         >
-                          <RefreshCw className="w-4 h-4 text-blue-400" />
+                          <RefreshCw className="w-3.5 h-3.5 text-st-accent" />
                         </Button>
                       )}
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="h-8 w-8 p-0 hover:bg-zinc-800"
+                        className="h-7 w-7 p-0"
                         onClick={() => removeFile(item.id)}
                       >
-                        <Trash2 className="w-4 h-4 text-zinc-500 hover:text-red-400" />
+                        <Trash2 className="w-3.5 h-3.5 text-st-text-muted hover:text-st-danger transition-colors" />
                       </Button>
                     </div>
                   </div>
@@ -299,13 +299,13 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-zinc-800/80 bg-zinc-900/20 flex justify-end gap-3">
-          <Button variant="outline" className="border-zinc-800 hover:bg-zinc-900" onClick={onClose}>
+        {/* Footer */}
+        <div className="p-4 border-t border-st-border/60 bg-st-bg-card/30 flex justify-end gap-3">
+          <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white" 
+            size="sm"
             onClick={uploadAll}
             disabled={queue.length === 0 || queue.every(f => f.status === "success" || f.status === "uploading")}
           >

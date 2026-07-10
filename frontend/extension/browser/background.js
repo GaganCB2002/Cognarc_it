@@ -9,30 +9,30 @@ let startTime = Date.now();
 let API_BASE = "https://cognarc-it-1.onrender.com/api";
 let TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
 let SESSION_URL = `${API_BASE}/tracking/sessions/current`;
-let USER_ID = "temp-user-id";
+let AUTH_TOKEN = "";
 let activeSessionId = null;
 
 // Initialize from storage
 chrome.storage.sync.get({
-  apiBase: 'https://cognarc-it-1.onrender.com/api',
-  userId: 'temp-user-id'
+  apiUrl: 'https://cognarc-it-1.onrender.com/api',
+  authToken: ''
 }, (items) => {
-  API_BASE = items.apiBase;
+  API_BASE = items.apiUrl;
   TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
   SESSION_URL = `${API_BASE}/tracking/sessions/current`;
-  USER_ID = items.userId;
+  AUTH_TOKEN = items.authToken;
 });
 
 // Listen for options changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'sync') {
-    if (changes.apiBase) {
-      API_BASE = changes.apiBase.newValue;
+    if (changes.apiUrl) {
+      API_BASE = changes.apiUrl.newValue;
       TELEMETRY_URL = `${API_BASE}/telemetry/browser`;
       SESSION_URL = `${API_BASE}/tracking/sessions/current`;
     }
-    if (changes.userId) {
-      USER_ID = changes.userId.newValue;
+    if (changes.authToken) {
+      AUTH_TOKEN = changes.authToken.newValue;
     }
   }
 });
@@ -62,9 +62,8 @@ function extractDomain(url) {
 
 async function checkActiveSession() {
   try {
-    const res = await fetch(SESSION_URL, {
-      headers: { "Authorization": `Bearer ${USER_ID}` }
-    });
+    const url = AUTH_TOKEN ? `${SESSION_URL}?token=${encodeURIComponent(AUTH_TOKEN)}` : SESSION_URL;
+    const res = await fetch(url);
     
     if (res.ok) {
       const data = await res.json();
@@ -99,11 +98,11 @@ async function sendTelemetryData(url, title, domain, durationSec, category) {
   if (!url || url.startsWith('chrome://') || url.startsWith('edge://') || durationSec <= 0 || !activeSessionId) return;
 
   try {
-    await fetch(TELEMETRY_URL, {
+    const url = AUTH_TOKEN ? `${TELEMETRY_URL}?token=${encodeURIComponent(AUTH_TOKEN)}` : TELEMETRY_URL;
+    await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${USER_ID}`
       },
       body: JSON.stringify({
         trackingSessionId: activeSessionId,
@@ -198,3 +197,16 @@ chrome.idle.onStateChanged.addListener((newState) => {
     });
   }
 });
+
+// Stream telemetry continuously every 5 seconds to provide real-time live data
+setInterval(async () => {
+  if (activeTabUrl && activeSessionId) {
+    const now = Date.now();
+    const durationSec = Math.floor((now - startTime) / 1000);
+    if (durationSec >= 5) {
+      const category = categorizeDomain(activeTabDomain);
+      await sendTelemetryData(activeTabUrl, activeTabTitle, activeTabDomain, durationSec, category);
+      startTime = Date.now(); // Reset timer to stream in chunks
+    }
+  }
+}, 5000);

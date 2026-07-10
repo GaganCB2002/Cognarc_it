@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { prisma, pool } from "./lib/prisma";
+import { verifyAccessToken } from "./utils/helpers";
 
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
@@ -29,6 +30,8 @@ import exportRoutes from "./routes/export.routes";
 import insightsRoutes from "./routes/insights.routes";
 import webhookRoutes from "./routes/webhooks";
 import { projectIndexer } from "./services/project-indexer.service";
+import { lifelogMiddleware } from "./middleware/lifelog";
+import { lifelog } from "./services/lifelog.service";
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -58,8 +61,15 @@ function isOriginAllowed(origin: string | undefined, callback: (err: Error | nul
   if (!origin) return callback(null, true);
   if (allowedOrigins.includes(origin)) return callback(null, true);
   if (allowedOrigins.includes('*')) return callback(null, true);
-  // Allow all localhost origins in development
-  if (!isProduction && origin.startsWith('http://localhost')) return callback(null, true);
+  // Allow all local development origins (localhost, 127.0.0.1, and local private network IPs) in development
+  if (!isProduction) {
+    const isLocal = origin.startsWith('http://localhost') || 
+                    origin.startsWith('http://127.0.0.1') || 
+                    origin.startsWith('http://10.') || 
+                    origin.startsWith('http://192.168.') || 
+                    origin.startsWith('http://172.');
+    if (isLocal) return callback(null, true);
+  }
   
   callback(new Error('Not allowed by CORS'));
 }
@@ -68,19 +78,39 @@ export const io = new Server(httpServer, {
   cors: {
     origin: isOriginAllowed,
     credentials: true,
-  }
+  },
+  // Require auth token on connection
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+  },
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) return next(new Error('Authentication required'));
+  const decoded = verifyAccessToken(token as string);
+  if (!decoded) return next(new Error('Invalid or expired token'));
+  (socket as any).user = decoded;
+  next();
 });
 
 io.on('connection', (socket) => {
-  console.log('A user connected to socket:', socket.id);
+  const userId = (socket as any).user.userId;
+  socket.join(`user_${userId}`);
+  console.log(`[Socket] User ${userId} connected (socket: ${socket.id})`);
   
-  socket.on('joinRoom', (userId: string) => {
-    socket.join(`user_${userId}`);
-    console.log(`Socket ${socket.id} joined room user_${userId}`);
+  socket.on('joinRoom', (roomUserId: string) => {
+    if (roomUserId === userId) {
+      socket.join(`user_${userId}`);
+    }
   });
-  
-  socket.on('disconnect', () => {
-    console.log('User disconnected from socket:', socket.id);
+
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket] User ${userId} disconnected (socket: ${socket.id}, reason: ${reason})`);
+  });
+
+  socket.on('error', (err) => {
+    console.error(`[Socket] Error for user ${userId}:`, err.message);
   });
 });
 
@@ -123,6 +153,9 @@ app.use("/api/upload", uploadRoutes);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Lifelog middleware - logs every API transaction as JSON
+app.use('/api', lifelogMiddleware);
+
 // Apply rate limiters
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
@@ -154,6 +187,30 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/insights", insightsRoutes);
+
+// Lifelog retrieval API
+app.get("/api/lifelog", async (req, res) => {
+  const userId = (req as any).user?.userId;
+  if (!userId) return res.status(401).json({ error: "Authentication required" });
+  
+  const type = req.query.type as string | undefined;
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 200), 1000);
+  const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+
+  const result = lifelog.getAllEntries(userId, { type, from, to, limit, offset });
+  res.json({ success: true, ...result });
+});
+
+app.get("/api/lifelog/dates", async (req, res) => {
+  const userId = (req as any).user?.userId;
+  if (!userId) return res.status(401).json({ error: "Authentication required" });
+  
+  const dates = lifelog.getAvailableDates(userId);
+  const totalSize = lifelog.getDatabaseSize(userId);
+  res.json({ success: true, dates, totalSizeBytes: totalSize });
+});
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

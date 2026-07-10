@@ -25,6 +25,8 @@ import {
   Menu,
   X,
   Shield,
+  Server,
+  ChevronLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SidebarSessionPanel } from "@/components/dashboard/SidebarSessionPanel";
@@ -35,6 +37,7 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Tracking", href: "/tracking", icon: Activity },
+  { name: "Diagnostics", href: "/diagnostics", icon: Server },
   { name: "Learning", href: "/curriculum", icon: BookOpen },
   { name: "Calendar", href: "/calendar", icon: CalendarIcon },
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
@@ -118,36 +121,45 @@ export function Sidebar() {
       aria-label="Main navigation"
       className={cn(
         "flex flex-col shrink-0 h-full transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        "bg-st-bg-secondary border-r border-st-border",
-        isCollapsed ? "w-16" : "w-64"
+        "bg-gradient-to-b from-st-bg-secondary via-st-bg-secondary to-st-bg-card border-r border-st-border/80",
+        isCollapsed ? "w-[68px]" : "w-64"
       )}
     >
-      <div className={cn("flex items-center border-b border-st-border shrink-0", isCollapsed ? "p-3 justify-center" : "p-4 justify-between")}>
+      {/* Logo / Header */}
+      <div className={cn("flex items-center border-b border-st-border/50 shrink-0", isCollapsed ? "p-3 justify-center" : "p-4 justify-between")}>
         {!isCollapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
-            <img src="/logo.svg" alt="StudyTrack Logo" className="w-7 h-7 shrink-0" />
-            <span className="text-lg font-semibold tracking-tight text-st-text-primary truncate">StudyTrack</span>
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 group">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-lg shadow-st-accent/15 shrink-0 group-hover:shadow-st-accent/25 transition-shadow">
+              <span className="font-bold text-black text-sm">S</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold tracking-tight text-st-text-primary leading-tight">StudyTrack</span>
+              <span className="text-[10px] text-st-text-muted leading-tight">Learning OS</span>
+            </div>
           </Link>
         )}
         {isCollapsed && (
           <Link href="/dashboard" className="flex items-center justify-center">
-            <img src="/logo.svg" alt="StudyTrack Logo" className="w-7 h-7 shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-lg shadow-st-accent/15">
+              <span className="font-bold text-black text-sm">S</span>
+            </div>
           </Link>
         )}
         <button
           onClick={toggle}
           className={cn(
-            "flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors",
-            isCollapsed ? "w-8 h-8 mx-auto" : "w-8 h-8"
+            "flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated transition-all duration-200",
+            isCollapsed ? "w-8 h-8 mx-auto mt-2" : "w-8 h-8"
           )}
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!isCollapsed}
         >
-          <Menu className="w-4 h-4" />
+          <ChevronLeft className={cn("w-4 h-4 transition-transform duration-300", isCollapsed && "rotate-180")} />
         </button>
       </div>
 
-      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
+      {/* Navigation */}
+      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {dynamicNavigation.map((item: any) => {
           const isActive = !item.chatbot && (pathname === item.href || pathname?.startsWith(`${item.href}/`));
 
@@ -160,12 +172,12 @@ export function Sidebar() {
                   window.dispatchEvent(event);
                 }}
                 className={cn(
-                  "relative flex items-center gap-3 rounded-md text-sm font-medium transition-all duration-200 group w-full",
+                  "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group w-full",
                   isCollapsed ? "justify-center px-0 py-2.5 mx-auto w-10" : "px-3 py-2.5",
-                  "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/60"
+                  "text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80"
                 )}
               >
-                <div className="relative z-10 flex items-center justify-center w-5 h-5 shrink-0 text-st-text-secondary group-hover:text-st-text-primary transition-colors">
+                <div className="relative z-10 flex items-center justify-center w-5 h-5 shrink-0 text-st-text-muted group-hover:text-st-accent transition-colors">
                   <item.icon className="w-4.5 h-4.5" strokeWidth={1.5} />
                 </div>
                 <AnimatePresence mode="wait">
@@ -190,11 +202,11 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "relative flex items-center gap-3 rounded-md text-sm font-medium transition-all duration-200 group",
+                "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group",
                 isCollapsed ? "justify-center px-0 py-2.5 mx-auto w-10" : "px-3 py-2.5",
                 isActive
                   ? "text-st-text-primary"
-                  : "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/60"
+                  : "text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80"
               )}
               aria-current={isActive ? "page" : undefined}
             >
@@ -202,7 +214,7 @@ export function Sidebar() {
                 <motion.div
                   layoutId="sidebar-active"
                   className={cn(
-                    "absolute inset-0 bg-st-accent/8 rounded-md",
+                    "absolute inset-0 bg-st-accent/[0.08] rounded-lg",
                     isCollapsed ? "mx-auto w-10" : ""
                   )}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -211,13 +223,13 @@ export function Sidebar() {
               {isActive && !isCollapsed && (
                 <motion.div
                   layoutId="sidebar-active-border"
-                  className="absolute left-0 top-1 bottom-1 w-0.5 bg-st-accent rounded-full"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gradient-to-b from-st-accent to-st-accent-hover rounded-full"
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
               <div className={cn(
                 "relative z-10 flex items-center justify-center w-5 h-5 shrink-0",
-                isActive ? "text-st-accent" : "text-st-text-secondary group-hover:text-st-text-primary transition-colors"
+                isActive ? "text-st-accent" : "text-st-text-muted group-hover:text-st-text-primary transition-colors"
               )}>
                 <item.icon className="w-4.5 h-4.5" strokeWidth={isActive ? 2.5 : 1.5} />
               </div>
@@ -246,7 +258,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={cn("border-t border-st-border shrink-0", isCollapsed ? "p-2" : "p-4")}>
+      {/* Bottom Section */}
+      <div className={cn("border-t border-st-border/50 shrink-0", isCollapsed ? "p-2" : "p-4")}>
         <AnimatePresence mode="wait">
           {!isCollapsed ? (
             <motion.div
@@ -267,10 +280,10 @@ export function Sidebar() {
               transition={{ duration: 0.15 }}
               className="flex flex-col items-center gap-1"
             >
-              <button className="w-10 h-10 flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors" aria-label="Help">
+              <button className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated transition-all" aria-label="Help">
                 <HelpCircle className="w-4 h-4" />
               </button>
-              <button onClick={logout} className="w-10 h-10 flex items-center justify-center rounded-md text-st-text-secondary hover:text-st-danger hover:bg-st-danger/10 transition-colors" aria-label="Logout">
+              <button onClick={logout} className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-danger hover:bg-st-danger-bg transition-all" aria-label="Logout">
                 <LogOut className="w-4 h-4" />
               </button>
             </motion.div>
@@ -281,15 +294,15 @@ export function Sidebar() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-1 mt-4"
+            className="space-y-0.5 mt-3"
           >
-            <button className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated transition-colors">
+            <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80 transition-all">
               <HelpCircle className="w-4 h-4 shrink-0" />
-              <span>Help</span>
+              <span>Help & Support</span>
             </button>
-            <button onClick={logout} className="flex items-center gap-3 px-3 py-2 w-full rounded-md text-sm font-medium text-st-text-secondary hover:text-st-danger hover:bg-st-danger/10 transition-colors">
+            <button onClick={logout} className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-muted hover:text-st-danger hover:bg-st-danger-bg transition-all">
               <LogOut className="w-4 h-4 shrink-0" />
-              <span>{user?.name || "Sign Out"}</span>
+              <span className="truncate">{user?.name || "Sign Out"}</span>
             </button>
           </motion.div>
         )}
@@ -302,10 +315,10 @@ export function Sidebar() {
       <>
         <button
           onClick={() => setMobileOpen(true)}
-          className="fixed top-4 left-4 z-50 w-10 h-10 flex items-center justify-center rounded-lg bg-st-bg-secondary border border-st-border text-st-text-secondary hover:text-st-text-primary transition-colors md:hidden"
+          className="fixed top-3 left-3 z-50 w-9 h-9 flex items-center justify-center rounded-lg bg-st-bg-card border border-st-border/80 text-st-text-secondary hover:text-st-text-primary transition-all md:hidden shadow-sm"
           aria-label="Open navigation menu"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4.5 h-4.5" />
         </button>
 
         <AnimatePresence>
@@ -316,7 +329,7 @@ export function Sidebar() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-0 bg-black/60 z-40 md:hidden"
+                className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
                 onClick={() => setMobileOpen(false)}
                 aria-hidden="true"
               />
@@ -329,7 +342,7 @@ export function Sidebar() {
               >
                 <div className="h-full">
                   {React.cloneElement(sidebarContent as React.ReactElement<any>, {
-                    style: { borderRight: "1px solid #222" }
+                    style: { borderRight: "1px solid rgba(30, 30, 30, 0.8)" }
                   })}
                 </div>
               </motion.div>

@@ -9,38 +9,43 @@ declare global {
   }
 }
 
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'Authentication required' });
-    }
+function extractToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  const queryToken = req.query.token;
+  if (queryToken && typeof queryToken === 'string') {
+    return queryToken;
+  }
+  return null;
+}
 
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyAccessToken(token);
-    
-    if (!decoded) {
-      return res.status(401).json({ message: 'Invalid or expired token' });
-    }
-    
-    req.user = { userId: decoded.userId };
-    next();
-  } catch (error) {
+export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+  const token = extractToken(req);
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  const decoded = verifyAccessToken(token);
+  if (!decoded) {
     return res.status(401).json({ message: 'Invalid or expired token' });
   }
+
+  req.user = { userId: decoded.userId };
+  next();
 };
 
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    const token = extractToken(req);
+    if (token) {
       const decoded = verifyAccessToken(token);
       if (decoded) {
         req.user = { userId: decoded.userId };
       }
     }
-  } catch (error) {
+  } catch {
     // Ignore invalid token for optional auth
   }
   next();

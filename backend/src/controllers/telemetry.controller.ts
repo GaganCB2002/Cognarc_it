@@ -40,8 +40,11 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
       },
     });
 
-    // Emit live update
-    io.to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
+    try {
+      io.to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
+    } catch (socketErr) {
+      console.error('Socket emit error:', socketErr);
+    }
 
     res.status(201).json({ success: true, data: event });
   } catch (error) {
@@ -88,8 +91,11 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
       },
     });
 
-    // Emit live update
-    io.to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });
+    try {
+      io.to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });
+    } catch (socketErr) {
+      console.error('Socket emit error:', socketErr);
+    }
 
     res.status(201).json({ success: true, data: event });
   } catch (error) {

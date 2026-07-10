@@ -71,31 +71,11 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
   useEffect(() => {
     if (!isActive || !sessionId) return;
 
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const clickable = target.closest('button, a, [role="button"], input[type="submit"]');
-      if (clickable) {
-        const text = clickable.textContent?.trim().slice(0, 40) || (clickable as HTMLInputElement).value || clickable.getAttribute('aria-label') || 'element';
-        queueEvent('CLICK', 'TASK', activePage.current, `Clicked "${text}"`, 0, { tag: clickable.tagName });
-      }
-    };
-
-    const handleCopy = (e: ClipboardEvent) => {
-      const text = (e.target as HTMLElement)?.textContent?.trim().slice(0, 60);
-      if (text) queueEvent('COPY', 'TASK', activePage.current, `Copied text`, 0, { preview: text });
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         queueEvent('KEYBOARD_SHORTCUT', 'TASK', activePage.current, 'Save shortcut (Ctrl+S)');
       }
-    };
-
-    const handleFormSubmit = (e: SubmitEvent) => {
-      const form = e.target as HTMLFormElement;
-      const action = form.action || form.getAttribute('action') || 'unknown';
-      queueEvent('FORM_SUBMIT', 'TASK', activePage.current, `Form submitted`, 0, { action });
     };
 
     const handleVisibilityChange = () => {
@@ -135,17 +115,18 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
 
     const handleBeforeUnload = () => {
       if (eventQueue.current.length > 0) {
+        const token = api.getToken();
+        const url = token
+          ? `${API_URL}/tracking/sessions/batch-activities?token=${encodeURIComponent(token)}`
+          : `${API_URL}/tracking/sessions/batch-activities`;
         navigator.sendBeacon(
-          `${API_URL}/tracking/sessions/batch-activities`,
+          url,
           new Blob([JSON.stringify({ events: eventQueue.current })], { type: 'application/json' })
         );
       }
     };
 
-    window.addEventListener('click', handleClick, true);
-    document.addEventListener('copy', handleCopy);
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('submit', handleFormSubmit, true);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('scroll', handleScroll);
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -153,10 +134,7 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
     lastActiveTime.current = Date.now();
 
     return () => {
-      window.removeEventListener('click', handleClick, true);
-      document.removeEventListener('copy', handleCopy);
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('submit', handleFormSubmit, true);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('beforeunload', handleBeforeUnload);

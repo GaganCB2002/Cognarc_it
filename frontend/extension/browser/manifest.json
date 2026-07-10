@@ -10,7 +10,8 @@
   ],
   "host_permissions": [
     "https://cognarc-it-1.onrender.com/*",
-    "https://*.onrender.com/*"
+    "https://*.onrender.com/*",
+    "http://127.0.0.1:5000/*"
   ],
   "background": {
     "service_worker": "background.js"

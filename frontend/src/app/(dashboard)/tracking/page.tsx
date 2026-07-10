@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useSession } from "@/contexts/SessionContext";
+import { useAuth } from "@/lib/auth-context";
 import { 
   Play, 
   Pause, 
@@ -25,6 +26,7 @@ import {
   ExternalLink,
   Timer,
 } from "lucide-react";
+import { io as socketIO } from "socket.io-client";
 import { format } from "date-fns";
 
 type DashboardData = {
@@ -77,6 +79,7 @@ const DOMAIN_CATEGORY_COLORS: Record<string, string> = {
 
 export default function TrackingDashboard() {
   const { session, startSession, pauseSession, resumeSession, stopSession, isInitializing } = useSession();
+  const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [liveData, setLiveData] = useState<LiveTelemetry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,23 +133,80 @@ export default function TrackingDashboard() {
     fetchDashboardData();
     fetchLiveTelemetry();
 
+    let socket: any = null;
+    if (user?.id && (session?.status === "ACTIVE" || session?.status === "PAUSED")) {
+      const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "https://cognarc-it-1.onrender.com";
+      const token = api.getToken();
+      socket = socketIO(socketUrl, {
+        withCredentials: true,
+        auth: { token },
+      });
+
+      socket.on("connect", () => {
+        socket.emit("joinRoom", user.id);
+      });
+
+      socket.on("live-tracking-update", (event: any) => {
+        setLiveData(prev => {
+          if (!prev) return prev;
+          if (event.type === "BROWSER") {
+            hasLiveTab.current = true;
+            setLiveTabSeconds(0);
+            return {
+              ...prev,
+              liveTab: {
+                id: event.data.id,
+                url: event.data.url || "",
+                title: event.data.title || null,
+                domain: event.data.domain || "",
+                category: event.data.category || null,
+                duration: 0,
+                liveDuration: 0,
+                timestamp: event.data.timestamp,
+              }
+            };
+          } else {
+            hasLiveApp.current = true;
+            setLiveAppSeconds(0);
+            return {
+              ...prev,
+              liveApp: {
+                id: event.data.id,
+                activeApp: event.data.activeApp || "",
+                windowTitle: event.data.windowTitle || "",
+                processName: event.data.activeApp || null,
+                category: event.data.category || null,
+                duration: 0,
+                liveDuration: 0,
+                timestamp: event.data.timestamp,
+              }
+            };
+          }
+        });
+        fetchDashboardData();
+      });
+    }
+
     const dashboardInterval = setInterval(() => {
       if (session && session.status === "ACTIVE") {
         fetchDashboardData();
       }
-    }, 5000);
+    }, 8000);
 
     const liveInterval = setInterval(() => {
-      if (session && (session.status === "ACTIVE" || session.status === "PAUSED")) {
+      if (session && (session.status === "ACTIVE" || session.status === "PAUSED") && (!socket || !socket.connected)) {
         fetchLiveTelemetry();
       }
-    }, 2500);
+    }, 5000);
 
     return () => {
       clearInterval(dashboardInterval);
       clearInterval(liveInterval);
+      if (socket) {
+        socket.disconnect();
+      }
     };
-  }, [session, fetchDashboardData, fetchLiveTelemetry]);
+  }, [session, user?.id, fetchDashboardData, fetchLiveTelemetry]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -188,7 +248,7 @@ export default function TrackingDashboard() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-6 pb-8 overflow-y-auto pr-2">
+    <div className="max-w-7xl mx-auto space-y-6 pb-8 relative">
       <div>
         <p className="text-[10px] font-bold tracking-widest text-st-accent uppercase mb-1">Live Tracking</p>
         <h1 className="text-3xl font-bold text-st-text-primary">Tracking Dashboard</h1>
@@ -282,12 +342,9 @@ export default function TrackingDashboard() {
               {liveData?.liveTab ? (
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-st-bg-primary border border-st-border">
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${liveData.liveTab.domain}&sz=32`}
-                      alt="favicon"
-                      className="w-5 h-5 rounded"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
+                    <div className="w-5 h-5 rounded bg-st-bg-elevated border border-st-border flex items-center justify-center text-[10px] font-bold text-st-text-secondary uppercase shrink-0">
+                      {liveData.liveTab.domain.substring(0, 2)}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-st-text-primary truncate font-medium">{liveData.liveTab.domain}</p>
                       <p className="text-xs text-st-text-muted truncate">{liveData.liveTab.url}</p>
@@ -449,8 +506,8 @@ export default function TrackingDashboard() {
                 {data.browserDomains.map((domain, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-st-bg-elevated rounded-lg">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-st-bg-primary rounded flex items-center justify-center overflow-hidden">
-                        <img src={`https://www.google.com/s2/favicons?domain=${domain.name}&sz=32`} alt="favicon" className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                      <div className="w-8 h-8 bg-st-bg-primary rounded flex items-center justify-center text-xs font-bold text-st-text-secondary uppercase">
+                        {domain.name.substring(0, 2)}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-st-text-primary truncate max-w-[200px]">{domain.name}</p>

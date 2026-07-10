@@ -17,7 +17,7 @@ function safeParse<T>(text: string, fallback: T): T {
 
 const JSON_MODEL = "gemini-2.5-flash";
 const TEXT_MODEL = "gemini-2.5-flash";
-const CHAT_MODEL = "gemini-2.5-pro";
+const CHAT_MODEL = "gemini-2.5-flash";
 
 export const geminiService = {
   /**
@@ -279,7 +279,7 @@ Rules:
 - Be strict about the match - only return true if matchScore >= 90`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: TEXT_MODEL,
       contents: [
         { text: prompt },
         {

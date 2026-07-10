@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { Monitor, Globe, Activity } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/lib/auth-context";
+import { api } from "@/lib/api";
 
 type LiveEvent = {
   type: "BROWSER" | "DESKTOP";
@@ -28,10 +29,11 @@ export function LiveActivityWidget() {
   useEffect(() => {
     if (!user?.id) return;
 
-    // Connect to the backend socket
     const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "https://cognarc-it-1.onrender.com";
+    const token = api.getToken();
     const socket: Socket = io(socketUrl, {
       withCredentials: true,
+      auth: { token },
     });
 
     socket.on("connect", () => {

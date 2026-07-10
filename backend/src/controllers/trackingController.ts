@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { generateSessionReport } from '../services/report.service';
 import { generateSessionPdfReport } from '../services/pdfReport.service';
+import { lifelog } from '../services/lifelog.service';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -14,6 +15,7 @@ import {
   getSessionHistory,
   getSessionActivities,
   getAggregatedSessionStats,
+  validateCategory,
 } from '../services/tracking.service';
 
 export async function startSession(req: Request, res: Response): Promise<void> {
@@ -29,6 +31,11 @@ export async function startSession(req: Request, res: Response): Promise<void> {
 
     const { deviceId, deviceName, projectName } = req.body;
     const session = await startTrackingSession({ userId, deviceId, deviceName, projectName });
+    lifelog.tracking(userId, "SESSION_START", `Tracking session started: ${projectName || "General"}`, {
+      sessionId: session.id,
+      projectName: projectName || null,
+      deviceName: deviceName || null,
+    });
     res.status(201).json({ success: true, data: session });
   } catch (error) {
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
@@ -46,6 +53,7 @@ export async function pauseSession(req: Request, res: Response): Promise<void> {
     if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
 
     const session = await pauseTrackingSession(sessionId, userId);
+    lifelog.tracking(userId, "SESSION_PAUSE", `Session paused: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
   } catch (error: any) {
     console.error('pauseSession error:', error);
@@ -66,6 +74,7 @@ export async function resumeSession(req: Request, res: Response): Promise<void> 
     if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
 
     const session = await resumeTrackingSession(sessionId, userId);
+    lifelog.tracking(userId, "SESSION_RESUME", `Session resumed: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
   } catch (error: any) {
     console.error('resumeSession error:', error);
@@ -102,6 +111,12 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
       console.error('Report generation failed:', reportError);
     }
 
+    lifelog.tracking(userId, "SESSION_STOP", `Session stopped: ${sessionId.substring(0, 8)}... (${Math.round((session.endTime ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) : 0) / 1000 / 60)} min)`, {
+      sessionId,
+      durationMs: session.endTime ? session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs : 0,
+      projectName: session.projectName,
+      hasReport: !!report,
+    });
     res.json({ success: true, data: { session, report } });
   } catch (error: any) {
     console.error('stopSession error:', error);
@@ -193,8 +208,9 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
       return;
     }
 
-    // Validate session ownership for all events
-    const sessionIds = [...new Set(events.map((e: any) => e.trackingSessionId).filter((id: any) => typeof id === 'string' && id.trim() !== ''))];
+    const eventsArr: Array<{ trackingSessionId: string; eventType: string; category?: string; module?: string; entityId?: string; entityType?: string; label?: string; duration?: number; metadata?: Record<string, unknown> }> = events;
+
+    const sessionIds = [...new Set(eventsArr.map((e) => e.trackingSessionId).filter((id): id is string => typeof id === 'string' && id.trim() !== ''))];
     if (sessionIds.length === 0) {
       res.status(400).json({ message: 'No valid trackingSessionId found in events' });
       return;
@@ -203,33 +219,39 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
       where: { id: { in: sessionIds }, userId },
       select: { id: true },
     });
-    const validSessionIds = new Set(validSessions.map((s: any) => s.id));
-    const invalid = sessionIds.find((sid: string) => !validSessionIds.has(sid));
+    const validSessionIds = new Set(validSessions.map((s) => s.id));
+    const invalid = sessionIds.find((sid) => !validSessionIds.has(sid));
     if (invalid) {
       res.status(403).json({ message: `Session ${invalid} not found or does not belong to user` });
       return;
     }
 
-    const created = await prisma.$transaction(
-      events.map((ev: any) =>
-        prisma.activityEvent.create({
-          data: {
-            trackingSessionId: ev.trackingSessionId,
-            userId,
-            eventType: ev.eventType,
-            category: (ev.category as any) || 'OTHER',
-            module: ev.module || null,
-            entityId: ev.entityId || null,
-            entityType: ev.entityType || null,
-            label: ev.label || null,
-            duration: ev.duration || 0,
-            metadata: ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null,
-          },
-        })
-      )
-    );
+    const BATCH_SIZE = 50;
+    const allCreated: Array<any> = [];
+    for (let i = 0; i < eventsArr.length; i += BATCH_SIZE) {
+      const batch = eventsArr.slice(i, i + BATCH_SIZE);
+      const batchResult = await prisma.$transaction(
+        batch.map((ev) =>
+          prisma.activityEvent.create({
+            data: {
+              trackingSessionId: ev.trackingSessionId,
+              userId,
+              eventType: ev.eventType,
+              category: validateCategory(ev.category) as any,
+              module: ev.module || null,
+              entityId: ev.entityId || null,
+              entityType: ev.entityType || null,
+              label: ev.label || null,
+              duration: Math.max(0, ev.duration || 0),
+              metadata: ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null,
+            },
+          })
+        )
+      );
+      allCreated.push(...batchResult);
+    }
 
-    res.status(201).json({ success: true, data: created, count: created.length });
+    res.status(201).json({ success: true, data: allCreated, count: allCreated.length });
   } catch (error) {
     console.error('batchLogActivities error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
@@ -256,8 +278,8 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 50), 200);
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
     const from = req.query.from ? new Date(req.query.from as string) : undefined;
     const to = req.query.to ? new Date(req.query.to as string) : undefined;
 

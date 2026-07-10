@@ -68,17 +68,17 @@ export const getAggregatedStats = async (userId: string) => {
   const dailyDesktop = await prisma.desktopTelemetry.findMany({
     where: {
       userId,
-      createdAt: { gte: twentyEightDaysAgo }
+      timestamp: { gte: twentyEightDaysAgo }
     },
-    select: { createdAt: true, duration: true }
+    select: { timestamp: true, duration: true }
   });
 
   const dailyBrowser = await prisma.browserTelemetry.findMany({
     where: {
       userId,
-      createdAt: { gte: twentyEightDaysAgo }
+      timestamp: { gte: twentyEightDaysAgo }
     },
-    select: { createdAt: true, duration: true }
+    select: { timestamp: true, duration: true }
   });
 
   const pulseMap = new Array(28).fill(0);
@@ -86,7 +86,7 @@ export const getAggregatedStats = async (userId: string) => {
   today.setHours(23, 59, 59, 999);
   
   const bucketEvent = (event: any) => {
-    const eventDate = new Date(event.createdAt);
+    const eventDate = new Date(event.timestamp);
     const diffTime = Math.abs(today.getTime() - eventDate.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     

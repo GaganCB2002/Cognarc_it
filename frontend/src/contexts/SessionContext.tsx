@@ -12,7 +12,6 @@ interface SessionState {
   sessionId: string | null;
   duration: number;
   projectName: string | null;
-  location: { lat: number; lng: number } | null;
   focusScore: number;
   productivityScore: number;
 }
@@ -34,9 +33,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     sessionId: null,
     duration: 0,
     projectName: null,
-    location: null,
-    focusScore: 100,
-    productivityScore: 100,
+    focusScore: 0,
+    productivityScore: 0,
   });
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -48,20 +46,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     sessionId: session.sessionId,
     isActive: session.status === 'ACTIVE'
   });
-
-  const getLocation = (): Promise<{ lat: number; lng: number } | null> => {
-    return new Promise((resolve) => {
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          () => resolve(null),
-          { timeout: 3000 }
-        );
-      } else {
-        resolve(null);
-      }
-    });
-  };
 
   const fetchCurrentSession = async () => {
     if (!api.getToken()) {
@@ -86,9 +70,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           sessionId: res.data.id,
           duration: Math.max(0, Math.round(elapsed / 1000)),
           projectName: res.data.projectName || 'General Deep Work',
-          location: null,
-          focusScore: 100,
-          productivityScore: 100,
+          focusScore: 0,
+          productivityScore: 0,
         });
       } else {
         // Explicitly clear if no active session returned
@@ -125,7 +108,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [session.status]);
 
   const startSession = async (projectName: string = 'General Deep Work') => {
-    const loc = await getLocation();
     const deviceName = typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown Device';
 
     try {
@@ -140,9 +122,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         sessionId: res.data.id,
         duration: 0,
         projectName,
-        location: loc,
-        focusScore: 100,
-        productivityScore: 100,
+        focusScore: 0,
+        productivityScore: 0,
       });
     } catch (err: any) {
       if (err.message && err.message.includes('already exists')) {
@@ -184,9 +165,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         sessionId: null,
         duration: 0,
         projectName: null,
-        location: null,
-        focusScore: 100,
-        productivityScore: 100,
+        focusScore: 0,
+        productivityScore: 0,
       });
       const reportData = res.data?.report || res.data;
       return reportData;

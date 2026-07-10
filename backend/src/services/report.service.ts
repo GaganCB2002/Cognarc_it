@@ -10,7 +10,7 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
   const totalMs = session.endTime
     ? session.endTime.getTime() - session.startTime.getTime()
     : Date.now() - session.startTime.getTime();
-  const activeMs = totalMs - session.totalPauseMs;
+  const activeMs = Math.max(0, totalMs - session.totalPauseMs);
   const totalSec = Math.round(activeMs / 1000);
 
   const byCategory: Record<string, { duration: number; count: number }> = {};

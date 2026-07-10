@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useSession } from '@/contexts/SessionContext';
 import { useAuth } from '@/lib/auth-context';
+import { api, API_URL } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Play, Pause, Square, Activity, MapPin, Loader2 } from 'lucide-react';
 
@@ -39,7 +40,10 @@ export function SidebarSessionPanel() {
     const reportData = await stopSession();
     const sessionId = reportData?.session?.id || reportData?.id;
     if (sessionId) {
-      const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/tracking/sessions/${sessionId}/pdf`;
+      const token = api.getToken();
+      const downloadUrl = token
+        ? `${API_URL}/tracking/sessions/${sessionId}/pdf?token=${encodeURIComponent(token)}`
+        : `${API_URL}/tracking/sessions/${sessionId}/pdf`;
       window.open(downloadUrl, '_blank');
     }
   };
@@ -82,13 +86,6 @@ export function SidebarSessionPanel() {
           {session.projectName || 'General Deep Work'}
         </div>
       </div>
-
-      {session.location && (
-        <div className="flex items-center gap-1.5 text-[10px] text-st-text-secondary">
-          <MapPin className="w-3 h-3 text-st-accent" />
-          Location tracked locally
-        </div>
-      )}
 
       <div className="flex items-center gap-2 pt-2">
         {session.status === 'ACTIVE' ? (
