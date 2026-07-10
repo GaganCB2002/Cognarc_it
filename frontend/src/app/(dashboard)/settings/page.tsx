@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Settings as SettingsIcon, User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, ChevronRight, Save, LogOut, CheckCircle2, ScanFace, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -68,7 +67,7 @@ export default function SettingsPage() {
 
   // Blink Detection
   const [blinkCount, setBlinkCount] = useState(0);
-  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const faceLandmarkerRef = useRef<any>(null);
   const requestRef = useRef<number | null>(null);
   const blinkCountRef = useRef(0);
   const cameraActiveRef = useRef(false);
@@ -77,11 +76,13 @@ export default function SettingsPage() {
      cameraActiveRef.current = cameraActive;
   }, [cameraActive]);
 
-  // Load FaceLandmarker
+  // Load FaceLandmarker only when camera is active (lazy)
   useEffect(() => {
+    if (!cameraActive) return;
     let isMounted = true;
     const initModel = async () => {
       try {
+        const { FilesetResolver, FaceLandmarker } = await import('@mediapipe/tasks-vision');
         const filesetResolver = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
         );
@@ -106,7 +107,7 @@ export default function SettingsPage() {
         isMounted = false;
         if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, []);
+  }, [cameraActive]);
 
   // Cleanup camera on unmount
   useEffect(() => {

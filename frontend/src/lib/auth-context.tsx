@@ -150,39 +150,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clerkSignedIn, clerkLoaded]);
 
-  // Auto-cleanup on tab close: clear JWT so user is flagged out on next visit
-  useEffect(() => {
-    if (!token) return;
-
-    const handleUnload = () => {
-      if (!localStorage.getItem("accessToken")) return;
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("authUser");
-    };
-
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [token]);
+  // On mount, verify saved token is still valid via /auth/me (handled above).
+  // Token expiry and cleanup are managed by the api client's onUnauthorized callback.
 
   useEffect(() => {
     if (token || !clerkSignedIn) return;
 
     let cancelled = false;
-    let retries = 0;
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 2000;
 
     const tryExchange = async () => {
       try {
         const clerkSessionToken = await getClerkToken();
         if (!clerkSessionToken || cancelled) {
-          if (!cancelled && retries < MAX_RETRIES) {
-            retries++;
-            setTimeout(tryExchange, RETRY_DELAY);
-          } else if (!cancelled) {
-            setIsLoading(false);
-          }
+          if (!cancelled) setIsLoading(false);
           return;
         }
 
@@ -192,15 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${clerkSessionToken}`,
           },
+          signal: AbortSignal.timeout(8000),
         });
 
         if (!res.ok || cancelled) {
-          if (!cancelled && retries < MAX_RETRIES) {
-            retries++;
-            setTimeout(tryExchange, RETRY_DELAY);
-          } else if (!cancelled) {
-            setIsLoading(false);
-          }
+          if (!cancelled) setIsLoading(false);
           return;
         }
 
@@ -213,12 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         writeStoredUser(data.user);
         if (!cancelled) setIsLoading(false);
       } catch {
-        if (!cancelled && retries < MAX_RETRIES) {
-          retries++;
-          setTimeout(tryExchange, RETRY_DELAY);
-        } else if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
