@@ -29,12 +29,6 @@ export function SyncModal({ isOpen, onClose }: SyncModalProps) {
     }, 1500);
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      handleSync('Google Calendar');
-    }
-  }, [isOpen]);
-
   return (
     <AnimatePresence>
       {isOpen && (

@@ -3,16 +3,18 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { X, Clock, PlayCircle, BookOpen, MonitorPlay, CheckSquare, Target } from "lucide-react";
+import { X, Clock, PlayCircle, BookOpen, MonitorPlay, CheckSquare, Target, Pencil, Trash2 } from "lucide-react";
 
 interface AnimatedDayFlowProps {
   isOpen: boolean;
   onClose: () => void;
   date: Date | null;
   events: any[];
+  onEdit?: (event: any) => void;
+  onDelete?: (eventId: string) => void;
 }
 
-export function AnimatedDayFlow({ isOpen, onClose, date, events }: AnimatedDayFlowProps) {
+export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelete }: AnimatedDayFlowProps) {
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
 
   // Sort events chronologically
@@ -162,6 +164,20 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events }: AnimatedDayFl
                                       <span className="px-2 py-1 text-xs font-medium bg-st-bg-primary rounded text-st-text-secondary border border-st-border">
                                         Type: {event.type?.toUpperCase() || 'GENERAL'}
                                       </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      {onEdit && (
+                                        <button onClick={(e) => { e.stopPropagation(); onEdit(event); }}
+                                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-st-bg-primary rounded text-st-text-secondary border border-st-border hover:border-st-accent/30 transition-colors">
+                                          <Pencil className="w-3 h-3" /> Edit
+                                        </button>
+                                      )}
+                                      {onDelete && (
+                                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this event?')) onDelete(event.id); }}
+                                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-st-danger/10 rounded text-st-danger border border-st-danger/20 hover:bg-st-danger/20 transition-colors">
+                                          <Trash2 className="w-3 h-3" /> Delete
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 </motion.div>

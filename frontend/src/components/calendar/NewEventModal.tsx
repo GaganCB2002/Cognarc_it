@@ -9,15 +9,48 @@ interface NewEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (event: any) => void;
+  onDelete?: () => void;
+  initialData?: any;
 }
 
-export function NewEventModal({ isOpen, onClose, onSave }: NewEventModalProps) {
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [type, setType] = useState("learning");
-  const [notes, setNotes] = useState("");
+export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }: NewEventModalProps) {
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [date, setDate] = useState(initialData?.start ? formatDateForInput(new Date(initialData.start)) : "");
+  const [startTime, setStartTime] = useState(initialData?.start ? formatTimeForInput(new Date(initialData.start)) : "");
+  const [endTime, setEndTime] = useState(initialData?.end ? formatTimeForInput(new Date(initialData.end)) : "");
+  const [type, setType] = useState(initialData?.type || "learning");
+  const [notes, setNotes] = useState(initialData?.notes || "");
+  const [error, setError] = useState("");
+
+  const isEditing = !!initialData;
+
+  function formatDateForInput(d: Date) {
+    return d.toISOString().split("T")[0];
+  }
+
+  function formatTimeForInput(d: Date) {
+    return d.toTimeString().split(":").slice(0, 2).join(":");
+  }
+
+  React.useEffect(() => {
+    if (isOpen && initialData) {
+      setTitle(initialData.title || "");
+      setDate(formatDateForInput(new Date(initialData.start)));
+      setStartTime(formatTimeForInput(new Date(initialData.start)));
+      setEndTime(formatTimeForInput(new Date(initialData.end)));
+      setType(initialData.type || "learning");
+      setNotes(initialData.notes || "");
+      setError("");
+    } else if (isOpen && !initialData) {
+      setTitle("");
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+      setType("learning");
+      setNotes("");
+      setError("");
+    }
+  }, [isOpen, initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +58,11 @@ export function NewEventModal({ isOpen, onClose, onSave }: NewEventModalProps) {
 
     const startDateTime = new Date(`${date}T${startTime}`);
     const endDateTime = new Date(`${date}T${endTime}`);
+
+    if (endDateTime <= startDateTime) {
+      setError("End time must be after start time.");
+      return;
+    }
 
     onSave({
       title,
@@ -34,13 +72,6 @@ export function NewEventModal({ isOpen, onClose, onSave }: NewEventModalProps) {
       notes,
     });
     
-    // Reset form
-    setTitle("");
-    setDate("");
-    setStartTime("");
-    setEndTime("");
-    setType("learning");
-    setNotes("");
     onClose();
   };
 
@@ -63,7 +94,7 @@ export function NewEventModal({ isOpen, onClose, onSave }: NewEventModalProps) {
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-st-bg-primary border border-st-border rounded-xl shadow-2xl z-[111] overflow-hidden"
           >
             <div className="flex justify-between items-center p-6 border-b border-st-border">
-              <h2 className="text-xl font-bold text-st-text-primary">Create New Event</h2>
+              <h2 className="text-xl font-bold text-st-text-primary">{isEditing ? "Edit Event" : "Create New Event"}</h2>
               <button onClick={onClose} className="text-st-text-secondary hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -154,12 +185,22 @@ export function NewEventModal({ isOpen, onClose, onSave }: NewEventModalProps) {
                 />
               </div>
 
+              {error && (
+                <div className="text-sm text-st-danger bg-st-danger/10 border border-st-danger/20 rounded-lg p-3">
+                  {error}
+                </div>
+              )}
               <div className="pt-4 flex justify-end gap-3 border-t border-st-border">
+                {isEditing && onDelete && (
+                  <Button type="button" variant="outline" onClick={onDelete} className="text-st-danger border-st-danger/30 hover:bg-st-danger/10">
+                    Delete
+                  </Button>
+                )}
                 <Button type="button" variant="outline" onClick={onClose}>
                   Cancel
                 </Button>
                 <Button type="submit" variant="primary">
-                  Save Event
+                  {isEditing ? "Update Event" : "Save Event"}
                 </Button>
               </div>
             </form>

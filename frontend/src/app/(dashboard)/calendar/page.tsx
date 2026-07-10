@@ -45,6 +45,7 @@ export default function CalendarPage() {
 
   // New features modals
   const [isNewEventOpen, setIsNewEventOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   
   // Get events for a specific date
@@ -57,13 +58,24 @@ export default function CalendarPage() {
     
     return events.filter(e => {
       const eStart = new Date(e.start);
-      return eStart >= start && eStart <= end;
+      const eEnd = new Date(e.end);
+      return (eStart >= start && eStart <= end) || (eStart < start && eEnd >= start);
     });
   };
 
   const handleSelectEvent = (event: any) => {
     setFlowDate(new Date(event.start));
     setIsFlowOpen(true);
+  };
+
+  const handleEditEvent = (event: any) => {
+    setEditingEvent(event);
+    setIsNewEventOpen(true);
+  };
+
+  const handleCloseNewEvent = () => {
+    setEditingEvent(null);
+    setIsNewEventOpen(false);
   };
 
   const handleSelectSlot = (slotInfo: any) => {
@@ -97,36 +109,70 @@ export default function CalendarPage() {
     loadEvents();
   }, [date]);
 
+  const getEventColor = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case "learning": return "#10b981";
+      case "coding": return "#8b5cf6";
+      case "meeting": return "#f59e0b";
+      case "task": return "#ef4444";
+      default: return "#3b82f6";
+    }
+  };
+
   const handleCreateEvent = async (newEventData: any) => {
     try {
-      // Optimistic update
-      const tempEvent = { ...newEventData, id: Math.random().toString(), color: "#3b82f6" };
-      if (tempEvent.type === "learning") tempEvent.color = "#10b981";
-      if (tempEvent.type === "coding") tempEvent.color = "#8b5cf6";
-      if (tempEvent.type === "task") tempEvent.color = "#ef4444";
-      
-      setEvents((prev) => [...prev, tempEvent]);
-      toast.success("Event created successfully!");
+      const color = getEventColor(newEventData.type);
+      const tempEvent = { ...newEventData, id: crypto.randomUUID(), color };
 
-      // Real API Call
-      await api.post("/calendar", {
+      setEvents((prev) => [...prev, tempEvent]);
+
+      const res = await api.post<{ success: boolean; data: any }>("/calendar", {
         title: newEventData.title,
         startTime: newEventData.start.toISOString(),
         endTime: newEventData.end.toISOString(),
         eventType: newEventData.type.toUpperCase(),
+        color,
         notes: newEventData.notes,
       });
+
+      setEvents((prev) => prev.map(e => e.id === tempEvent.id ? { ...e, id: res.data.id } : e));
+      toast.success("Event created successfully!");
     } catch (e) {
       toast.error("Error syncing event with the server.");
     }
   };
 
+  const handleUpdateEvent = async (eventId: string, updates: any) => {
+    try {
+      const color = updates.color || getEventColor(updates.type);
+      await api.put(`/calendar/${eventId}`, {
+        title: updates.title,
+        startTime: updates.start.toISOString(),
+        endTime: updates.end.toISOString(),
+        eventType: updates.type.toUpperCase(),
+        color,
+        notes: updates.notes,
+      });
+
+      setEvents((prev) => prev.map(e => e.id === eventId ? { ...e, ...updates, color } : e));
+      toast.success("Event updated successfully!");
+    } catch (e) {
+      toast.error("Error updating event.");
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      await api.delete(`/calendar/${eventId}`);
+      setEvents((prev) => prev.filter(e => e.id !== eventId));
+      toast.success("Event deleted successfully!");
+    } catch (e) {
+      toast.error("Error deleting event.");
+    }
+  };
+
   const eventStyleGetter = (event: any) => {
-    let backgroundColor = event.color || "#3b82f6"; // default blue
-    if (event.type === "learning") backgroundColor = "#10b981"; // green
-    if (event.type === "coding") backgroundColor = "#8b5cf6"; // purple
-    if (event.type === "meeting") backgroundColor = "#f59e0b"; // orange
-    if (event.type === "task") backgroundColor = "#ef4444"; // red
+    const backgroundColor = event.color || getEventColor(event.type);
 
     return {
       style: {
@@ -261,13 +307,17 @@ export default function CalendarPage() {
         isOpen={isFlowOpen} 
         onClose={() => setIsFlowOpen(false)} 
         date={flowDate} 
-        events={getEventsForDate(flowDate)} 
+        events={getEventsForDate(flowDate)}
+        onEdit={handleEditEvent}
+        onDelete={handleDeleteEvent}
       />
       
       <NewEventModal
         isOpen={isNewEventOpen}
-        onClose={() => setIsNewEventOpen(false)}
-        onSave={handleCreateEvent}
+        onClose={handleCloseNewEvent}
+        onSave={editingEvent ? (data) => handleUpdateEvent(editingEvent.id, data) : handleCreateEvent}
+        onDelete={editingEvent ? () => { handleDeleteEvent(editingEvent.id); handleCloseNewEvent(); } : undefined}
+        initialData={editingEvent}
       />
       
       <SyncModal
