@@ -14,7 +14,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { isSignedIn, isLoaded } = useAuth();
-  const { isLoading: customAuthLoading } = useCustomAuth();
+  const { isLoading: customAuthLoading, userKey } = useCustomAuth();
   const isCollapsed = useSidebarStore((state) => state.isCollapsed);
   const router = useRouter();
   const pathname = usePathname();
@@ -53,7 +53,7 @@ export default function DashboardLayout({
       <main
         className="flex-1 flex flex-col min-w-0 overflow-hidden relative transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
       >
-        <div className="flex-1 overflow-y-auto">
+        <div key={userKey} className="flex-1 overflow-y-auto">
           {children}
         </div>
       </main>

@@ -44,6 +44,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  userKey: number;
   login: (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => Promise<void>;
   register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -52,6 +53,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const AUTH_USER_STORAGE_KEY = "authUser";
+
+function clearAllLocalData() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith("sb-") || key.startsWith("clerk-") || key.startsWith("user_"))) {
+        toRemove.push(key);
+      }
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
 
 function readStoredUser(): User | null {
   if (typeof window === "undefined") return null;
@@ -77,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [userKey, setUserKey] = useState(0);
   const router = useRouter();
   const { isSignedIn: clerkSignedIn, isLoaded: clerkLoaded, getToken: getClerkToken } = useClerkAuth();
 
@@ -89,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(null);
       setUser(null);
       writeStoredUser(null);
+      clearAllLocalData();
+      setUserKey(k => k + 1);
     };
 
     api.setOnUnauthorized(() => {
@@ -206,6 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => {
+    clearAllLocalData();
     let res: LoginResponse;
     if (isFace) {
       res = await api.post<LoginResponse>("/auth/face-login", { email, faceImage: code, captchaKey, captchaAnswer });
@@ -218,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(res.token);
     setUser(res.user);
     writeStoredUser(res.user);
+    setUserKey(k => k + 1);
     const role = res.user.role ? res.user.role.toLowerCase().replace(/_/g, '-') : 'student';
     const dashboardPath = `/${role}/dashboard`;
     router.push(dashboardPath);
@@ -237,12 +260,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     writeStoredUser(null);
+    clearAllLocalData();
+    setUserKey(k => k + 1);
     router.push("/");
   }, [router]);
 
   return (
     <AuthContext.Provider value={{
-      user, token, isLoading, isAuthenticated,
+      user, token, isLoading, isAuthenticated, userKey,
       login, register, logout, refreshUser,
     }}>
       {children}
