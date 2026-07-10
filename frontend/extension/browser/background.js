@@ -98,8 +98,8 @@ async function sendTelemetryData(url, title, domain, durationSec, category) {
   if (!url || url.startsWith('chrome://') || url.startsWith('edge://') || durationSec <= 0 || !activeSessionId) return;
 
   try {
-    const url = AUTH_TOKEN ? `${TELEMETRY_URL}?token=${encodeURIComponent(AUTH_TOKEN)}` : TELEMETRY_URL;
-    await fetch(url, {
+    const fetchUrl = AUTH_TOKEN ? `${TELEMETRY_URL}?token=${encodeURIComponent(AUTH_TOKEN)}` : TELEMETRY_URL;
+    await fetch(fetchUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

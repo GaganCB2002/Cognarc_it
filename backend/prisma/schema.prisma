@@ -465,6 +465,7 @@ enum ResourceType {
   LINK
   CODE
   IMAGE
+  AUDIO
   OTHER
 }
 

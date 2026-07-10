@@ -8,6 +8,12 @@ import { io as socketIO } from "socket.io-client";
 import { Activity, Server, Database, Globe, Monitor, ShieldCheck, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
+const StatusBadge = ({ status }: { status: "connected" | "error" | "checking" | boolean }) => {
+  if (status === "checking") return <span className="px-2 py-1 text-xs bg-yellow-500/10 text-yellow-500 rounded font-medium border border-yellow-500/20">CHECKING</span>;
+  if (status === true || status === "connected") return <span className="px-2 py-1 text-xs bg-st-success/10 text-st-success rounded font-medium border border-st-success/20 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-st-success animate-pulse"/> CONNECTED</span>;
+  return <span className="px-2 py-1 text-xs bg-st-danger/10 text-st-danger rounded font-medium border border-st-danger/20 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> DISCONNECTED</span>;
+};
+
 export default function DiagnosticsPage() {
   const { user } = useAuth();
   const [dbStatus, setDbStatus] = useState<"connected" | "error" | "checking">("checking");
@@ -71,12 +77,6 @@ export default function DiagnosticsPage() {
     
     return () => clearInterval(interval);
   }, [user?.id]);
-
-  const StatusBadge = ({ status }: { status: "connected" | "error" | "checking" | boolean }) => {
-    if (status === "checking") return <span className="px-2 py-1 text-xs bg-yellow-500/10 text-yellow-500 rounded font-medium border border-yellow-500/20">CHECKING</span>;
-    if (status === true || status === "connected") return <span className="px-2 py-1 text-xs bg-st-success/10 text-st-success rounded font-medium border border-st-success/20 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-st-success animate-pulse"/> CONNECTED</span>;
-    return <span className="px-2 py-1 text-xs bg-st-danger/10 text-st-danger rounded font-medium border border-st-danger/20 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> DISCONNECTED</span>;
-  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-8 relative">

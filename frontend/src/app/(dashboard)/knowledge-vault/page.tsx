@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import api from "@/lib/api";
 import { UploadModal } from "@/components/dashboard/UploadModal";
+import { ImageViewer } from "@/components/dashboard/ImageViewer";
+import { VideoViewer } from "@/components/dashboard/VideoViewer";
+import { DocumentViewer } from "@/components/dashboard/DocumentViewer";
 import {
   Database, Upload, Search, Star, Grid, List, FileText, Video, Image,
   Link2, Code, FolderOpen, Heart, Trash2, ExternalLink,
-  Clock, RefreshCw, AlertCircle, Plus, X
+  Clock, RefreshCw, AlertCircle, Plus, X, Globe,
+  FileSpreadsheet, File, FileArchive, Music
 } from "lucide-react";
 
 type FileItem = {
@@ -19,7 +23,7 @@ type FileItem = {
   title: string;
   mimeType: string;
   size: number;
-  type: "PDF" | "VIDEO" | "IMAGE" | "LINK" | "CODE" | "OTHER";
+  type: "PDF" | "VIDEO" | "IMAGE" | "LINK" | "CODE" | "OTHER" | "AUDIO";
   status: string;
   folder: string | null;
   tags: string[];
@@ -29,13 +33,30 @@ type FileItem = {
   uploadedAt: string;
 };
 
-const typeIcons: Record<string, any> = {
-  PDF: FileText, VIDEO: Video, IMAGE: Image, LINK: Link2, CODE: Code, OTHER: FolderOpen,
-};
-const typeColors: Record<string, string> = {
-  PDF: "text-red-400", VIDEO: "text-purple-400", IMAGE: "text-pink-400",
-  LINK: "text-blue-400", CODE: "text-emerald-400", OTHER: "text-st-text-muted",
-};
+function getFileTypeIcon(type: string) {
+  switch (type) {
+    case "PDF": return FileText;
+    case "VIDEO": return Video;
+    case "IMAGE": return Image;
+    case "LINK": return Link2;
+    case "CODE": return Code;
+    case "AUDIO": return Music;
+    case "OTHER": return FolderOpen;
+    default: return FolderOpen;
+  }
+}
+
+function getFileTypeColor(type: string) {
+  switch (type) {
+    case "PDF": return "text-red-400";
+    case "VIDEO": return "text-purple-400";
+    case "IMAGE": return "text-pink-400";
+    case "LINK": return "text-blue-400";
+    case "CODE": return "text-emerald-400";
+    case "AUDIO": return "text-orange-400";
+    default: return "text-st-text-muted";
+  }
+}
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -49,12 +70,63 @@ function formatDate(dateStr: string): string {
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days} days ago`;
   if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
   return date.toLocaleDateString();
+}
+
+function isValidUrl(str: string): boolean {
+  try {
+    const url = new URL(str);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getDomainFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname.replace("www.", "");
+  } catch {
+    return url;
+  }
+}
+
+function isYouTubeUrl(url: string): { isYt: boolean; videoId?: string } {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return { isYt: true, videoId: m[1] };
+  }
+  return { isYt: false };
+}
+
+function getFaviconUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`;
+  } catch {
+    return "";
+  }
+}
+
+function getFileTypeFromMime(mimeType: string): string {
+  if (!mimeType) return "OTHER";
+  if (mimeType.startsWith("image/")) return "IMAGE";
+  if (mimeType.startsWith("video/")) return "VIDEO";
+  if (mimeType.startsWith("audio/")) return "AUDIO";
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType.includes("word") || mimeType.includes("document") && mimeType.includes("officedocument")) return "OTHER";
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "OTHER";
+  if (mimeType.includes("presentation") || mimeType.includes("powerpoint")) return "OTHER";
+  if (mimeType === "text/plain" || mimeType === "text/csv" || mimeType === "application/json") return "OTHER";
+  return "OTHER";
 }
 
 export default function KnowledgeVaultPage() {
@@ -65,39 +137,62 @@ export default function KnowledgeVaultPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [urlType, setUrlType] = useState<"LINK" | "VIDEO">("LINK");
   const [urlTitle, setUrlTitle] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [addingUrl, setAddingUrl] = useState(false);
+
+  // Viewer states
+  const [imageViewer, setImageViewer] = useState<{ src: string; filename: string } | null>(null);
+  const [videoViewer, setVideoViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
+  const [documentViewer, setDocumentViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
+
+  const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
 
   const fetchFiles = async () => {
     setLoading(true);
     setError(null);
     try {
       const [uploaded, resources] = await Promise.all([
-        api.get<any[]>("/upload/my-files"),
-        api.get<any[]>("/resources"),
+        api.get<any[]>("/upload/my-files").catch(() => [] as any[]),
+        api.get<any[]>("/resources").catch(() => [] as any[]),
       ]);
+      const uploadedFiles: FileItem[] = (uploaded || []).map((r: any) => ({
+        id: r.id,
+        name: r.name || r.originalName || "",
+        title: r.title || r.originalName || "Untitled",
+        mimeType: r.mimeType || "",
+        size: r.size || 0,
+        type: r.type || getFileTypeFromMime(r.mimeType),
+        status: r.status || "READY",
+        folder: r.folder || null,
+        tags: r.tags || [],
+        isFavorite: r.isFavorite || false,
+        resourceId: r.resourceId || null,
+        publicUrl: r.publicUrl || null,
+        uploadedAt: r.uploadedAt || r.createdAt || new Date().toISOString(),
+      }));
       const resourceFiles: FileItem[] = (resources || [])
         .filter((r: any) => !r.isUpload)
         .map((r: any) => ({
           id: r.id,
-          name: r.title,
-          title: r.title,
-          mimeType: "",
-          size: 0,
-          type: r.type,
+          name: r.title || r.url || "Untitled",
+          title: r.title || r.url || "Untitled",
+          mimeType: r.mimeType || "",
+          size: r.fileSize || 0,
+          type: r.type || "LINK",
           status: "READY",
           folder: null,
           tags: r.tags || [],
           isFavorite: r.isFavorite || false,
           resourceId: r.id,
           publicUrl: r.url || null,
-          uploadedAt: r.createdAt,
+          uploadedAt: r.createdAt || new Date().toISOString(),
         }));
-      setFiles([...(uploaded || []), ...resourceFiles]);
+      setFiles([...uploadedFiles, ...resourceFiles]);
     } catch (err: any) {
       setError(err.message || "Failed to load files");
     } finally {
@@ -109,19 +204,74 @@ export default function KnowledgeVaultPage() {
     fetchFiles();
   }, []);
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileClick = (file: FileItem) => {
+    if (file.type === "LINK" && file.publicUrl) {
+      window.open(file.publicUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
 
-    setUploading(true);
+    if (file.type === "PDF") {
+      router.push(`/pdf-intelligence/view/${file.id}`);
+      return;
+    }
+
+    const fileUrl = file.publicUrl || `${BASE}/upload/${file.id}`;
+
+    if (file.type === "IMAGE" || file.mimeType?.startsWith("image/")) {
+      setImageViewer({ src: fileUrl, filename: file.name || file.title });
+      return;
+    }
+
+    if (file.type === "VIDEO" || file.mimeType?.startsWith("video/")) {
+      setVideoViewer({ src: fileUrl, filename: file.name || file.title, mimeType: file.mimeType });
+      return;
+    }
+
+    if (file.type === "AUDIO" || file.mimeType?.startsWith("audio/")) {
+      window.open(fileUrl, "_blank");
+      return;
+    }
+
+    const nonPreviewExts = ["zip", "rar", "tar", "gz", "7z", "exe", "dmg", "bin"];
+    const ext = file.name?.split(".").pop()?.toLowerCase() || "";
+    if (nonPreviewExts.includes(ext)) {
+      window.open(`${BASE}/upload/${file.id}/download`, "_blank");
+      return;
+    }
+
+    if (file.type === "OTHER" || file.type === "CODE") {
+      setDocumentViewer({
+        src: fileUrl,
+        filename: file.name || file.title,
+        mimeType: file.mimeType || "application/octet-stream",
+      });
+      return;
+    }
+
+    window.open(fileUrl, "_blank");
+  };
+
+  const handleAddUrl = async () => {
+    setUrlError(null);
+    const trimmedUrl = urlInput.trim();
+    if (!trimmedUrl) { setUrlError("Please enter a URL"); return; }
+    if (!isValidUrl(trimmedUrl)) { setUrlError("Please enter a valid HTTP or HTTPS URL"); return; }
+    setAddingUrl(true);
     try {
-      await api.uploadFile("/upload", file);
+      await api.post("/resources", {
+        title: urlTitle || trimmedUrl,
+        type: urlType,
+        url: trimmedUrl,
+      });
+      setShowUrlModal(false);
+      setUrlInput("");
+      setUrlTitle("");
+      setUrlError(null);
       await fetchFiles();
     } catch (err: any) {
-      setError(err.message || "Upload failed");
+      setUrlError(err.message || "Failed to add URL");
     } finally {
-      setUploading(false);
-      e.target.value = "";
+      setAddingUrl(false);
     }
   };
 
@@ -136,34 +286,6 @@ export default function KnowledgeVaultPage() {
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
     } catch (err: any) {
       setError(err.message || "Delete failed");
-    }
-  };
-
-  const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
-  const handleFileClick = (file: FileItem) => {
-    if (file.type === "PDF") {
-      router.push(`/pdf-intelligence/view/${file.id}`);
-    } else if (file.publicUrl) {
-      window.open(file.publicUrl, "_blank");
-    } else {
-      window.open(`${BASE}/upload/${file.id}`, "_blank");
-    }
-  };
-
-  const handleAddUrl = async () => {
-    if (!urlInput.trim()) return;
-    try {
-      await api.post("/resources", {
-        title: urlTitle || urlInput,
-        type: urlType,
-        url: urlInput,
-      });
-      setShowUrlModal(false);
-      setUrlInput("");
-      setUrlTitle("");
-      await fetchFiles();
-    } catch (err: any) {
-      setError(err.message || "Failed to add URL");
     }
   };
 
@@ -185,7 +307,10 @@ export default function KnowledgeVaultPage() {
   const filtered = files.filter((f) => {
     if (filter !== "ALL" && filter !== "FAVORITES" && f.type !== filter) return false;
     if (filter === "FAVORITES" && !f.isFavorite) return false;
-    if (searchQuery && !f.name.toLowerCase().includes(searchQuery.toLowerCase()) && !f.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!f.name.toLowerCase().includes(q) && !f.title.toLowerCase().includes(q) && !(f.publicUrl || "").toLowerCase().includes(q)) return false;
+    }
     return true;
   });
 
@@ -196,10 +321,37 @@ export default function KnowledgeVaultPage() {
     { label: "Favorites", value: files.filter((f) => f.isFavorite).length, icon: Heart },
   ];
 
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
   return (
     <div className="h-full flex flex-col gap-6">
+      {/* Image Viewer */}
+      {imageViewer && (
+        <ImageViewer
+          src={imageViewer.src}
+          filename={imageViewer.filename}
+          onClose={() => setImageViewer(null)}
+        />
+      )}
+
+      {/* Video Viewer */}
+      {videoViewer && (
+        <VideoViewer
+          src={videoViewer.src}
+          filename={videoViewer.filename}
+          mimeType={videoViewer.mimeType}
+          onClose={() => setVideoViewer(null)}
+        />
+      )}
+
+      {/* Document Viewer */}
+      {documentViewer && (
+        <DocumentViewer
+          src={documentViewer.src}
+          filename={documentViewer.filename}
+          mimeType={documentViewer.mimeType}
+          onClose={() => setDocumentViewer(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -267,7 +419,7 @@ export default function KnowledgeVaultPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 flex-wrap">
-        {["ALL", "PDF", "VIDEO", "IMAGE", "FAVORITES"].map((f) => (
+        {["ALL", "PDF", "VIDEO", "IMAGE", "LINK", "FAVORITES"].map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
               filter === f
@@ -300,22 +452,31 @@ export default function KnowledgeVaultPage() {
                 ? "Try a different search or filter"
                 : "Upload your first document — PDFs, videos, and images are supported."}
             </p>
-            {!searchQuery && filter === "ALL" && (
-              <Button variant="primary" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-1" /> Upload Your First File
-              </Button>
-            )}
           </div>
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 overflow-y-auto pb-8">
           {filtered.map((file) => {
-            const Icon = typeIcons[file.type] || FolderOpen;
+            const Icon = getFileTypeIcon(file.type);
+            const ytInfo = file.publicUrl ? isYouTubeUrl(file.publicUrl) : { isYt: false };
             return (
               <Card key={file.id} onClick={() => handleFileClick(file)} className="p-5 hover:border-st-accent/30 transition-all cursor-pointer group flex flex-col relative">
+                {file.type === "LINK" && file.publicUrl && (
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <span className="text-[10px] text-st-text-muted bg-st-bg-elevated px-2 py-0.5 rounded-full">
+                      {getDomainFromUrl(file.publicUrl)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-lg bg-st-bg-elevated flex items-center justify-center">
-                    <Icon className={`w-5 h-5 ${typeColors[file.type] || "text-st-text-muted"}`} />
+                    {file.type === "LINK" && ytInfo.isYt ? (
+                      <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                      </svg>
+                    ) : (
+                      <Icon className={`w-5 h-5 ${getFileTypeColor(file.type)}`} />
+                    )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
@@ -326,15 +487,50 @@ export default function KnowledgeVaultPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* YouTube thumbnail for LINK type */}
+                {file.type === "LINK" && ytInfo.isYt && ytInfo.videoId && (
+                  <div className="mb-3 rounded-lg overflow-hidden bg-st-bg-primary aspect-video relative">
+                    <img
+                      src={`https://img.youtube.com/vi/${ytInfo.videoId}/mqdefault.jpg`}
+                      alt={file.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-red-600/80 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Favicon for LINK type */}
+                {file.type === "LINK" && !ytInfo.isYt && file.publicUrl && (
+                  <div className="mb-2 flex items-center gap-2">
+                    <img
+                      src={getFaviconUrl(file.publicUrl)}
+                      alt=""
+                      className="w-4 h-4 rounded"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <span className="text-[10px] text-st-text-muted truncate">{getDomainFromUrl(file.publicUrl)}</span>
+                  </div>
+                )}
+
                 <h4 className="font-semibold text-sm text-st-text-primary mb-1 group-hover:text-st-accent transition-colors line-clamp-2">
                   {file.title}
                 </h4>
-                <p className="text-xs text-st-text-muted mb-1 truncate">{file.name}</p>
+                {file.name !== file.title && (
+                  <p className="text-xs text-st-text-muted mb-1 truncate">{file.name}</p>
+                )}
                 <div className="flex items-center gap-3 text-xs text-st-text-muted mb-3">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {formatDate(file.uploadedAt)}
                   </span>
-                  <span>{formatSize(file.size)}</span>
+                  {file.size > 0 && <span>{formatSize(file.size)}</span>}
                 </div>
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex gap-1 flex-wrap">
@@ -342,7 +538,13 @@ export default function KnowledgeVaultPage() {
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-primary text-st-text-muted">{t}</span>
                     ))}
                   </div>
-                  <Badge variant="outline" className="text-[10px]">{file.type}</Badge>
+                  {file.type === "LINK" ? (
+                    <span className="text-[10px] text-st-text-muted flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" />
+                    </span>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">{file.type}</Badge>
+                  )}
                 </div>
               </Card>
             );
@@ -352,28 +554,57 @@ export default function KnowledgeVaultPage() {
         <Card className="p-0 overflow-hidden flex-1">
           <div className="divide-y divide-st-border">
             {filtered.map((file) => {
-              const Icon = typeIcons[file.type] || FolderOpen;
+              const Icon = getFileTypeIcon(file.type);
+              const ytInfo = file.publicUrl ? isYouTubeUrl(file.publicUrl) : { isYt: false };
               return (
                 <div key={file.id} onClick={() => handleFileClick(file)} className="p-4 flex items-center gap-4 hover:bg-st-bg-elevated transition-colors group cursor-pointer">
-                  <Icon className={`w-5 h-5 ${typeColors[file.type] || "text-st-text-muted"} shrink-0`} />
+                  {file.type === "LINK" && ytInfo.isYt ? (
+                    <svg className="w-5 h-5 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                    </svg>
+                  ) : (
+                    <Icon className={`w-5 h-5 ${getFileTypeColor(file.type)} shrink-0`} />
+                  )}
                   <div className="flex-1 min-w-0">
+                    {file.type === "LINK" && file.publicUrl && (
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        {!ytInfo.isYt && (
+                          <img src={getFaviconUrl(file.publicUrl)} alt="" className="w-3 h-3 rounded"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                        )}
+                        <span className="text-[10px] text-st-text-muted">{getDomainFromUrl(file.publicUrl)}</span>
+                      </div>
+                    )}
                     <h4 className="font-medium text-sm text-st-text-primary truncate">{file.title}</h4>
                     <p className="text-xs text-st-text-muted">
-                      {file.name} &middot; {formatSize(file.size)} &middot; {formatDate(file.uploadedAt)}
+                      {file.name !== file.title && <>{file.name} &middot; </>}
+                      {file.size > 0 && <>{formatSize(file.size)} &middot; </>}
+                      {formatDate(file.uploadedAt)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
                       <Star className={`w-4 h-4 ${file.isFavorite ? "fill-st-accent text-st-accent" : "text-st-text-muted hover:text-st-accent"}`} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); window.open(`${BASE}/upload/${file.id}`, "_blank"); }}>
-                      <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
-                    </button>
+                    {file.type === "LINK" && file.publicUrl && (
+                      <button onClick={(e) => { e.stopPropagation(); window.open(file.publicUrl!, "_blank", "noopener,noreferrer"); }}>
+                        <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
+                      </button>
+                    )}
+                    {file.type !== "LINK" && (
+                      <button onClick={(e) => { e.stopPropagation(); window.open(`${BASE}/upload/${file.id}`, "_blank"); }}>
+                        <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
+                      </button>
+                    )}
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(file); }}>
                       <Trash2 className="w-4 h-4 text-st-text-muted hover:text-st-danger" />
                     </button>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">{file.type}</Badge>
+                  {file.type === "LINK" ? (
+                    <span className="text-[10px] text-blue-400 font-medium">LINK</span>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px]">{file.type}</Badge>
+                  )}
                 </div>
               );
             })}
@@ -383,11 +614,11 @@ export default function KnowledgeVaultPage() {
 
       {/* Add URL/Link Modal */}
       {showUrlModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowUrlModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setShowUrlModal(false); setUrlError(null); }}>
           <Card className="w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-st-text-primary">Add {urlType === "LINK" ? "Link" : "Video URL"}</h3>
-              <button onClick={() => setShowUrlModal(false)} className="text-st-text-muted hover:text-st-text-primary">
+              <button onClick={() => { setShowUrlModal(false); setUrlError(null); }} className="text-st-text-muted hover:text-st-text-primary">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -407,26 +638,43 @@ export default function KnowledgeVaultPage() {
                   className="w-full px-3 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
               </div>
               <div>
-                <label className="block text-xs text-st-text-muted mb-1">URL</label>
-                <input type="url" value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
+                <label className="block text-xs text-st-text-muted mb-1">URL *</label>
+                <input type="url" value={urlInput} onChange={(e) => { setUrlInput(e.target.value); setUrlError(null); }}
                   placeholder={urlType === "LINK" ? "https://example.com" : "https://youtube.com/watch?v=..."}
-                  className="w-full px-3 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
+                  className={`w-full px-3 py-2 bg-st-bg-elevated border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none ${urlError ? "border-st-danger" : "border-st-border focus:border-st-accent/50"}`} />
+                {urlError && <p className="text-xs text-st-danger mt-1">{urlError}</p>}
               </div>
+
+              {/* URL preview */}
+              {isValidUrl(urlInput) && (
+                <div className="bg-st-bg-elevated rounded-lg p-3 border border-st-border flex items-center gap-3">
+                  <img src={getFaviconUrl(urlInput)} alt="" className="w-5 h-5 rounded"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-st-text-primary truncate font-medium">{urlTitle || urlInput}</p>
+                    <p className="text-[10px] text-st-text-muted">{getDomainFromUrl(urlInput)}</p>
+                  </div>
+                  <Globe className="w-4 h-4 text-st-text-muted shrink-0" />
+                </div>
+              )}
+
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowUrlModal(false)}>Cancel</Button>
-                <Button variant="primary" size="sm" onClick={handleAddUrl} disabled={!urlInput.trim()}>
-                  <Plus className="w-4 h-4 mr-1" />Add
+                <Button variant="ghost" size="sm" onClick={() => { setShowUrlModal(false); setUrlError(null); }}>Cancel</Button>
+                <Button variant="primary" size="sm" onClick={handleAddUrl} disabled={!urlInput.trim() || addingUrl}>
+                  {addingUrl ? <RefreshCw className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                  {addingUrl ? "Adding..." : "Add"}
                 </Button>
               </div>
             </div>
           </Card>
         </div>
       )}
+
       {/* Upload Modal */}
-      <UploadModal 
-        isOpen={showUploadModal} 
-        onClose={() => setShowUploadModal(false)} 
-        onUploadSuccess={fetchFiles} 
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onUploadSuccess={fetchFiles}
       />
     </div>
   );

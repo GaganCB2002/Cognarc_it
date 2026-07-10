@@ -14,10 +14,21 @@ const MIME_TYPE_MAP: Record<string, ResourceType> = {
   "image/gif": ResourceType.IMAGE,
   "image/webp": ResourceType.IMAGE,
   "image/svg+xml": ResourceType.IMAGE,
+  "image/bmp": ResourceType.IMAGE,
+  "image/tiff": ResourceType.IMAGE,
+  "image/x-icon": ResourceType.IMAGE,
   "application/pdf": ResourceType.PDF,
   "video/mp4": ResourceType.VIDEO,
   "video/webm": ResourceType.VIDEO,
   "video/quicktime": ResourceType.VIDEO,
+  "video/x-msvideo": ResourceType.VIDEO,
+  "video/x-matroska": ResourceType.VIDEO,
+  "video/ogg": ResourceType.VIDEO,
+  "audio/mpeg": ResourceType.OTHER,
+  "audio/ogg": ResourceType.OTHER,
+  "audio/wav": ResourceType.OTHER,
+  "audio/webm": ResourceType.OTHER,
+  "audio/mp4": ResourceType.OTHER,
 };
 
 export function getFileType(mimetype: string): ResourceType {

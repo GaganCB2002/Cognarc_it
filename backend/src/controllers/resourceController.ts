@@ -73,16 +73,30 @@ export const createResource = async (req: AuthRequest, res: Response) => {
 
     const { title, type, url, tags, collectionId } = req.body;
 
-    if (!title || !type) {
-      res.status(400).json({ error: "Title and type are required" });
+    if (!type) {
+      res.status(400).json({ error: "Type is required" });
       return;
+    }
+
+    // Validate URL if provided
+    if (url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          res.status(400).json({ error: "URL must use http or https protocol" });
+          return;
+        }
+      } catch {
+        res.status(400).json({ error: "Invalid URL format" });
+        return;
+      }
     }
 
     const resource = await prisma.resource.create({
       data: {
-        title,
+        title: title || url || "Untitled",
         type,
-        url,
+        url: url || null,
         tags: tags || [],
         collectionId: collectionId || null,
         userId,

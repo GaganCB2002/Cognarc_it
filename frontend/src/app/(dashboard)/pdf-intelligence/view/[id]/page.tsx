@@ -11,20 +11,17 @@ import {
   ChevronDown, Eye, EyeOff, List, StickyNote, Globe, Languages,
   Volume2, VolumeX, Brain, X, Copy, Download, BarChart3,
   Lightbulb, HelpCircle, BookmarkCheck, MessageSquareQuote,
-  Clock, FileDown, Wand2
+  Clock, FileDown, Wand2, AlertCircle, RotateCw, ZoomIn, ZoomOut,
+  Search, FileX
 } from "lucide-react";
 
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import { highlightPlugin, RenderHighlightTargetProps, RenderHighlightsProps, HighlightArea } from '@react-pdf-viewer/highlight';
-import { searchPlugin } from '@react-pdf-viewer/search';
-import { bookmarkPlugin } from '@react-pdf-viewer/bookmark';
 
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 import '@react-pdf-viewer/highlight/lib/styles/index.css';
-import '@react-pdf-viewer/search/lib/styles/index.css';
-import '@react-pdf-viewer/bookmark/lib/styles/index.css';
 
 type PDFDoc = { id: string; name: string; title: string; mimeType: string; size: number; type: string; status: string; };
 type Note = { id: string; title: string; content: string; tags: string[]; folder: string; isPinned: boolean; updatedAt: string; };
@@ -80,39 +77,30 @@ export default function PDFViewerPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [showNotes, setShowNotes] = useState(false);
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
 
-  // Highlight state
   const [highlights, setHighlights] = useState<ColoredHighlight[]>([]);
   const [activeColor, setActiveColor] = useState(HIGHLIGHT_COLORS[0]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlights, setShowHighlights] = useState(true);
   const [showHighlightList, setShowHighlightList] = useState(false);
 
-  // Text-to-speech
   const [speaking, setSpeaking] = useState(false);
-
-  // Gemini AI explain
   const [explainText, setExplainText] = useState("");
   const [explainResult, setExplainResult] = useState("");
   const [explainLoading, setExplainLoading] = useState(false);
 
-  // Document stats & text
   const [docText, setDocText] = useState<string | null>(null);
   const [showStats, setShowStats] = useState(false);
   const [aiActionLoading, setAiActionLoading] = useState<string | null>(null);
   const [aiActionResult, setAiActionResult] = useState<{ action: string; result: string } | null>(null);
 
-  // AI Summary
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
-
-  // Quick Action panel
   const [showQuickActions, setShowQuickActions] = useState(false);
 
-  // Plugins
-  const searchPluginInstance = searchPlugin();
-  const bookmarkPluginInstance = bookmarkPlugin();
+  const [pdfFetched, setPdfFetched] = useState(false);
 
   useEffect(() => { noteTitleRef.current = noteTitle; }, [noteTitle]);
 
@@ -151,7 +139,6 @@ export default function PDFViewerPage() {
     } finally { setExplainLoading(false); }
   }, []);
 
-  // Fetch document text for stats and quick actions
   const fetchDocText = useCallback(async () => {
     if (docText) return docText;
     try {
@@ -258,16 +245,58 @@ export default function PDFViewerPage() {
   const fetchDoc = async () => {
     try {
       setLoading(true);
+      setPdfLoadError(null);
+      setError(null);
+
       const data = await api.get<any>("/upload/my-files");
       const found = data.find((d: any) => d.id === id);
-      if (found) setDoc(found); else setError("Document not found");
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${id}`, {
-        headers: { Authorization: `Bearer ${api.getToken()}` }
+      if (found) {
+        setDoc(found);
+      } else {
+        setError("Document not found");
+        setLoading(false);
+        return;
+      }
+
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+      const token = api.getToken();
+
+      const res = await fetch(`${apiBase}/upload/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) setPdfData(new Uint8Array(await res.arrayBuffer()));
-    } catch (err: any) { setError(err.message || "Failed to load document"); }
-    finally { setLoading(false); }
+
+      if (!res.ok) {
+        if (res.status === 404) throw new Error("File not found on server");
+        if (res.status === 403) throw new Error("Access denied");
+        throw new Error(`Failed to load PDF (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      if (blob.size === 0) throw new Error("PDF file is empty");
+
+      if (blob.type && blob.type !== "application/pdf" && !blob.type.startsWith("application/")) {
+        console.warn("Unexpected content type:", blob.type);
+      }
+
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPdfFetched(true);
+    } catch (err: any) {
+      console.error("PDF fetch error:", err);
+      setPdfLoadError(err.message || "Failed to load PDF");
+      setError(err.message || "Failed to load document");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchDoc();
+    fetchNotes();
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    };
+  }, [id]);
 
   const fetchNotes = async () => {
     try {
@@ -275,8 +304,6 @@ export default function PDFViewerPage() {
       if (res && res.data) setNotes(res.data);
     } catch { /* ignore */ }
   };
-
-  useEffect(() => { fetchDoc(); fetchNotes(); }, [id]);
 
   const handleCreateNote = async () => {
     try {
@@ -326,7 +353,6 @@ export default function PDFViewerPage() {
     finally { setAiLoading(false); }
   };
 
-  // Quick AI actions
   const handleQuickAction = async (actionId: string) => {
     const text = await fetchDocText();
     if (!text) { setError("Could not extract document text"); return; }
@@ -358,7 +384,6 @@ export default function PDFViewerPage() {
     finally { setAiActionLoading(null); }
   };
 
-  // Export text
   const exportText = async () => {
     const text = await fetchDocText();
     if (!text) return;
@@ -385,20 +410,66 @@ export default function PDFViewerPage() {
     if (highlight.highlightAreas.length > 0) highlightPluginInstance.jumpToHighlightArea(highlight.highlightAreas[0]);
   };
 
-  // Loading / Error states
-  if (loading) return (<div className="flex items-center justify-center h-full"><Loader2 className="w-6 h-6 animate-spin text-st-accent" /></div>);
+  const handleDownloadPdf = () => {
+    if (pdfUrl) {
+      const a = document.createElement("a");
+      a.href = pdfUrl;
+      a.download = doc?.name || "document.pdf";
+      a.click();
+    }
+  };
 
-  if (error || !doc) return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center">
-        <FileText className="w-12 h-12 mx-auto text-st-text-muted opacity-30 mb-3" />
-        <p className="text-st-text-muted">{error || "Document not found"}</p>
-        <Button variant="ghost" size="sm" className="mt-4" onClick={() => router.push("/pdf-intelligence")}>
-          <ArrowLeft className="w-4 h-4 mr-1" />Back
-        </Button>
+  const handlePrintPdf = () => {
+    if (pdfUrl) {
+      const w = window.open(pdfUrl);
+      if (w) {
+        w.onload = () => { w.print(); };
+      }
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    if (pdfUrl) {
+      window.open(pdfUrl, "_blank");
+    }
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-st-bg-primary">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-st-accent mx-auto mb-3" />
+          <p className="text-sm text-st-text-muted">Loading PDF viewer...</p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Error state (document not found or fetch failed)
+  if (error && !pdfUrl) {
+    return (
+      <div className="flex items-center justify-center h-full bg-st-bg-primary">
+        <div className="text-center max-w-md">
+          <FileX className="w-16 h-16 mx-auto text-red-400/50 mb-4" />
+          <h3 className="text-lg font-semibold text-st-text-primary mb-2">Could not load document</h3>
+          <p className="text-sm text-st-text-muted mb-4">{error || pdfLoadError}</p>
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="primary" size="sm" onClick={fetchDoc}>
+              <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>Retry
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push("/pdf-intelligence")}>
+              <ArrowLeft className="w-4 h-4 mr-1" />Back
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const colorCounts = HIGHLIGHT_COLORS.map(c => ({ ...c, count: highlights.filter(h => h.color === c.css).length })).filter(c => c.count > 0);
   const wordCount = docText ? docText.split(/\s+/).length : 0;
@@ -414,9 +485,9 @@ export default function PDFViewerPage() {
           </Button>
           <FileText className="w-4 h-4 text-red-400" />
           <div className="hidden sm:block">
-            <h2 className="text-sm font-semibold text-st-text-primary leading-tight">{doc.title}</h2>
+            <h2 className="text-sm font-semibold text-st-text-primary leading-tight">{doc?.title}</h2>
             <p className="text-[10px] text-st-text-muted leading-tight">
-              {doc.name} &middot; {((doc.size || 0) / 1024 / 1024).toFixed(1)} MB
+              {doc?.name} &middot; {((doc?.size || 0) / 1024 / 1024).toFixed(1)} MB
             </p>
           </div>
         </div>
@@ -506,6 +577,21 @@ export default function PDFViewerPage() {
             )}
           </div>
 
+          <Button variant="ghost" size="sm" onClick={handleOpenInNewTab} title="Open in new tab">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleDownloadPdf} title="Download PDF">
+            <Download className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handlePrintPdf} title="Print PDF">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setFullscreen(!fullscreen)}>
             {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </Button>
@@ -581,11 +667,8 @@ export default function PDFViewerPage() {
               <Sparkles className="w-3 h-3" /> {aiActionResult.action}
             </p>
             <div className="flex gap-1">
-              <button onClick={() => {
-                setNoteContent(aiActionResult.result);
-                setNoteTitle(`${aiActionResult.action} - ${doc?.title || "PDF"}`);
-                setShowNotes(true);
-              }} className="text-[10px] text-st-text-muted hover:text-st-text-primary px-1">Save to Notes</button>
+              <button onClick={() => { setNoteContent(aiActionResult.result); setNoteTitle(`${aiActionResult.action} - ${doc?.title || "PDF"}`); setShowNotes(true); }}
+                className="text-[10px] text-st-text-muted hover:text-st-text-primary px-1">Save to Notes</button>
               <button onClick={() => copyToClipboard(aiActionResult.result)} className="text-[10px] text-st-text-muted hover:text-st-text-primary px-1">Copy</button>
               <button onClick={() => setAiActionResult(null)} className="text-[10px] text-st-text-muted hover:text-st-text-primary px-1">Close</button>
             </div>
@@ -594,13 +677,49 @@ export default function PDFViewerPage() {
         </div>
       )}
 
+      {/* PDF Viewer Error Banner */}
+      {pdfLoadError && !pdfUrl && (
+        <div className="bg-st-danger/10 border-b border-st-danger/30 px-4 py-3 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-st-danger shrink-0" />
+          <p className="text-xs text-st-danger flex-1">{pdfLoadError}</p>
+          <button onClick={fetchDoc} className="text-xs text-st-danger hover:text-st-danger/80 font-medium shrink-0">
+            <svg className="w-3 h-3 inline mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>Retry
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 flex min-h-0 relative">
         {/* PDF Viewer */}
         <div className={`${showNotes ? "w-2/3" : "w-full"} transition-all duration-300 relative h-full overflow-hidden`}>
-          {pdfData && (
+          {pdfUrl ? (
             <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-              <Viewer fileUrl={pdfData} plugins={[defaultLayoutPluginInstance, highlightPluginInstance, searchPluginInstance, bookmarkPluginInstance]} />
+              <Viewer
+                fileUrl={pdfUrl}
+                plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
+              />
             </Worker>
+          ) : pdfLoadError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <FileX className="w-12 h-12 text-st-text-muted opacity-30 mx-auto mb-3" />
+                <p className="text-sm text-st-text-muted mb-3">{pdfLoadError}</p>
+                <Button variant="primary" size="sm" onClick={fetchDoc}>
+                  <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>Try Again
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="w-6 h-6 animate-spin text-st-accent" />
+            </div>
           )}
         </div>
 
@@ -691,3 +810,5 @@ export default function PDFViewerPage() {
     </div>
   );
 }
+
+

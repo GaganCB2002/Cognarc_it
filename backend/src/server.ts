@@ -126,10 +126,11 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isProduction ? 100 : 200,
+  max: isProduction ? 300 : 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests. Please slow down.' },
+  skip: (req) => req.path.startsWith('/api/upload/') || req.path === '/api/upload',
 });
 
 // Security middleware
