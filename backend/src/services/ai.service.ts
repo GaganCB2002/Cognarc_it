@@ -1,6 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
-import { geminiService } from "./gemini.service";
+import { geminiService, ai } from "./gemini.service";
 import { PROJECT_SYSTEM_CONTEXT, CAREER_COACH_CONTEXT } from "../data/project-context";
+
+function safeParse<T>(text: string, fallback: T): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    console.error('[AI] Failed to parse AI response as JSON:', text.substring(0, 200));
+    return fallback;
+  }
+}
 
 export const generateSummary = async (text: string) => {
   const result = await geminiService.generateDocumentIntelligenceFromText(text);
@@ -45,7 +53,6 @@ export const chatWithCareerCoach = async (messages: { role: string; content: str
 };
 
 export const generateAIInsights = async (topics: string[]) => {
-  // Using gemini to get a proper profile
   const prompt = `Based on these study topics: ${topics.join(", ")}, generate a JSON profile of the user.
   Return ONLY valid JSON matching this schema:
   {
@@ -55,15 +62,19 @@ export const generateAIInsights = async (topics: string[]) => {
     "interviewQuestions": ["string"]
   }`;
   
-  const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-  const response = await genai.models.generateContent({
+  const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
     config: { responseMimeType: 'application/json' }
   });
   
   if (response.text) {
-    return JSON.parse(response.text);
+    return safeParse(response.text, {
+      profileType: "Unknown Profile",
+      profileDesc: "Could not generate profile.",
+      coreProficiencies: [],
+      interviewQuestions: []
+    });
   }
   
   return {

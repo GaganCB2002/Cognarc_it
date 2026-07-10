@@ -94,17 +94,21 @@ export async function saveFile(
   buffer: Buffer
 ): Promise<StoredFile> {
   if (config.provider === "GOOGLE_DRIVE") {
-    const driveResult = await googleDriveStorage.saveFile(userId, mimeType, originalName, buffer);
-    return {
-      storageKey: driveResult.fileId,
-      provider: "GOOGLE_DRIVE",
-      publicUrl: driveResult.viewUrl,
-      size: buffer.length,
-      metadata: {
-        downloadUrl: driveResult.downloadUrl,
-        thumbnailUrl: driveResult.thumbnailUrl,
-      },
-    };
+    try {
+      const driveResult = await googleDriveStorage.saveFile(userId, mimeType, originalName, buffer);
+      return {
+        storageKey: driveResult.fileId,
+        provider: "GOOGLE_DRIVE",
+        publicUrl: driveResult.viewUrl,
+        size: buffer.length,
+        metadata: {
+          downloadUrl: driveResult.downloadUrl,
+          thumbnailUrl: driveResult.thumbnailUrl,
+        },
+      };
+    } catch (driveError: any) {
+      console.warn(`[STORAGE] Google Drive upload failed (${driveError.message}), falling back to LOCAL`);
+    }
   }
 
   const storageKey = generateStorageKey(userId, mimeType, originalName);
@@ -123,7 +127,7 @@ export async function saveFile(
 
   return {
     storageKey,
-    provider: config.provider,
+    provider: config.provider === "GOOGLE_DRIVE" ? "LOCAL" : config.provider,
     publicUrl,
     size: buffer.length,
   };

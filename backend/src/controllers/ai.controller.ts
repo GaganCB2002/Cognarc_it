@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { projectIndexer } from "../services/project-indexer.service";
 import { geminiService } from "../services/gemini.service";
 import { agentService } from "../services/agent.service";
+import { getFile } from "../services/storage.service";
 import { PROJECT_SYSTEM_CONTEXT } from "../data/project-context";
 
 interface AuthRequest extends Request {
@@ -147,19 +148,34 @@ export const chat = async (req: AuthRequest, res: Response) => {
       content: m.content
     }));
     
-    // Check if we need to supply a document URI
+    // Check if we need to supply a document
     let documentFileUri;
+    let documentText = "";
     if (conversation.documentId) {
        const doc = await prisma.document.findUnique({ where: { id: conversation.documentId } });
-       // We can only use the URI if it was uploaded to Gemini, but here we might just pass text if we can't easily get the Gemini URI.
-       // The geminiFileUri is temporary inside queueService. For true continuous chat over a document,
-       // we should either extract text and put it in the prompt, or rely on a stored gemini URI.
-       // Since Gemini File API files expire after 48h, we might not always have it.
-       // For now, let's keep it simple and skip sending the whole document unless we implement a proper retrieval step.
+       if (doc) {
+         try {
+           const buf = await getFile(doc.storageKey);
+           if (buf && buf.length > 0 && doc.mimeType.startsWith("text/")) {
+             documentText = buf.toString("utf-8").substring(0, 50000);
+           } else if (buf && buf.length > 0) {
+             documentText = `[Binary file: ${doc.originalName} (${doc.mimeType}, ${doc.size} bytes)]`;
+           } else {
+             documentText = `[Document: ${doc.originalName} (${doc.mimeType})]`;
+           }
+         } catch {
+           documentText = `[Referenced document: ${doc.originalName}]`;
+         }
+       }
     }
 
+    // Build user message with document context
+    const contextMessage = documentText
+      ? `The user is referring to the following document:\n"""\n${documentText}\n"""\n\nUser question: ${newMessageContent}`
+      : newMessageContent;
+
     // Call AI
-    const aiResponseText = await chatWithTutor([...history, { role: "user", content: newMessageContent }]);
+    const aiResponseText = await chatWithTutor([...history, { role: "user", content: contextMessage }]);
 
     // Save AI message to DB
     const aiMessage = await prisma.aIMessage.create({

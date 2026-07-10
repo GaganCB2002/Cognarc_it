@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
-import api, { API_URL } from "@/lib/api";
+import api from "@/lib/api";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -16,12 +16,10 @@ interface UploadModalProps {
 interface UploadQueueItem {
   id: string;
   file: File;
-  progress: number; // 0 - 100
-  speed: string; // "1.2 MB/s"
+  progress: number;
+  speed: string;
   status: "pending" | "uploading" | "success" | "error" | "cancelled";
   errorMsg?: string;
-  xhr?: XMLHttpRequest;
-  startTime?: number;
 }
 
 export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
@@ -68,97 +66,38 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
     setQueue(prev => [...prev, ...items]);
   };
 
-  const removeFile = (id: string) => {
-    setQueue(prev => {
-      const item = prev.find(f => f.id === id);
-      if (item && item.xhr) {
-        item.xhr.abort();
-      }
-      return prev.filter(f => f.id !== id);
-    });
+  const   removeFile = (id: string) => {
+    setQueue(prev => prev.filter(f => f.id !== id));
   };
 
   const cancelUpload = (id: string) => {
     setQueue(prev =>
-      prev.map(item => {
-        if (item.id === id && item.xhr) {
-          item.xhr.abort();
-          return { ...item, status: "cancelled", progress: 0, speed: "0 KB/s" };
-        }
-        return item;
-      })
+      prev.map(item =>
+        item.id === id ? { ...item, status: "cancelled", progress: 0, speed: "0 KB/s" } : item
+      )
     );
   };
 
-  const startUpload = (item: UploadQueueItem) => {
+  const startUpload = async (item: UploadQueueItem) => {
     const formData = new FormData();
     formData.append("file", item.file);
 
-    const xhr = new XMLHttpRequest();
-    const startTime = Date.now();
-
-    // Update queue state with XHR reference and set status to uploading
     setQueue(prev =>
-      prev.map(q => q.id === item.id ? { ...q, xhr, startTime, status: "uploading", errorMsg: undefined } : q)
+      prev.map(q => q.id === item.id ? { ...q, status: "uploading", errorMsg: undefined } : q)
     );
 
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        const elapsed = (Date.now() - (startTime || Date.now())) / 1000;
-        
-        let speedStr = "0 KB/s";
-        if (elapsed > 0) {
-          const bytesPerSecond = e.loaded / elapsed;
-          if (bytesPerSecond > 1024 * 1024) {
-            speedStr = `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
-          } else {
-            speedStr = `${(bytesPerSecond / 1024).toFixed(0)} KB/s`;
-          }
-        }
-
-        setQueue(prev =>
-          prev.map(q => q.id === item.id ? { ...q, progress: percent, speed: speedStr } : q)
-        );
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        setQueue(prev =>
-          prev.map(q => q.id === item.id ? { ...q, status: "success", progress: 100 } : q)
-        );
-        onUploadSuccess();
-      } else {
-        let errorMsg = "Upload failed";
-        try {
-          const res = JSON.parse(xhr.responseText);
-          errorMsg = res.error || errorMsg;
-        } catch {}
-        setQueue(prev =>
-          prev.map(q => q.id === item.id ? { ...q, status: "error", errorMsg } : q)
-        );
-      }
-    });
-
-    xhr.addEventListener("error", () => {
+    try {
+      await api.post('/upload', formData);
       setQueue(prev =>
-        prev.map(q => q.id === item.id ? { ...q, status: "error", errorMsg: "Network error occurred" } : q)
+        prev.map(q => q.id === item.id ? { ...q, status: "success", progress: 100 } : q)
       );
-    });
-
-    xhr.addEventListener("abort", () => {
+      onUploadSuccess();
+    } catch (err: any) {
+      const errorMsg = err.message || "Upload failed";
       setQueue(prev =>
-        prev.map(q => q.id === item.id ? { ...q, status: "cancelled" } : q)
+        prev.map(q => q.id === item.id ? { ...q, status: "error", errorMsg } : q)
       );
-    });
-
-    xhr.open("POST", `${API_URL}/upload`);
-    const token = api.getToken();
-    if (token) {
-      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     }
-    xhr.send(formData);
   };
 
   const uploadAll = () => {

@@ -4,7 +4,7 @@ const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
   console.warn('[GEMINI] GEMINI_API_KEY not set — AI features will fail with 500 errors');
 }
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+export const ai = new GoogleGenAI({ apiKey: apiKey || '' });
 
 function safeParse<T>(text: string, fallback: T): T {
   try {
