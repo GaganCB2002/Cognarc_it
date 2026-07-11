@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import api from "@/lib/api";
 import { VideoViewer } from "@/components/dashboard/VideoViewer";
+import Image from "next/image";
 import {
-  Video, Upload, Play, Clock, FileText, HelpCircle, Sparkles,
+  Video, Upload, Play, HelpCircle, Sparkles,
   BookOpen, Search, Link2, Loader2, AlertCircle, RefreshCw,
-  Trash2, ExternalLink, Star, Music, X, Plus
+  Trash2, ExternalLink, X, Plus
 } from "lucide-react";
 
 type VideoItem = {
@@ -60,6 +61,33 @@ function isYouTubeUrl(url: string): { isYt: boolean; videoId?: string } {
   return { isYt: false };
 }
 
+type RawVideoUpload = {
+  id: string;
+  name?: string;
+  originalName?: string;
+  title?: string;
+  mimeType?: string;
+  size?: number;
+  type?: string;
+  status?: string;
+  isFavorite?: boolean;
+  resourceId?: string | null;
+  uploadedAt?: string;
+  createdAt?: string;
+};
+
+type RawVideoResource = {
+  id: string;
+  title?: string;
+  url?: string;
+  mimeType?: string;
+  size?: number;
+  type?: string;
+  isFavorite?: boolean;
+  isUpload?: boolean;
+  createdAt?: string;
+};
+
 export default function VideoIntelligencePage() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,18 +103,18 @@ export default function VideoIntelligencePage() {
 
   const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
 
-  const fetchVideos = async () => {
+  const fetchVideos = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [uploaded, resources] = await Promise.all([
-        api.get<any[]>("/upload/my-files").catch(() => [] as any[]),
-        api.get<any[]>("/resources").catch(() => [] as any[]),
+        api.get<RawVideoUpload[]>("/upload/my-files").catch(() => [] as RawVideoUpload[]),
+        api.get<RawVideoResource[]>("/resources").catch(() => [] as RawVideoResource[]),
       ]);
 
       const uploadedVids: VideoItem[] = (uploaded || [])
-        .filter((f: any) => f.mimeType?.startsWith("video/") || f.type === "VIDEO")
-        .map((f: any) => ({
+        .filter((f: RawVideoUpload) => f.mimeType?.startsWith("video/") || f.type === "VIDEO")
+        .map((f: RawVideoUpload) => ({
           id: f.id,
           name: f.name || f.originalName || "",
           title: f.title || f.originalName || "Untitled",
@@ -96,14 +124,14 @@ export default function VideoIntelligencePage() {
           status: f.status || "READY",
           publicUrl: null,
           isFavorite: f.isFavorite || false,
-          resourceId: f.resourceId,
+          resourceId: f.resourceId ?? null,
           source: "upload" as const,
           uploadedAt: f.uploadedAt || f.createdAt || new Date().toISOString(),
         }));
 
       const linkVids: VideoItem[] = (resources || [])
-        .filter((r: any) => r.type === "VIDEO" && !r.isUpload)
-        .map((r: any) => {
+        .filter((r: RawVideoResource) => r.type === "VIDEO" && !r.isUpload)
+        .map((r: RawVideoResource) => {
           const yt = r.url ? isYouTubeUrl(r.url) : { isYt: false };
           return {
             id: r.id,
@@ -125,14 +153,14 @@ export default function VideoIntelligencePage() {
       const all = [...uploadedVids, ...linkVids];
       setVideos(all);
       if (all.length > 0 && !selectedVideo) setSelectedVideo(all[0]);
-    } catch (err: any) {
-      setError(err.message || "Failed to load videos");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load videos");
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedVideo]);
 
-  useEffect(() => { fetchVideos(); }, []);
+  useEffect(() => { fetchVideos(); }, [fetchVideos]);
 
   const handleAddUrl = async () => {
     setUrlError(null);
@@ -154,8 +182,8 @@ export default function VideoIntelligencePage() {
       setShowUrlModal(false);
       setUrlInput("");
       await fetchVideos();
-    } catch (err: any) {
-      setUrlError(err.message || "Failed to add");
+    } catch (err: unknown) {
+      setUrlError(err instanceof Error ? err.message : "Failed to add");
     } finally {
       setAddingUrl(false);
     }
@@ -227,8 +255,8 @@ export default function VideoIntelligencePage() {
               try {
                 await api.uploadFile("/upload", file);
                 await fetchVideos();
-              } catch (err: any) {
-                setError(err.message || "Upload failed");
+              } catch (err: unknown) {
+                setError(err instanceof Error ? err.message : "Upload failed");
               }
               e.target.value = "";
             }} />
@@ -267,8 +295,8 @@ export default function VideoIntelligencePage() {
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-st-bg-primary rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden">
                       {ytInfo.isYt && ytInfo.videoId ? (
-                        <img src={`https://img.youtube.com/vi/${ytInfo.videoId}/default.jpg`} alt=""
-                          className="w-full h-full object-cover" />
+                        <Image src={`https://img.youtube.com/vi/${ytInfo.videoId}/default.jpg`} alt=""
+                          fill unoptimized className="object-cover" />
                       ) : (
                         <Play className="w-5 h-5 text-purple-400" />
                       )}
@@ -343,7 +371,7 @@ export default function VideoIntelligencePage() {
                       <Play className="w-4 h-4 mr-1" />Play
                     </Button>
                   )}
-                  <Button variant="ghost" size="sm" onClick={(e) => handleDelete(selectedVideo, e as any)}>
+                  <Button variant="ghost" size="sm" onClick={(e) => handleDelete(selectedVideo, e)}>
                     <Trash2 className="w-4 h-4 text-st-text-muted" />
                   </Button>
                 </div>
@@ -356,7 +384,7 @@ export default function VideoIntelligencePage() {
                   { key: "notes", label: "Notes", icon: BookOpen },
                   { key: "quiz", label: "Quiz", icon: HelpCircle },
                 ].map((tab) => (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key as "summary" | "notes" | "quiz")}
                     className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors flex-1 justify-center ${activeTab === tab.key ? "bg-st-accent text-black" : "text-st-text-secondary hover:text-st-text-primary"}`}>
                     <tab.icon className="w-4 h-4" />{tab.label}
                   </button>

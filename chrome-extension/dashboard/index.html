@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocAgent Dashboard</title>
+  <link rel="stylesheet" href="../styles/global.css">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <nav>
+    <div class="nav-brand">
+      <span class="nav-logo">📋</span>
+      <span class="nav-title">DocAgent</span>
+    </div>
+    <div class="nav-actions">
+      <button class="nav-btn" id="uploadNavBtn">📄 Upload</button>
+      <button class="nav-btn nav-btn-primary" id="scanPageBtn">🔍 Scan Page</button>
+    </div>
+    <input type="file" id="navFileInput" accept=".pdf,.txt,.md,.csv,.json,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp" multiple hidden>
+  </nav>
+
+  <div class="container">
+    <aside class="sidebar">
+      <div class="search-wrap">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search documents..." />
+      </div>
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="pdf">PDF</button>
+        <button class="filter-btn" data-filter="image">Images</button>
+        <button class="filter-btn" data-filter="text">Text</button>
+      </div>
+      <div class="sidebar-stats" id="sidebarStats">
+        <div class="stat-item"><span class="stat-value" id="statCount">0</span><span class="stat-label">Documents</span></div>
+        <div class="stat-item"><span class="stat-value" id="statSize">0 B</span><span class="stat-label">Total Size</span></div>
+        <div class="stat-item"><span class="stat-value" id="statChunks">0</span><span class="stat-label">Text Chunks</span></div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="view-header">
+        <span class="view-title" id="viewTitle">All Documents</span>
+        <div class="view-actions">
+          <button class="icon-btn" id="refreshBtn" title="Refresh">🔄</button>
+          <button class="icon-btn" id="clearBtn" title="Clear All Data">🗑️</button>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="progressWrap" style="display:none">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+
+      <div id="docList" class="doc-list">
+        <div class="loading">Loading documents...</div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </main>
+
+    <aside class="detail-panel" id="detailPanel">
+      <div class="detail-header">
+        <span class="detail-title">Document Viewer</span>
+        <button class="icon-btn" id="closeDetailBtn">&times;</button>
+      </div>
+      <div class="detail-body" id="detailBody">
+        <div class="detail-empty">Select a document to view its contents</div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="../lib/db.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
+  </script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

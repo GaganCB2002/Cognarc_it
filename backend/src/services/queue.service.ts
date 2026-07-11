@@ -18,9 +18,9 @@ class JobQueue {
   private queue: Job[] = [];
   private isProcessing = false;
 
-  public enqueue(type: JobType, payload: any) {
+  public async enqueue(type: JobType, payload: any) {
     const job: Job = {
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       type,
       payload,
       status: "PENDING"
@@ -28,8 +28,8 @@ class JobQueue {
     this.queue.push(job);
     console.log(`[Queue] Job enqueued: ${type} (${job.id})`);
     
-    // Start processing if not already
-    this.processNext();
+    // Start processing if not already (DO NOT AWAIT to avoid blocking requests)
+    this.processNext().catch(err => console.error(`[Queue] Process loop failed:`, err));
     return job.id;
   }
 

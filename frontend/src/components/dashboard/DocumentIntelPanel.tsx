@@ -8,18 +8,18 @@ import api from "@/lib/api";
 
 export function DocumentIntelPanel() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ summary?: string; keyTopics?: string[]; quiz?: any[] } | null>(null);
+  const [data, setData] = useState<{ summary?: string; keyTopics?: string[]; quiz?: { id: string; question: string; options: string[] }[] } | null>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
     try {
-      const summaryRes = await api.post<any>("/ai/summary", { text: "mock text from pdf" });
-      const quizRes = await api.post<any>("/ai/quiz", { text: "mock text from pdf" });
+      const summaryRes = await api.post<{ summary?: string; keyTopics?: string[] }>("/ai/summary", { text: "mock text from pdf" });
+      const quizRes = await api.post<{ questions?: { question: string; options: string[] }[] }>("/ai/quiz", { text: "mock text from pdf" });
       
       setData({
         summary: summaryRes.summary,
         keyTopics: summaryRes.keyTopics,
-        quiz: quizRes,
+        quiz: (quizRes.questions || []).map((q, i) => ({ ...q, id: `q-${i}` })),
       });
     } catch (error) {
       console.error("Failed to fetch AI data", error);

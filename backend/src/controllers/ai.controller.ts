@@ -1,11 +1,7 @@
 import { Request, Response } from "express";
 import { generateSummary, generateQuiz, chatWithTutor, chatWithCareerCoach } from "../services/ai.service";
 import { prisma } from "../lib/prisma";
-import { projectIndexer } from "../services/project-indexer.service";
-import { geminiService } from "../services/gemini.service";
-import { agentService } from "../services/agent.service";
 import { getFile } from "../services/storage.service";
-import { PROJECT_SYSTEM_CONTEXT } from "../data/project-context";
 import { lifelog } from "../services/lifelog.service";
 
 interface AuthRequest extends Request {
@@ -16,14 +12,14 @@ export const getDocumentSummary = async (req: Request, res: Response) => {
   try {
     const { text } = req.body;
     if (!text) {
-      return res.status(400).json({ error: "Text is required" });
+      return res.status(400).json({ success: false, message: "Text is required" });
     }
 
     const summaryData = await generateSummary(text);
-    res.json(summaryData);
+    res.json({ success: true, data: summaryData });
   } catch (error) {
     console.error("Summary generation error:", error);
-    res.status(500).json({ error: "Failed to generate summary" });
+    res.status(500).json({ success: false, message: "Failed to generate summary" });
   }
 };
 
@@ -31,21 +27,21 @@ export const getQuiz = async (req: Request, res: Response) => {
   try {
     const { text } = req.body;
     if (!text) {
-      return res.status(400).json({ error: "Text is required" });
+      return res.status(400).json({ success: false, message: "Text is required" });
     }
 
     const quizData = await generateQuiz(text);
-    res.json(quizData);
+    res.json({ success: true, data: quizData });
   } catch (error) {
     console.error("Quiz generation error:", error);
-    res.status(500).json({ error: "Failed to generate quiz" });
+    res.status(500).json({ success: false, message: "Failed to generate quiz" });
   }
 };
 
 export const listConversations = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const conversations = await prisma.aIConversation.findMany({
       where: { userId },
@@ -53,36 +49,36 @@ export const listConversations = async (req: AuthRequest, res: Response) => {
       include: { _count: { select: { messages: true } } },
     });
 
-    res.json(conversations);
+    res.json({ success: true, data: conversations });
   } catch (error) {
     console.error("List conversations error:", error);
-    res.status(500).json({ error: "Failed to list conversations" });
+    res.status(500).json({ success: false, message: "Failed to list conversations" });
   }
 };
 
 export const deleteConversation = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
     const conversation = await prisma.aIConversation.findUnique({ where: { id } });
 
-    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
-    if (conversation.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+    if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
+    if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
     await prisma.aIConversation.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
     console.error("Delete conversation error:", error);
-    res.status(500).json({ error: "Failed to delete conversation" });
+    res.status(500).json({ success: false, message: "Failed to delete conversation" });
   }
 };
 
 export const getConversation = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
     const conversation = await prisma.aIConversation.findUnique({
@@ -90,13 +86,13 @@ export const getConversation = async (req: AuthRequest, res: Response) => {
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
 
-    if (!conversation) return res.status(404).json({ error: "Conversation not found" });
-    if (conversation.userId !== userId) return res.status(403).json({ error: "Forbidden" });
+    if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
+    if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    res.json(conversation);
+    res.json({ success: true, data: conversation });
   } catch (error) {
     console.error("Get conversation error:", error);
-    res.status(500).json({ error: "Failed to get conversation" });
+    res.status(500).json({ success: false, message: "Failed to get conversation" });
   }
 };
 
@@ -104,12 +100,12 @@ export const chat = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
     const { messages, conversationId, documentId } = req.body;
     if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "Messages array is required" });
+      return res.status(400).json({ success: false, message: "Messages array is required" });
     }
 
     let conversation = null;
@@ -187,7 +183,7 @@ export const chat = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    lifelog.conversation(userId, "CHAT_MESSAGE", `Chat: ${newMessageContent.substring(0, 80)}`, {
+    await lifelog.conversation(userId, "CHAT_MESSAGE", `Chat: ${newMessageContent.substring(0, 80)}`, {
       conversationId: conversation.id,
       userMessage: newMessageContent,
       aiMessage: aiResponseText,
@@ -195,120 +191,31 @@ export const chat = async (req: AuthRequest, res: Response) => {
       documentId: conversation.documentId || undefined,
     });
 
-    res.json({ reply: aiResponseText, conversationId: conversation.id, messageId: aiMessage.id });
+    res.json({ success: true, data: { reply: aiResponseText, conversationId: conversation.id, messageId: aiMessage.id } });
   } catch (error) {
     console.error("Chat error:", error);
-    res.status(500).json({ error: "Failed to process chat" });
-  }
-};
-
-export const agentChat = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const { messages } = req.body;
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: "Messages array is required" });
-    }
-
-    const reply = await agentService.processMessage(messages, userId);
-    res.json({ reply });
-  } catch (error) {
-    console.error("Agent chat error:", error);
-    res.status(500).json({ error: "Failed to process request" });
+    res.status(500).json({ success: false, message: "Failed to process chat" });
   }
 };
 
 export const careerChat = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const { messages } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: "Messages array is required" });
+      return res.status(400).json({ success: false, message: "Messages array is required" });
     }
 
     const aiResponseText = await chatWithCareerCoach(messages);
-    lifelog.conversation(userId, "CAREER_CHAT", `Career chat: ${messages[messages.length - 1]?.content?.substring(0, 80) || ""}`, {
+    await lifelog.conversation(userId, "CAREER_CHAT", `Career chat: ${messages[messages.length - 1]?.content?.substring(0, 80) || ""}`, {
       messages,
       reply: aiResponseText,
     });
-    res.json({ reply: aiResponseText });
+    res.json({ success: true, data: { reply: aiResponseText } });
   } catch (error) {
     console.error("Career chat error:", error);
-    res.status(500).json({ error: "Failed to process career chat" });
-  }
-};
-
-export const queryProject = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-    const { question, conversationId } = req.body;
-    if (!question || typeof question !== "string") {
-      return res.status(400).json({ error: "Question is required" });
-    }
-
-    // Step 1: Search the project index for relevant files
-    const relevantContext = projectIndexer.getRelevantContext(question, 5, 60000);
-
-    // Step 2: Build the augmented prompt
-    const contextPrompt = relevantContext
-      ? `Here is the actual source code from the project that is relevant to the question:\n${relevantContext}\n\n---\nAnswer the user's question based on the source code above. If the code does not contain the answer, use your general knowledge of the project described in the system context. Always cite specific file paths when referencing code.`
-      : `Answer the user's question based on your knowledge of the project described in the system context. Always cite specific file paths when referencing code.`;
-
-    // Step 3: Save to conversation if provided
-    let conversation;
-    if (conversationId) {
-      conversation = await prisma.aIConversation.findUnique({
-        where: { id: conversationId },
-        include: { messages: true }
-      });
-    }
-
-    if (!conversation) {
-      conversation = await prisma.aIConversation.create({
-        data: {
-          userId,
-          title: question.substring(0, 50),
-        },
-        include: { messages: true }
-      });
-    }
-
-    await prisma.aIMessage.create({
-      data: { conversationId: conversation.id, role: "user", content: question }
-    });
-
-    // Step 4: Call Gemini with project context + retrieved code
-    const fullPrompt = `${contextPrompt}\n\nUser Question: ${question}`;
-    const answer = await geminiService.generateWithContext(fullPrompt, PROJECT_SYSTEM_CONTEXT);
-
-    await prisma.aIMessage.create({
-      data: { conversationId: conversation.id, role: "model", content: answer }
-    });
-
-    // Update conversation title if it's the first message
-    if (conversation.title === "New Chat") {
-      await prisma.aIConversation.update({
-        where: { id: conversation.id },
-        data: { title: question.substring(0, 50) }
-      });
-    }
-
-    lifelog.conversation(userId, "PROJECT_QUERY", `Project query: ${question.substring(0, 80)}`, {
-      conversationId: conversation.id,
-      question,
-      answer,
-      hasContext: !!relevantContext,
-    });
-
-    res.json({ reply: answer, conversationId: conversation.id });
-  } catch (error) {
-    console.error("Project query error:", error);
-    res.status(500).json({ error: "Failed to process project query" });
+    res.status(500).json({ success: false, message: "Failed to process career chat" });
   }
 };

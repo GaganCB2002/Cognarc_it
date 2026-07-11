@@ -158,12 +158,19 @@ function KpiCard({ kpi, index, isLoading }: { kpi: typeof defaultKPIs[0]; index:
   );
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+interface TooltipPayloadEntry {
+  color: string;
+  name: string;
+  value: number;
+  payload: { color: string };
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadEntry[]; label?: string }) {
   if (!active || !payload) return null;
   return (
     <div className="glass rounded-xl px-4 py-3 shadow-xl border border-st-border/50 min-w-[140px]">
       <p className="text-xs font-semibold text-st-text-muted mb-2">{label}</p>
-      {payload.map((entry: any, i: number) => (
+      {payload.map((entry: TooltipPayloadEntry, i: number) => (
         <div key={i} className="flex items-center justify-between gap-4 py-0.5">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -176,7 +183,7 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-function CustomPieTooltip({ active, payload }: any) {
+function CustomPieTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayloadEntry[] }) {
   if (!active || !payload) return null;
   const data = payload[0];
   return (
@@ -222,25 +229,27 @@ export default function AnalyticsPage() {
     const fetchData = async () => {
       try {
         const [dashboardRes, trendsRes, categoriesRes] = await Promise.allSettled([
-          api.get<any>('/analytics/dashboard'),
-          api.get<any>('/analytics/weekly-trends'),
-          api.get<any>('/analytics/category-breakdown'),
+          api.get<{ data: { deepHours?: string; focusScore?: number; sessionsCompleted?: number } }>('/analytics/dashboard'),
+          api.get<{ data: { date: string; durationMinutes: number; sessions: number }[] }>('/analytics/weekly-trends'),
+          api.get<{ data: { category: string; duration: number }[] }>('/analytics/category-breakdown'),
         ]);
 
         if (cancelled) return;
 
         if (dashboardRes.status === 'fulfilled' && dashboardRes.value?.data) {
           const d = dashboardRes.value.data;
-          const newKpis = [...kpis];
-          if (d.deepHours !== undefined) newKpis[0] = { ...newKpis[0], value: parseFloat(d.deepHours) };
-          if (d.focusScore !== undefined) newKpis[1] = { ...newKpis[1], value: Math.round(d.focusScore) };
-          if (d.sessionsCompleted !== undefined) newKpis[2] = { ...newKpis[2], value: d.sessionsCompleted };
-          setKpis(newKpis);
+          setKpis(prev => {
+            const newKpis = [...prev];
+            if (d.deepHours !== undefined) newKpis[0] = { ...newKpis[0], value: parseFloat(d.deepHours) };
+            if (d.focusScore !== undefined) newKpis[1] = { ...newKpis[1], value: Math.round(d.focusScore) };
+            if (d.sessionsCompleted !== undefined) newKpis[2] = { ...newKpis[2], value: d.sessionsCompleted };
+            return newKpis;
+          });
         }
 
         if (trendsRes.status === 'fulfilled' && trendsRes.value?.data && trendsRes.value.data.length > 0) {
           const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const dayMap: Record<string, any> = {};
+          const dayMap: Record<string, { durationMinutes: number; sessions: number }> = {};
           for (const item of trendsRes.value.data) {
             const date = new Date(item.date);
             const dayName = days[date.getDay()];
@@ -275,8 +284,8 @@ export default function AnalyticsPage() {
 
         if (categoriesRes.status === 'fulfilled' && categoriesRes.value?.data && categoriesRes.value.data.length > 0) {
           const colors = ["#8B5CF6", "#10B981", "#F59E0B", "#06B6D4", "#EF4444", "#EC4899", "#6366F1"];
-          const totalDur = categoriesRes.value.data.reduce((s: number, c: any) => s + c.duration, 0) || 1;
-          const dist = categoriesRes.value.data.map((c: any, i: number) => ({
+          const totalDur = categoriesRes.value.data.reduce((s: number, c: { category: string; duration: number }) => s + c.duration, 0) || 1;
+          const dist = categoriesRes.value.data.map((c: { category: string; duration: number }, i: number) => ({
             name: c.category.charAt(0).toUpperCase() + c.category.slice(1),
             value: Math.round((c.duration / totalDur) * 100),
             color: colors[i % colors.length],

@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { Send, Terminal, Bot, User } from "lucide-react";
 import api from "@/lib/api";
 

@@ -4,21 +4,62 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { User, Award, Code, BookOpen, Flame, Calendar, Clock, TrendingUp, FileText, Folder, Edit, Camera, ExternalLink, Code2, Link2, Globe, Briefcase } from "lucide-react";
+import Image from "next/image";
+import { User, Award, Code, BookOpen, Flame, Calendar, Clock, TrendingUp, Folder, Edit, Camera, ExternalLink, Code2, Link2, Globe, Briefcase } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
-  const [profileData, setProfileData] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
+  const [profileData, setProfileData] = useState<{
+    createdAt: string;
+    avatar?: string;
+    name: string;
+    email: string;
+    role: string;
+    profile?: {
+      bio?: string;
+      skills?: string[];
+      currentLevel?: string;
+      weeklyHours?: number;
+      githubUrl?: string;
+      linkedinUrl?: string;
+      portfolioUrl?: string;
+    };
+  } | null>(null);
+  const [stats, setStats] = useState<{
+    currentStreak?: number;
+    studySessionsCount?: number;
+    tasksCompleted?: number;
+    longestStreak?: number;
+  } | null>(null);
 
   const fetchProfileData = async () => {
     try {
       setLoading(true);
       const [meRes, statsRes] = await Promise.all([
-        api.get<any>("/auth/me"),
-        api.get<any>("/users/stats")
+        api.get<{ user: {
+          createdAt: string;
+          avatar?: string;
+          name: string;
+          email: string;
+          role: string;
+          profile?: {
+            bio?: string;
+            skills?: string[];
+            currentLevel?: string;
+            weeklyHours?: number;
+            githubUrl?: string;
+            linkedinUrl?: string;
+            portfolioUrl?: string;
+          };
+        } }>("/auth/me"),
+        api.get<{ stats: {
+          currentStreak?: number;
+          studySessionsCount?: number;
+          tasksCompleted?: number;
+          longestStreak?: number;
+        } }>("/users/stats")
       ]);
       setProfileData(meRes.user);
       setStats(statsRes.stats);
@@ -87,7 +128,7 @@ export default function ProfilePage() {
         <div className="flex flex-col md:flex-row items-start gap-6">
           <div className="relative shrink-0">
             {profileData?.avatar ? (
-              <img src={profileData.avatar} alt="Profile" className="w-24 h-24 rounded-full border-2 border-st-accent/30 object-cover" />
+              <Image src={profileData.avatar} alt="Profile" width={96} height={96} unoptimized className="w-24 h-24 rounded-full border-2 border-st-accent/30 object-cover" />
             ) : (
               <div className="w-24 h-24 rounded-full bg-st-bg-elevated flex items-center justify-center border-2 border-st-accent/30">
                 <User className="w-10 h-10 text-st-text-muted" />
@@ -163,7 +204,7 @@ export default function ProfilePage() {
               className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-st-border bg-st-bg-primary hover:border-st-accent/50 hover:bg-st-bg-elevated transition-all group"
             >
               <div className="w-10 h-10 rounded-full bg-st-bg-elevated flex items-center justify-center group-hover:scale-110 transition-transform">
-                <img src={`https://www.google.com/s2/favicons?domain=${new URL(portal.url).hostname}&sz=64`} alt={portal.name} className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                <Image src={`https://www.google.com/s2/favicons?domain=${new URL(portal.url).hostname}&sz=64`} alt={portal.name} width={20} height={20} unoptimized className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
               </div>
               <span className="text-xs font-medium text-st-text-primary text-center leading-tight">{portal.name}</span>
             </button>

@@ -4,6 +4,7 @@ import React from "react";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/lib/auth-context";
 import { SessionProvider } from "@/contexts/SessionContext";
+import { ThemeProvider } from "@/lib/theme-context";
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode; fallback?: React.ReactNode },
@@ -53,10 +54,11 @@ class ErrorBoundary extends React.Component<
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <SessionProvider>
-          {children}
-          <Toaster
+      <ThemeProvider>
+        <AuthProvider>
+          <SessionProvider>
+            {children}
+            <Toaster
             position="bottom-right"
             toastOptions={{
               style: {
@@ -74,8 +76,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
               },
             }}
           />
-        </SessionProvider>
-      </AuthProvider>
+          </SessionProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

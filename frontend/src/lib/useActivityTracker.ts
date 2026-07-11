@@ -9,21 +9,32 @@ interface TrackerProps {
   isActive: boolean;
 }
 
+type TrackerEvent = {
+  trackingSessionId: string | null;
+  eventType: string;
+  category: string;
+  module: string;
+  label?: string;
+  duration: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
 export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
   const pathname = usePathname();
-  const eventQueue = useRef<any[]>([]);
+  const eventQueue = useRef<TrackerEvent[]>([]);
   const lastActiveTime = useRef<number>(Date.now());
   const lastScrollPos = useRef<number>(0);
   const pageEnterTime = useRef<number>(Date.now());
   const activePage = useRef<string>('home');
 
-  const queueEvent = (
+  const queueEvent = useCallback((
     eventType: string,
     category: string = 'OTHER',
     moduleName?: string,
     label?: string,
     duration: number = 0,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ) => {
     eventQueue.current.push({
       trackingSessionId: sessionId,
@@ -36,7 +47,7 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
       createdAt: new Date().toISOString()
     });
     lastActiveTime.current = Date.now();
-  };
+  }, [sessionId]);
 
   useEffect(() => {
     if (!isActive || !sessionId) return;
@@ -54,7 +65,7 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
 
     queueEvent('PAGE_VIEW', 'LEARNING', newModule, `Visited ${newModule}`);
 
-  }, [pathname, sessionId, isActive]);
+  }, [pathname, sessionId, isActive, queueEvent]);
 
   const flushEvents = useCallback(async () => {
     if (eventQueue.current.length === 0 || !sessionId) return;
@@ -141,6 +152,6 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
       clearInterval(idleCheckInterval);
       clearInterval(uploadInterval);
     };
-  }, [sessionId, isActive, flushEvents]);
+  }, [sessionId, isActive, flushEvents, queueEvent]);
 
 }

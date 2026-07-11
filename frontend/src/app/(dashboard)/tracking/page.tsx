@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import toast from "react-hot-toast";
 import { useSession } from "@/contexts/SessionContext";
 import { useAuth } from "@/lib/auth-context";
 import { 
@@ -30,15 +31,14 @@ import { io as socketIO } from "socket.io-client";
 import { format } from "date-fns";
 
 type DashboardData = {
-  session: any;
-  stats: any;
+  session: { id: string; status: string; duration: number; projectName: string | null; focusScore: number; productivityScore: number };
+  stats: { totalSessions: number; totalDuration: number; avgFocusScore: number; avgProductivityScore: number; totalPauses: number; productivityScore?: number; focusScore?: number; codingTime?: number; learningTime?: number; idleTime?: number };
   desktopApps: Array<{ name: string; category: string; duration: number }>;
   browserDomains: Array<{ name: string; category: string; duration: number }>;
-  recentActivities: any[];
+  recentActivities: Array<{ id?: string; eventType: string; label?: string; module?: string; duration: number; createdAt: string; category?: string }>;
 };
 
 type LiveTelemetry = {
-  session: any;
   liveTab: {
     id: string;
     url: string;
@@ -85,14 +85,15 @@ export default function TrackingDashboard() {
   const [loading, setLoading] = useState(true);
   const [liveTabSeconds, setLiveTabSeconds] = useState(0);
   const [liveAppSeconds, setLiveAppSeconds] = useState(0);
+  const [sessionLoading, setSessionLoading] = useState<string | null>(null);
   const hasLiveTab = useRef(false);
   const hasLiveApp = useRef(false);
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: DashboardData }>("/tracking/sessions/dashboard");
-      if (res.success && res.data) {
-        setData(res.data);
+      const data = await api.get<DashboardData | null>("/tracking/sessions/dashboard");
+      if (data) {
+        setData(data);
       } else {
         setData(null);
       }
@@ -105,18 +106,18 @@ export default function TrackingDashboard() {
 
   const fetchLiveTelemetry = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: LiveTelemetry }>("/tracking/sessions/live");
-      if (res.success && res.data) {
-        setLiveData(res.data);
-        if (res.data.liveTab) {
+      const data = await api.get<LiveTelemetry | null>("/tracking/sessions/live");
+      if (data) {
+        setLiveData(data);
+        if (data.liveTab) {
           hasLiveTab.current = true;
-          setLiveTabSeconds(res.data.liveTab.liveDuration);
+          setLiveTabSeconds(data.liveTab.liveDuration);
         } else {
           hasLiveTab.current = false;
         }
-        if (res.data.liveApp) {
+        if (data.liveApp) {
           hasLiveApp.current = true;
-          setLiveAppSeconds(res.data.liveApp.liveDuration);
+          setLiveAppSeconds(data.liveApp.liveDuration);
         } else {
           hasLiveApp.current = false;
         }
@@ -133,7 +134,7 @@ export default function TrackingDashboard() {
     fetchDashboardData();
     fetchLiveTelemetry();
 
-    let socket: any = null;
+    let socket: ReturnType<typeof socketIO> | null = null;
     if (user?.id && (session?.status === "ACTIVE" || session?.status === "PAUSED")) {
       const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "https://cognarc-it-1.onrender.com";
       const token = api.getToken();
@@ -142,11 +143,11 @@ export default function TrackingDashboard() {
         auth: { token },
       });
 
-      socket.on("connect", () => {
-        socket.emit("joinRoom", user.id);
+      socket?.on("connect", () => {
+        socket?.emit("joinRoom", user.id);
       });
 
-      socket.on("live-tracking-update", (event: any) => {
+      socket?.on("live-tracking-update", (event: { type: string; data: { id: string; url?: string; title?: string | null; domain?: string; category?: string | null; activeApp?: string; windowTitle?: string; processName?: string | null; timestamp?: string } }) => {
         setLiveData(prev => {
           if (!prev) return prev;
           if (event.type === "BROWSER") {
@@ -162,7 +163,7 @@ export default function TrackingDashboard() {
                 category: event.data.category || null,
                 duration: 0,
                 liveDuration: 0,
-                timestamp: event.data.timestamp,
+                timestamp: event.data.timestamp || new Date().toISOString(),
               }
             };
           } else {
@@ -174,11 +175,11 @@ export default function TrackingDashboard() {
                 id: event.data.id,
                 activeApp: event.data.activeApp || "",
                 windowTitle: event.data.windowTitle || "",
-                processName: event.data.activeApp || null,
+                processName: event.data.processName || null,
                 category: event.data.category || null,
                 duration: 0,
                 liveDuration: 0,
-                timestamp: event.data.timestamp,
+                timestamp: event.data.timestamp || new Date().toISOString(),
               }
             };
           }
@@ -285,22 +286,22 @@ export default function TrackingDashboard() {
 
           <div className="flex items-center gap-3">
             {!session || session.status === "IDLE" ? (
-              <Button onClick={() => startSession()} size="lg" className="font-bold text-black gap-2">
-                <Play className="w-5 h-5 fill-current" /> Start Session
+              <Button onClick={async () => { setSessionLoading("start"); try { await startSession(); } finally { setSessionLoading(null); } }} size="lg" className="font-bold text-black gap-2" disabled={sessionLoading === "start"}>
+                {sessionLoading === "start" ? <><Clock className="w-5 h-5 animate-spin" /> Starting...</> : <><Play className="w-5 h-5 fill-current" /> Start Session</>}
               </Button>
             ) : (
               <>
                 {session.status === "ACTIVE" ? (
-                  <Button onClick={() => pauseSession()} variant="secondary" size="lg" className="gap-2">
-                    <Pause className="w-5 h-5 fill-current" /> Pause
+                  <Button onClick={async () => { setSessionLoading("pause"); try { await pauseSession(); } finally { setSessionLoading(null); } }} variant="secondary" size="lg" className="gap-2" disabled={!!sessionLoading}>
+                    {sessionLoading === "pause" ? <><Clock className="w-5 h-5 animate-spin" /> Pausing...</> : <><Pause className="w-5 h-5 fill-current" /> Pause</>}
                   </Button>
                 ) : (
-                  <Button onClick={() => resumeSession()} variant="secondary" size="lg" className="gap-2">
-                    <Play className="w-5 h-5 fill-current" /> Resume
+                  <Button onClick={async () => { setSessionLoading("resume"); try { await resumeSession(); } finally { setSessionLoading(null); } }} variant="secondary" size="lg" className="gap-2" disabled={!!sessionLoading}>
+                    {sessionLoading === "resume" ? <><Clock className="w-5 h-5 animate-spin" /> Resuming...</> : <><Play className="w-5 h-5 fill-current" /> Resume</>}
                   </Button>
                 )}
-                <Button onClick={() => stopSession()} variant="danger" size="lg" className="gap-2">
-                  <Square className="w-5 h-5 fill-current" /> Stop
+                <Button onClick={async () => { setSessionLoading("stop"); try { const report = await stopSession(); if (report) toast.success("Session completed"); } finally { setSessionLoading(null); } }} variant="danger" size="lg" className="gap-2" disabled={!!sessionLoading}>
+                  {sessionLoading === "stop" ? <><Clock className="w-5 h-5 animate-spin" /> Stopping...</> : <><Square className="w-5 h-5 fill-current" /> Stop</>}
                 </Button>
               </>
             )}
@@ -548,7 +549,7 @@ export default function TrackingDashboard() {
                   <div className="bg-st-bg-elevated p-3 rounded-lg flex justify-between items-center w-full">
                     <div>
                       <p className="text-sm font-medium text-st-text-primary">
-                        {activity.label || activity.eventType.replace(/_/g, ' ')}
+                        {activity.label ?? activity.eventType?.replace(/_/g, ' ') ?? ''}
                       </p>
                       <p className="text-xs text-st-text-muted mt-0.5 flex gap-2 items-center">
                         <span className="uppercase tracking-widest">{activity.category}</span>
@@ -571,7 +572,7 @@ export default function TrackingDashboard() {
           <Radio className="w-16 h-16 mb-4 opacity-20" />
           <h3 className="text-xl font-bold mb-2">No Active Session</h3>
           <p className="text-sm max-w-md text-center">
-            Click "Start Session" to begin tracking your productivity across your desktop and browser.
+            Click &quot;Start Session&quot; to begin tracking your productivity across your desktop and browser.
           </p>
         </div>
       )}

@@ -28,8 +28,28 @@ const localizer = dateFnsLocalizer({
 
 type ExtendedView = View | "year" | "heatmap";
 
+type CalendarEventItem = {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  type: string;
+  color?: string;
+  notes?: string;
+};
+
+type CalendarEventRaw = {
+  id: string;
+  title: string;
+  startTime?: string;
+  endTime?: string;
+  eventType?: string;
+  color?: string;
+  notes?: string;
+};
+
 export default function CalendarPage() {
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [view, setView] = useState<ExtendedView>(Views.MONTH);
   const [date, setDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -45,7 +65,7 @@ export default function CalendarPage() {
 
   // New features modals
   const [isNewEventOpen, setIsNewEventOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventItem | null>(null);
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   
   // Get events for a specific date
@@ -63,12 +83,12 @@ export default function CalendarPage() {
     });
   };
 
-  const handleSelectEvent = (event: any) => {
+  const handleSelectEvent = (event: CalendarEventItem) => {
     setFlowDate(new Date(event.start));
     setIsFlowOpen(true);
   };
 
-  const handleEditEvent = (event: any) => {
+  const handleEditEvent = (event: CalendarEventItem) => {
     setEditingEvent(event);
     setIsNewEventOpen(true);
   };
@@ -78,7 +98,7 @@ export default function CalendarPage() {
     setIsNewEventOpen(false);
   };
 
-  const handleSelectSlot = (slotInfo: any) => {
+  const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
     setFlowDate(new Date(slotInfo.start));
     setIsFlowOpen(true);
   };
@@ -88,17 +108,22 @@ export default function CalendarPage() {
       try {
         const start = new Date(date.getFullYear(), 0, 1).toISOString();
         const end = new Date(date.getFullYear() + 1, 0, 1).toISOString();
-        const res = (await api.get(`/calendar?start=${start}&end=${end}`)) as any;
+        const res = await api.get<CalendarEventRaw[]>(`/calendar?start=${start}&end=${end}`);
         
         // Map backend events to react-big-calendar format
-        const formatted = (res.data || []).map((e: any) => ({
-          ...e,
-          id: e.id,
-          title: e.title,
-          start: new Date(e.startTime),
-          end: e.endTime ? new Date(e.endTime) : new Date(e.startTime),
-          type: e.eventType?.toLowerCase() || 'other',
-        }));
+        const formatted = (res || []).map((e: CalendarEventRaw) => {
+          const startDate = new Date(e.startTime || "");
+          const endDate = e.endTime ? new Date(e.endTime) : new Date(startDate);
+          return {
+            id: e.id,
+            title: e.title,
+            start: startDate,
+            end: endDate,
+            type: e.eventType?.toLowerCase() || 'other',
+            color: e.color,
+            notes: e.notes,
+          } as CalendarEventItem;
+        });
         
         setEvents(formatted);
       } catch (error) {
@@ -119,44 +144,47 @@ export default function CalendarPage() {
     }
   };
 
-  const handleCreateEvent = async (newEventData: any) => {
+  const handleCreateEvent = async (newEventData: { title: string; type: string; start: string | Date; end?: string | Date; notes?: string; color?: string }) => {
     try {
       const color = getEventColor(newEventData.type);
-      const tempEvent = { ...newEventData, id: crypto.randomUUID(), color };
+      const tempEvent: CalendarEventItem = { ...newEventData, id: crypto.randomUUID(), color, start: new Date(newEventData.start), end: newEventData.end ? new Date(newEventData.end) : new Date(newEventData.start) };
 
       setEvents((prev) => [...prev, tempEvent]);
 
-      const res = await api.post<{ success: boolean; data: any }>("/calendar", {
+      const startISO = typeof newEventData.start === 'string' ? newEventData.start : newEventData.start.toISOString();
+      const endISO = newEventData.end ? (typeof newEventData.end === 'string' ? newEventData.end : newEventData.end.toISOString()) : startISO;
+
+      const res = await api.post<{ id: string }>("/calendar", {
         title: newEventData.title,
-        startTime: newEventData.start.toISOString(),
-        endTime: newEventData.end.toISOString(),
+        startTime: startISO,
+        endTime: endISO,
         eventType: newEventData.type.toUpperCase(),
         color,
         notes: newEventData.notes,
       });
 
-      setEvents((prev) => prev.map(e => e.id === tempEvent.id ? { ...e, id: res.data.id } : e));
+      setEvents((prev) => prev.map(e => e.id === tempEvent.id ? { ...e, id: res.id } : e));
       toast.success("Event created successfully!");
-    } catch (e) {
+    } catch {
       toast.error("Error syncing event with the server.");
     }
   };
 
-  const handleUpdateEvent = async (eventId: string, updates: any) => {
+  const handleUpdateEvent = async (eventId: string, updates: { title?: string; type?: string; start?: string | Date; end?: string | Date; notes?: string; color?: string }) => {
     try {
-      const color = updates.color || getEventColor(updates.type);
+      const color = updates.color || getEventColor(updates.type || '');
       await api.put(`/calendar/${eventId}`, {
-        title: updates.title,
-        startTime: updates.start.toISOString(),
-        endTime: updates.end.toISOString(),
-        eventType: updates.type.toUpperCase(),
+        title: updates.title || '',
+        startTime: updates.start instanceof Date ? updates.start.toISOString() : new Date(updates.start || '').toISOString(),
+        endTime: updates.end instanceof Date ? updates.end.toISOString() : new Date(updates.end || '').toISOString(),
+        eventType: (updates.type || '').toUpperCase(),
         color,
         notes: updates.notes,
       });
 
-      setEvents((prev) => prev.map(e => e.id === eventId ? { ...e, ...updates, color } : e));
+      setEvents((prev) => prev.map(e => e.id === eventId ? { ...e, ...updates, color, start: new Date(updates.start || e.start), end: new Date(updates.end || e.end) } : e));
       toast.success("Event updated successfully!");
-    } catch (e) {
+    } catch {
       toast.error("Error updating event.");
     }
   };
@@ -166,12 +194,12 @@ export default function CalendarPage() {
       await api.delete(`/calendar/${eventId}`);
       setEvents((prev) => prev.filter(e => e.id !== eventId));
       toast.success("Event deleted successfully!");
-    } catch (e) {
+    } catch {
       toast.error("Error deleting event.");
     }
   };
 
-  const eventStyleGetter = (event: any) => {
+  const eventStyleGetter = (event: CalendarEventItem) => {
     const backgroundColor = event.color || getEventColor(event.type);
 
     return {
@@ -236,11 +264,11 @@ export default function CalendarPage() {
     }
     
     if (view === "heatmap") {
-      return <ProductivityHeatmap events={events} />;
+      return <ProductivityHeatmap events={events.map(e => ({ start: e.start, count: 1 }))} />;
     }
 
     return (
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-st-border p-6 min-h-[600px] text-black">
+      <div className="flex-1 bg-st-bg-card rounded-xl shadow-sm border border-st-border p-6 min-h-[600px] text-st-text-primary">
         <Calendar
           localizer={localizer}
           events={events}
@@ -308,7 +336,7 @@ export default function CalendarPage() {
         onClose={() => setIsFlowOpen(false)} 
         date={flowDate} 
         events={getEventsForDate(flowDate)}
-        onEdit={handleEditEvent}
+        onEdit={(event) => handleEditEvent(event as CalendarEventItem)}
         onDelete={handleDeleteEvent}
       />
       
@@ -317,7 +345,7 @@ export default function CalendarPage() {
         onClose={handleCloseNewEvent}
         onSave={editingEvent ? (data) => handleUpdateEvent(editingEvent.id, data) : handleCreateEvent}
         onDelete={editingEvent ? () => { handleDeleteEvent(editingEvent.id); handleCloseNewEvent(); } : undefined}
-        initialData={editingEvent}
+        initialData={editingEvent ?? undefined}
       />
       
       <SyncModal

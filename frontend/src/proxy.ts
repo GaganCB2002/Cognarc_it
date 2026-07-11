@@ -1,35 +1,33 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isProtectedRoute = createRouteMatcher([
-  "/(dashboard)(.*)",
-  "/admin(.*)",
-  "/student(.*)",
-  "/hr(.*)",
-  "/manager(.*)",
-  "/employee(.*)",
-  "/trainer(.*)",
-  "/super-admin(.*)",
+const protectedPaths = [
   "/dashboard",
-  "/settings(.*)",
-  "/profile(.*)",
-  "/tracking(.*)",
-  "/tasks(.*)",
-  "/notes(.*)",
-  "/calendar(.*)",
-  "/reports(.*)",
-  "/analytics(.*)",
-  "/ai-assistant(.*)",
-  "/chat(.*)",
-  "/career(.*)",
-  "/curriculum(.*)",
-  "/trends(.*)",
-  "/pdf-intelligence(.*)",
-  "/video-intelligence(.*)",
-  "/knowledge-vault(.*)",
-]);
+  "/admin",
+  "/student",
+  "/hr",
+  "/manager",
+  "/employee",
+  "/trainer",
+  "/super-admin",
+  "/settings",
+  "/profile",
+  "/tracking",
+  "/tasks",
+  "/notes",
+  "/calendar",
+  "/reports",
+  "/analytics",
+  "/chat",
+  "/career",
+  "/curriculum",
+  "/trends",
+  "/pdf-intelligence",
+  "/video-intelligence",
+  "/knowledge-vault",
+];
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
+  if (protectedPaths.some(p => req.nextUrl.pathname.startsWith(p))) {
     await auth.protect();
   }
 });

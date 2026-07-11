@@ -185,6 +185,6 @@ export async function renameFile(storageKey: string, newName: string): Promise<v
   } else if (config.provider === "LOCAL") {
     const oldPath = getLocalPath(storageKey);
     const newPath = path.join(path.dirname(oldPath), newName);
-    await fs.rename(oldPath, newPath).catch(() => {});
+    await fs.rename(oldPath, newPath).catch(err => console.error('Rename failed:', err));
   }
 }

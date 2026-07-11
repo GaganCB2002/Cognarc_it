@@ -10,12 +10,12 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ success: false, error: "Authentication required" });
+      res.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
 
     if (!trackingSessionId) {
-      res.status(403).json({ success: false, error: "Tracking disabled: No active session provided." });
+      res.status(403).json({ success: false, message: "Tracking disabled: No active session provided." });
       return;
     }
 
@@ -24,7 +24,7 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
     });
 
     if (!activeSession) {
-      res.status(403).json({ success: false, error: "Tracking disabled: Session is not active." });
+      res.status(403).json({ success: false, message: "Tracking disabled: Session is not active." });
       return;
     }
 
@@ -49,7 +49,7 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: event });
   } catch (error) {
     console.error("Browser telemetry error:", error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -60,12 +60,12 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ success: false, error: "Authentication required" });
+      res.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
 
     if (!trackingSessionId) {
-      res.status(403).json({ success: false, error: "Tracking disabled: No active session provided." });
+      res.status(403).json({ success: false, message: "Tracking disabled: No active session provided." });
       return;
     }
 
@@ -74,7 +74,7 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
     });
 
     if (!activeSession) {
-      res.status(403).json({ success: false, error: "Tracking disabled: Session is not active." });
+      res.status(403).json({ success: false, message: "Tracking disabled: Session is not active." });
       return;
     }
 
@@ -100,7 +100,7 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: event });
   } catch (error) {
     console.error("Desktop telemetry error:", error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -110,7 +110,7 @@ export const getTelemetryStats = async (req: Request, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ success: false, error: "Authentication required" });
+      res.status(401).json({ success: false, message: "Authentication required" });
       return;
     }
 
@@ -118,6 +118,6 @@ export const getTelemetryStats = async (req: Request, res: Response) => {
     res.json({ success: true, data: stats });
   } catch (error) {
     console.error("Stats error:", error);
-    res.status(500).json({ success: false, error: "Internal Server Error" });
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };

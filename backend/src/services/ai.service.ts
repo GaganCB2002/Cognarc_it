@@ -1,5 +1,5 @@
 import { geminiService, ai } from "./gemini.service";
-import { PROJECT_SYSTEM_CONTEXT, CAREER_COACH_CONTEXT } from "../data/project-context";
+import { CAREER_COACH_CONTEXT } from "../data/project-context";
 
 function safeParse<T>(text: string, fallback: T): T {
   try {
@@ -29,18 +29,13 @@ export const generateQuiz = async (text: string) => {
 };
 
 export const chatWithTutor = async (messages: { role: string; content: string }[], documentFileUri?: string) => {
-  // Extract history (all except last)
   const history = messages.slice(0, -1).map(m => ({
     role: m.role as 'user' | 'model',
     content: m.content
   }));
   const newMessage = messages[messages.length - 1]?.content || "";
   
-  return await geminiService.chat(history, newMessage, documentFileUri, PROJECT_SYSTEM_CONTEXT);
-};
-
-export const askProjectQuestion = async (question: string) => {
-  return await geminiService.generateWithContext(question, PROJECT_SYSTEM_CONTEXT);
+  return await geminiService.chat(history, newMessage, documentFileUri);
 };
 
 export const chatWithCareerCoach = async (messages: { role: string; content: string }[]) => {

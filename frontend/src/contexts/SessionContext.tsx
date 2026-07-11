@@ -1,7 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useActivityTracker } from '@/lib/useActivityTracker';
 
@@ -21,7 +20,7 @@ export interface SessionContextType {
   startSession: (projectName?: string) => Promise<void>;
   pauseSession: () => Promise<void>;
   resumeSession: () => Promise<void>;
-  stopSession: () => Promise<any>;
+  stopSession: () => Promise<{ session?: { id: string }; id?: string } | null>;
   isInitializing: boolean;
 }
 
@@ -38,7 +37,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   });
   const [isInitializing, setIsInitializing] = useState(true);
 
-  const pathname = usePathname();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize micro-tracking when status is ACTIVE
@@ -47,29 +45,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     isActive: session.status === 'ACTIVE'
   });
 
-  const fetchCurrentSession = async () => {
+  const fetchCurrentSession = useCallback(async () => {
     if (!api.getToken()) {
       setIsInitializing(false);
       return;
     }
     try {
-      const res = (await api.get('/tracking/sessions/current')) as any;
-      if (res?.data && (res.data.status === 'ACTIVE' || res.data.status === 'PAUSED')) {
-        const start = new Date(res.data.startTime).getTime();
+      const res = (await api.get<{ id: string; status: string; startTime: string; totalPauseMs: number; pausedAt?: string; projectName?: string }>('/tracking/sessions/current'));
+      if (res && (res.status === 'ACTIVE' || res.status === 'PAUSED')) {
+        const start = new Date(res.startTime).getTime();
         const now = Date.now();
-        const pauseMs = res.data.totalPauseMs || 0;
+        const pauseMs = res.totalPauseMs || 0;
         
         let elapsed = now - start - pauseMs;
-        if (res.data.status === 'PAUSED' && res.data.pausedAt) {
-          const pausedAt = new Date(res.data.pausedAt).getTime();
+        if (res.status === 'PAUSED' && res.pausedAt) {
+          const pausedAt = new Date(res.pausedAt).getTime();
           elapsed = pausedAt - start - pauseMs;
         }
 
         setSession({
-          status: res.data.status as SessionStatus,
-          sessionId: res.data.id,
+          status: res.status as SessionStatus,
+          sessionId: res.id,
           duration: Math.max(0, Math.round(elapsed / 1000)),
-          projectName: res.data.projectName || 'General Deep Work',
+          projectName: res.projectName || 'General Deep Work',
           focusScore: 0,
           productivityScore: 0,
         });
@@ -87,12 +85,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsInitializing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // Attempt to recover active session on mount
     fetchCurrentSession();
-  }, []);
+  }, [fetchCurrentSession]);
 
   useEffect(() => {
     if (session.status === 'ACTIVE') {
@@ -111,22 +109,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const deviceName = typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown Device';
 
     try {
-      const res = (await api.post('/tracking/sessions/start', {
+      const res = await api.post<{ id: string }>('/tracking/sessions/start', {
         deviceId: 'web-client',
         deviceName,
         projectName,
-      })) as any;
+      });
 
       setSession({
         status: 'ACTIVE',
-        sessionId: res.data.id,
+        sessionId: res.id,
         duration: 0,
         projectName,
         focusScore: 0,
         productivityScore: 0,
       });
-    } catch (err: any) {
-      if (err.message && err.message.includes('already exists')) {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message && err.message.includes('already exists')) {
         // Auto-recover if the server says an active session exists
         // DO NOT throw an error to the user, just silently sync the state
         await fetchCurrentSession();
@@ -159,7 +157,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const stopSession = async () => {
     if (!session.sessionId) return null;
     try {
-      const res = (await api.post(`/tracking/sessions/${session.sessionId}/stop`)) as any;
+      const res = await api.post<{ report?: { session?: { id: string }; id?: string }; session?: { id: string }; id?: string }>(`/tracking/sessions/${session.sessionId}/stop`);
       setSession({
         status: 'IDLE',
         sessionId: null,
@@ -168,10 +166,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         focusScore: 0,
         productivityScore: 0,
       });
-      const reportData = res.data?.report || res.data;
+      const reportData = res.report || res.session || res;
       return reportData;
-    } catch (error) {
-      console.error('Failed to stop session', error);
+    } catch (error: unknown) {
+      console.error('Failed to stop session:', error);
+      // Force reset local state even if backend call fails
+      setSession({
+        status: 'IDLE',
+        sessionId: null,
+        duration: 0,
+        projectName: null,
+        focusScore: 0,
+        productivityScore: 0,
+      });
       return null;
     }
   };

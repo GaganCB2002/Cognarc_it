@@ -10,15 +10,15 @@ import { BarChart3, Download, Calendar, FileText, Clock, Target, Code, BookOpen,
 
 export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("DAILY");
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<{ id: string; status: string; duration: number; startTime: string; endTime?: string; projectName?: string; totalPauseMs?: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadSessions() {
       try {
-        const res = await api.get('/tracking/sessions') as any;
+        const res = await api.get<{ sessions: { id: string; status: string; duration: number; startTime: string; endTime?: string; projectName?: string; totalPauseMs?: number }[] }>('/tracking/sessions');
         if (res && res.sessions) {
-          setSessions(res.sessions.filter((s: any) => s.status === 'COMPLETED'));
+          setSessions(res.sessions.filter((s) => s.status === 'COMPLETED'));
         }
       } catch (err) {
         console.error("Failed to load reports", err);
@@ -85,15 +85,14 @@ export default function ReportsPage() {
       }
 
       // 1. Ask backend to generate periodic report and aggregate telemetry
-      const res = await api.post('/reports/periodic', {
+      const res = await api.post<{ id?: string }>('/reports/periodic', {
         type: selectedPeriod,
         from: from.toISOString(),
         to: to.toISOString()
-      }) as any;
+      });
 
-      if (res && res.data && res.data.id) {
-        // 2. Download the resulting PDF
-        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/reports/${res.data.id}/pdf`;
+      if (res && res.id) {
+        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/reports/${res.id}/pdf`;
         window.open(downloadUrl, '_blank');
       }
     } catch (err) {
@@ -172,7 +171,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className="text-xs font-mono">
-                    {Math.round((new Date(sess.endTime).getTime() - new Date(sess.startTime).getTime() - sess.totalPauseMs) / 60000)} mins
+                    {Math.round((new Date(sess.endTime || sess.startTime).getTime() - new Date(sess.startTime).getTime() - (sess.totalPauseMs || 0)) / 60000)} mins
                   </Badge>
                   <Button size="sm" variant="outline" onClick={() => handleDownload(sess.id)}>
                     <Download className="w-3.5 h-3.5 mr-1.5" /> PDF

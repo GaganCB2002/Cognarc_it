@@ -50,12 +50,12 @@ export const createEvent = async (input: CreateCalendarEventInput) => {
       isAllDay: input.isAllDay || false,
       isRecurring: input.isRecurring || false,
       recurrenceType: (input.recurrenceType as any) || null,
-      recurrenceRule: input.recurrenceRule ? JSON.parse(JSON.stringify(input.recurrenceRule)) : null,
+      recurrenceRule: input.recurrenceRule ? structuredClone(input.recurrenceRule) as any : null,
       recurrenceEnd: input.recurrenceEnd || null,
       timezone: input.timezone || null,
       location: input.location || null,
       tags: input.tags || [],
-      metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : null,
+      metadata: input.metadata ? structuredClone(input.metadata) as any : null,
     },
   });
 };

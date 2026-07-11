@@ -42,6 +42,10 @@ services:
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://cognarc-it-1.onrender.com/api
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
 
 databases:
   - name: studytrack-db

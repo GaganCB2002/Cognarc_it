@@ -4,7 +4,7 @@ import { queueService } from '../services/queue.service';
 export async function getNotes(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { folder, search, tag, page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -36,7 +36,7 @@ export async function getNotes(req: Request, res: Response): Promise<void> {
 export async function getNoteById(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const note = await prisma.note.findFirst({ where: { id, userId } });
@@ -53,7 +53,7 @@ export async function getNoteById(req: Request, res: Response): Promise<void> {
 export async function createNote(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { title, content, tags, folderId } = req.body;
     if (!title) {
@@ -79,7 +79,7 @@ export async function createNote(req: Request, res: Response): Promise<void> {
 export async function updateNote(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.note.findFirst({ where: { id, userId } });
@@ -108,7 +108,7 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
 export async function deleteNote(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.note.findFirst({ where: { id, userId } });
@@ -127,7 +127,7 @@ export async function deleteNote(req: Request, res: Response): Promise<void> {
 export async function pinNote(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.note.findFirst({ where: { id, userId } });

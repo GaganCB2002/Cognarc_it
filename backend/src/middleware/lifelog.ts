@@ -46,7 +46,7 @@ export function lifelogMiddleware(req: Request, res: Response, next: NextFunctio
         `${req.method} ${req.path}`,
         `${req.method} ${req.path} → ${res.statusCode} (${duration}ms)${isError ? " ⚠" : ""}`,
         data,
-      );
+      ).catch(() => {});
     }
 
     return originalJson(body);
@@ -67,7 +67,7 @@ export function lifelogMiddleware(req: Request, res: Response, next: NextFunctio
           statusCode: res.statusCode,
           durationMs: duration,
         },
-      );
+      ).catch(() => {});
     }
 
     return originalSend(body);

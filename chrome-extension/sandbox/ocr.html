@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="referrer" content="no-referrer">
+  <title>OCR Worker</title>
+  <style>
+    body { margin: 0; padding: 16px; font: 13px/1.4 system-ui, sans-serif; background: #0f0f13; color: #e4e4e7; }
+    #status { margin-bottom: 12px; font-size: 12px; color: #a1a1aa; }
+    .bar-wrap { height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; }
+    .bar { height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.2s; }
+  </style>
+</head>
+<body>
+  <div id="status">Initializing OCR engine...</div>
+  <div class="bar-wrap"><div class="bar" id="progressBar"></div></div>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const bar = document.getElementById('progressBar');
+
+    function setProgress(pct, msg) {
+      bar.style.width = Math.min(pct, 100) + '%';
+      if (msg) statusEl.textContent = msg;
+    }
+
+    let worker = null;
+
+    async function getWorker() {
+      if (!worker) {
+        setProgress(10, 'Loading OCR engine...');
+        worker = await Tesseract.createWorker('eng', 1, {
+          logger: (m) => {
+            if (m.status === 'loading tesseract core') setProgress(30, 'Loading Tesseract core...');
+            else if (m.status === 'initializing tesseract') setProgress(50, 'Initializing...');
+            else if (m.status === 'loading language traineddata') setProgress(60, 'Loading language data...');
+            else if (m.status === 'initializing api') setProgress(80, 'Initializing API...');
+            else if (m.status === 'recognizing text') {
+              setProgress(80 + Math.round(m.progress * 20), `Recognizing: ${Math.round(m.progress * 100)}%`);
+            }
+          },
+        });
+        setProgress(90, 'OCR engine ready');
+      }
+      return worker;
+    }
+
+    window.addEventListener('message', async (e) => {
+      if (e.data?.type === 'OCR_PROCESS' && e.data?.imageData) {
+        try {
+          setProgress(5, 'Starting OCR...');
+          const w = await getWorker();
+          setProgress(85, 'Processing image...');
+          const { data } = await w.recognize(e.data.imageData);
+          setProgress(100, 'Complete');
+          e.source.postMessage({
+            type: 'OCR_RESULT',
+            id: e.data.id,
+            text: data.text,
+            confidence: data.confidence,
+          }, '*');
+        } catch (err) {
+          statusEl.textContent = 'Error: ' + err.message;
+          e.source.postMessage({
+            type: 'OCR_RESULT',
+            id: e.data.id,
+            text: '[OCR Error] ' + err.message,
+            error: err.message,
+          }, '*');
+        }
+      }
+    });
+
+    setProgress(0, 'Ready. Waiting for image...');
+  </script>
+</body>
+</html>

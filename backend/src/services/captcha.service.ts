@@ -3,6 +3,22 @@ const LOWERCASE = "abcdefghjkmnpqrstuvwxyz";
 const UPPERCASE = "ABCDEFGHJKMNPQRSTUVWXYZ";
 const DIGITS = "23456789";
 
+interface CaptchaStore {
+  answer: string;
+  expiresAt: number;
+}
+
+const captchaStore = new Map<string, CaptchaStore>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of captchaStore) {
+    if (value.expiresAt < now) {
+      captchaStore.delete(key);
+    }
+  }
+}, 60000);
+
 interface CaptchaQuestion {
   key: string;
   question: string;
@@ -30,23 +46,20 @@ function generateChallenge(): { question: string; answer: string } {
 export function generateCaptcha(): CaptchaQuestion {
   const { question, answer } = generateChallenge();
   const expiresAt = Date.now() + CAPTCHA_EXPIRY_SECONDS * 1000;
-  const keyPayload = JSON.stringify({ question, answer, expiresAt });
-  const key = Buffer.from(keyPayload, "utf8").toString("base64url");
+  const key = Buffer.from(Date.now().toString() + Math.random().toString()).toString("base64url");
+
+  captchaStore.set(key, { answer, expiresAt });
 
   return { key, question, expiresAt };
 }
 
 export function verifyCaptcha(key: string, answer: string): boolean {
-  try {
-    const decoded = JSON.parse(Buffer.from(key, "base64url").toString("utf8")) as {
-      question?: string;
-      answer?: string;
-      expiresAt?: number;
-    };
-    if (!decoded.answer || !decoded.expiresAt) return false;
-    if (decoded.expiresAt < Date.now()) return false;
-    return decoded.answer.toLowerCase() === String(answer).trim().toLowerCase();
-  } catch {
+  const entry = captchaStore.get(key);
+  if (!entry) return false;
+  if (entry.expiresAt < Date.now()) {
+    captchaStore.delete(key);
     return false;
   }
+  captchaStore.delete(key);
+  return entry.answer.toLowerCase() === String(answer).trim().toLowerCase();
 }

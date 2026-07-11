@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocAgent</title>
+  <link rel="stylesheet" href="../styles/global.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="logo">📋</span>
+      <span class="brand">DocAgent</span>
+      <span class="badge" id="docCount">0</span>
+    </header>
+
+    <div class="quick-actions">
+      <button class="btn btn-primary" id="uploadBtn">
+        <span>📄</span> Upload Document
+      </button>
+      <button class="btn btn-secondary" id="dashboardBtn">
+        <span>📂</span> Open Dashboard
+      </button>
+    </div>
+
+    <input type="file" id="fileInput" accept=".pdf,.txt,.md,.csv,.json,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp" multiple hidden>
+
+    <div class="status" id="status"></div>
+
+    <div class="progress-wrap" id="progressWrap" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-text" id="progressText">0%</span>
+    </div>
+
+    <div class="recent">
+      <div class="recent-header">
+        <span>Recent Documents</span>
+        <button class="link-btn" id="viewAllBtn">View All</button>
+      </div>
+      <div class="recent-list" id="recentList">
+        <div class="empty">No documents yet</div>
+      </div>
+    </div>
+
+    <footer>
+      <span class="stats" id="statsText">0 documents</span>
+      <button class="link-btn" id="settingsBtn">⚙️</button>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
+  </script>
+  <script src="../lib/db.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

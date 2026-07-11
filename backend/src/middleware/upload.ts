@@ -44,7 +44,7 @@ const fileFilter = (
 ) => {
   // Broaden file type acceptance, only reject completely unrecognized/malicious MIME types if needed
   // But let's allow all MIME types listed in ALLOWED_MIME_TYPES
-  if (ALLOWED_MIME_TYPES.includes(file.mimetype) || file.mimetype.startsWith("application/octet-stream")) {
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error(`Unsupported file type: ${file.mimetype}`));

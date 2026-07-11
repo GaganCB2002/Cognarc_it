@@ -31,7 +31,7 @@ export async function startSession(req: Request, res: Response): Promise<void> {
 
     const { deviceId, deviceName, projectName } = req.body;
     const session = await startTrackingSession({ userId, deviceId, deviceName, projectName });
-    lifelog.tracking(userId, "SESSION_START", `Tracking session started: ${projectName || "General"}`, {
+    await lifelog.tracking(userId, "SESSION_START", `Tracking session started: ${projectName || "General"}`, {
       sessionId: session.id,
       projectName: projectName || null,
       deviceName: deviceName || null,
@@ -53,7 +53,7 @@ export async function pauseSession(req: Request, res: Response): Promise<void> {
     if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
 
     const session = await pauseTrackingSession(sessionId, userId);
-    lifelog.tracking(userId, "SESSION_PAUSE", `Session paused: ${sessionId.substring(0, 8)}...`, { sessionId });
+    await lifelog.tracking(userId, "SESSION_PAUSE", `Session paused: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
   } catch (error: any) {
     console.error('pauseSession error:', error);
@@ -74,7 +74,7 @@ export async function resumeSession(req: Request, res: Response): Promise<void> 
     if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
 
     const session = await resumeTrackingSession(sessionId, userId);
-    lifelog.tracking(userId, "SESSION_RESUME", `Session resumed: ${sessionId.substring(0, 8)}...`, { sessionId });
+    await lifelog.tracking(userId, "SESSION_RESUME", `Session resumed: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
   } catch (error: any) {
     console.error('resumeSession error:', error);
@@ -90,34 +90,37 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
-
     const sessionId = req.params.sessionId as string;
     if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
 
     const session = await stopTrackingSession(sessionId, userId);
 
-    let report = null;
-    try {
-      report = await generateSessionReport(sessionId, userId);
-      
-      // Auto-generate and cache PDF file in uploads
-      const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+    // Run report and PDF generation in the background to prevent blocking the API response
+    (async () => {
+      try {
+        await generateSessionReport(sessionId, userId);
+        
+        // Auto-generate and cache PDF file in uploads
+        const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        const pdfPath = path.join(uploadsDir, `report-${sessionId}.pdf`);
+        await generateSessionPdfReport(sessionId, userId, { outputPath: pdfPath });
+      } catch (reportError) {
+        console.error('Background report generation failed:', reportError);
       }
-      const pdfPath = path.join(uploadsDir, `report-${sessionId}.pdf`);
-      await generateSessionPdfReport(sessionId, userId, { outputPath: pdfPath });
-    } catch (reportError) {
-      console.error('Report generation failed:', reportError);
-    }
+    })();
 
-    lifelog.tracking(userId, "SESSION_STOP", `Session stopped: ${sessionId.substring(0, 8)}... (${Math.round((session.endTime ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) : 0) / 1000 / 60)} min)`, {
+    await lifelog.tracking(userId, "SESSION_STOP", `Session stopped: ${sessionId.substring(0, 8)}... (${Math.round((session.endTime ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) : 0) / 1000 / 60)} min)`, {
       sessionId,
       durationMs: session.endTime ? session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs : 0,
       projectName: session.projectName,
-      hasReport: !!report,
+      hasReport: true,
     });
-    res.json({ success: true, data: { session, report } });
+    
+    // We return immediately with report: null. The UI will fetch the report when it's ready.
+    res.json({ success: true, data: { session, report: null } });
   } catch (error: any) {
     console.error('stopSession error:', error);
     if (error.message === 'Session not found') {

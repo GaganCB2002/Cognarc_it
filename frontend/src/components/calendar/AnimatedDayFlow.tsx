@@ -5,12 +5,22 @@ import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { X, Clock, PlayCircle, BookOpen, MonitorPlay, CheckSquare, Target, Pencil, Trash2 } from "lucide-react";
 
+type FlowEvent = {
+  id: string;
+  title: string;
+  start: string | Date;
+  end?: string | Date;
+  type: string;
+  color?: string;
+  notes?: string;
+};
+
 interface AnimatedDayFlowProps {
   isOpen: boolean;
   onClose: () => void;
   date: Date | null;
-  events: any[];
-  onEdit?: (event: any) => void;
+  events: FlowEvent[];
+  onEdit?: (event: FlowEvent) => void;
   onDelete?: (eventId: string) => void;
 }
 
@@ -37,21 +47,18 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
     }
   };
 
-  const getEventColor = (type: string) => {
-    switch (type?.toLowerCase()) {
-      case "learning":
-      case "reading":
-        return "bg-emerald-900 border-emerald-700";
-      case "coding":
-        return "bg-purple-900 border-purple-700";
-      case "meeting":
-        return "bg-amber-900 border-amber-700";
-      case "task":
-      case "quiz":
-        return "bg-rose-900 border-rose-700";
-      default:
-        return "bg-blue-900 border-blue-700";
+  const getEventColor = (event: FlowEvent) => {
+    if (event.color) {
+      return { backgroundColor: event.color + "30", borderColor: event.color };
     }
+    const c: Record<string, string> = {
+      learning: "#10b981", reading: "#10b981",
+      coding: "#8b5cf6",
+      meeting: "#f59e0b",
+      task: "#f43f5e", quiz: "#f43f5e",
+    };
+    const col = c[event.type?.toLowerCase()] || "#3b82f6";
+    return { backgroundColor: col + "30", borderColor: col };
   };
 
   return (
@@ -119,7 +126,10 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
                           className="relative pl-16 pr-4"
                         >
                           {/* Timeline Dot */}
-                          <div className="absolute left-5 top-4 w-3 h-3 rounded-full bg-st-accent shadow-[0_0_12px_rgba(var(--st-accent-rgb),0.8)] transform -translate-x-1/2" />
+                          <div
+                            className="absolute left-5 top-4 w-3 h-3 rounded-full transform -translate-x-1/2 shadow-lg"
+                            style={{ backgroundColor: event.color || "#818CF8" }}
+                          />
   
                           {/* Event Card */}
                           <div 
@@ -128,7 +138,7 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
                           >
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${getEventColor(event.type)}`}>
+                                <div className="p-2 rounded-lg" style={getEventColor(event)}>
                                   {getEventIcon(event.type)}
                                 </div>
                                 <h3 className="font-bold text-st-text-primary text-lg">{event.title}</h3>
@@ -139,7 +149,7 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
                               <Clock className="w-4 h-4" />
                               <span>
                                 {format(new Date(event.start), "h:mm a")} -{" "}
-                                {format(new Date(event.end), "h:mm a")}
+                                {format(new Date(event.end || event.start), "h:mm a")}
                               </span>
                             </div>
                             

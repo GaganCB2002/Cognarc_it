@@ -1,17 +1,17 @@
 "use client";
+// cache-buster
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { LiveActivityWidget } from "@/components/dashboard/LiveActivityWidget";
 import { api } from "@/lib/api";
 import {
   Flame, CheckCircle2, Clock, PlayCircle, Pause, RotateCcw,
-  BookOpen, Code, Brain, Calendar, FileText, TrendingUp,
-  Target, Zap, ChevronRight, Bell, Upload, Sparkles,
-  BarChart3, Folder, ArrowUpRight, CircleDashed
+  BookOpen, Brain, Calendar, TrendingUp,
+  Zap, ChevronRight, Bell, Upload, Sparkles,
+  Folder, ArrowUpRight, CircleDashed
 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -19,8 +19,8 @@ export default function DashboardPage() {
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [pomodoroCount, setPomodoroCount] = useState(0);
 
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<{ id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[]>([]);
+  const [events, setEvents] = useState<{ id?: string; title: string; eventType: string; startTime: string; endTime?: string }[]>([]);
   const [notesCount, setNotesCount] = useState(0);
   const [totalStudyHours, setTotalStudyHours] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -45,10 +45,10 @@ export default function DashboardPage() {
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
         const [tasksRes, calRes, notesRes, sessionsRes] = await Promise.all([
-          api.get('/tasks') as Promise<any>,
-          api.get(`/calendar?start=${start}&end=${end}`) as Promise<any>,
-          api.get('/notes') as Promise<any>,
-          api.get('/tracking/sessions') as Promise<any>
+          api.get<{ data: { id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[] }>('/tasks'),
+          api.get<{ data: { id?: string; title: string; eventType: string; startTime: string; endTime?: string }[] }>(`/calendar?start=${start}&end=${end}`),
+          api.get<{ data: { length: number }[] }>('/notes'),
+          api.get<{ sessions?: { duration: number }[]; data?: { duration: number }[] }>('/tracking/sessions')
         ]);
 
         if (tasksRes?.data) setTasks(tasksRes.data);
@@ -56,7 +56,7 @@ export default function DashboardPage() {
         if (notesRes?.data) setNotesCount(notesRes.data.length);
         const sessionList = sessionsRes?.sessions || sessionsRes?.data || [];
         if (Array.isArray(sessionList) && sessionList.length > 0) {
-          const totalSecs = (sessionList as any[]).reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
+          const totalSecs = (sessionList as { duration: number }[]).reduce((acc: number, s: { duration: number }) => acc + (s.duration || 0), 0);
           setTotalStudyHours(+(totalSecs / 3600).toFixed(1));
         }
       } catch (err) {
@@ -144,8 +144,11 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Link href="/tracking">
-          <Card className="p-4 hover:border-st-border-light transition-all duration-200 cursor-pointer group">
-            <p className="text-xs font-medium text-st-text-muted mb-1.5">Study Hours</p>
+          <Card className="p-4 bg-gradient-to-br from-emerald-500/[0.07] to-emerald-500/[0.02] border-emerald-500/10 hover:border-emerald-500/30 transition-all duration-200 cursor-pointer group">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Clock className="w-3.5 h-3.5 text-emerald-400" />
+              <p className="text-xs font-medium text-emerald-400">Study Hours</p>
+            </div>
             <div className="flex items-baseline gap-2">
               <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">{totalStudyHours}</h3>
               <span className="text-xs text-st-text-muted">total</span>
@@ -153,24 +156,33 @@ export default function DashboardPage() {
           </Card>
         </Link>
         <Link href="/tasks">
-          <Card className="p-4 hover:border-st-border-light transition-all duration-200 cursor-pointer group">
-            <p className="text-xs font-medium text-st-text-muted mb-1.5">Tasks Done</p>
+          <Card className="p-4 bg-gradient-to-br from-blue-500/[0.07] to-blue-500/[0.02] border-blue-500/10 hover:border-blue-500/30 transition-all duration-200 cursor-pointer group">
+            <div className="flex items-center gap-2 mb-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+              <p className="text-xs font-medium text-blue-400">Tasks Done</p>
+            </div>
             <div className="flex items-baseline gap-2">
               <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">{completedTasksCount}/{tasks.length}</h3>
             </div>
           </Card>
         </Link>
         <Link href="/productivity">
-          <Card className="p-4 hover:border-st-border-light transition-all duration-200 cursor-pointer group">
-            <p className="text-xs font-medium text-st-text-muted mb-1.5">Productivity</p>
+          <Card className="p-4 bg-gradient-to-br from-purple-500/[0.07] to-purple-500/[0.02] border-purple-500/10 hover:border-purple-500/30 transition-all duration-200 cursor-pointer group">
+            <div className="flex items-center gap-2 mb-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
+              <p className="text-xs font-medium text-purple-400">Productivity</p>
+            </div>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-accent tracking-tight">--%</h3>
+              <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">--%</h3>
             </div>
           </Card>
         </Link>
         <Link href="/analytics">
-          <Card className="p-4 hover:border-st-border-light transition-all duration-200 cursor-pointer group">
-            <p className="text-xs font-medium text-st-text-muted mb-1.5">Focus Score</p>
+          <Card className="p-4 bg-gradient-to-br from-rose-500/[0.07] to-rose-500/[0.02] border-rose-500/10 hover:border-rose-500/30 transition-all duration-200 cursor-pointer group">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Zap className="w-3.5 h-3.5 text-rose-400" />
+              <p className="text-xs font-medium text-rose-400">Focus Score</p>
+            </div>
             <div className="flex items-baseline gap-2">
               <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">--</h3>
             </div>
@@ -277,31 +289,6 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {/* Live Activity Widget */}
           <LiveActivityWidget />
-
-          {/* AI Insights */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-st-accent" />
-              <h2 className="text-base font-semibold text-st-text-primary tracking-tight">AI Insights</h2>
-            </div>
-            <Card className="p-5">
-              <p className="text-sm text-st-text-secondary leading-relaxed mb-3">
-                Ask StudyBot about the codebase — architecture, routes, database schema, or how any feature works.
-              </p>
-              <Badge variant="outline" className="mb-3 text-[10px]">
-                <span className="flex items-center gap-1">
-                  <Zap className="w-3 h-3" />
-                  Powered by RAG
-                </span>
-              </Badge>
-              <Button variant="outline" className="w-full text-sm" onClick={() => {
-                const event = new CustomEvent('opencode-chatbot-toggle');
-                window.dispatchEvent(event);
-              }}>
-                Open StudyBot
-              </Button>
-            </Card>
-          </div>
 
           {/* Upcoming Events */}
           <div className="space-y-3">

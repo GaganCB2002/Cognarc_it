@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +32,7 @@ type AIResult = {
   chapterSummaries?: { chapter: string; summary: string }[];
   mindMapData?: { node: string; children: string[] }[];
   mcqs?: { question: string; options: string[]; correctAnswer: number; explanation: string }[];
+  questions?: { question: string; options: string[]; correctAnswer: number; explanation: string }[];
 };
 
 type ChatMessage = {
@@ -64,7 +65,7 @@ export default function PDFIntelligencePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchDocs = async () => {
+  const fetchDocs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -74,16 +75,16 @@ export default function PDFIntelligencePage() {
       if (pdfs.length > 0 && !selectedDoc) {
         setSelectedDoc(pdfs[0]);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to load documents");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load documents");
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDoc]);
 
   useEffect(() => {
     fetchDocs();
-  }, []);
+  }, [fetchDocs]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -102,8 +103,8 @@ export default function PDFIntelligencePage() {
     try {
       await api.uploadFile("/upload", file);
       await fetchDocs();
-    } catch (err: any) {
-      setError(err.message || "Upload failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -125,10 +126,10 @@ export default function PDFIntelligencePage() {
 
       let result: AIResult = {};
       if (action === "summary" || action === "chapter-summaries") {
-        const res = await api.post<any>("/ai/summary", { text });
+        const res = await api.post<AIResult>("/ai/summary", { text });
         result = res;
       } else if (action === "quiz") {
-        const res = await api.post<any>("/ai/quiz", { text });
+        const res = await api.post<AIResult>("/ai/quiz", { text });
         result = { mcqs: res.questions || res.mcqs };
       } else {
         // Use a generic prompt to the agent chat or summary endpoint
@@ -139,14 +140,14 @@ export default function PDFIntelligencePage() {
           "mind-map": "Create a mind map from this text as JSON array of {node, children}.",
         };
         const instruction = promptMap[action] || "Summarize this text.";
-        const res = await api.post<any>("/ai/summary", {
+        const res = await api.post<AIResult>("/ai/summary", {
           text: `${instruction}\n\n${text.substring(0, 100000)}`,
         });
         result = res;
       }
       setAiResult(result);
-    } catch (err: any) {
-      setError(err.message || "AI processing failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "AI processing failed");
     } finally {
       setAiLoading(null);
     }
@@ -159,15 +160,15 @@ export default function PDFIntelligencePage() {
     setChatMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setChatLoading(true);
     try {
-      const res = await api.post<any>("/ai/chat", {
+      const res = await api.post<{ conversationId?: string; reply?: string }>("/ai/chat", {
         messages: [{ role: "user", content: userMsg }],
         conversationId,
         documentId: selectedDoc.id,
       });
-      setConversationId(res.conversationId);
+      setConversationId(res.conversationId ?? null);
       setChatMessages((prev) => [...prev, { role: "assistant", content: res.reply || "No response generated." }]);
-    } catch (err: any) {
-      setChatMessages((prev) => [...prev, { role: "assistant", content: `Error: ${err.message}` }]);
+    } catch (err: unknown) {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Unknown error"}` }]);
     } finally {
       setChatLoading(false);
     }

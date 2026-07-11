@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
   X, Play, Pause, Maximize2, Minimize2, Volume2, VolumeX,
@@ -46,7 +45,7 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
     return `${m}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
       videoRef.current.play().catch(() => {});
@@ -55,7 +54,7 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
       videoRef.current.pause();
       setPlaying(false);
     }
-  };
+  }, []);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
@@ -72,12 +71,12 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
     if (videoRef.current) videoRef.current.volume = v;
   };
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     if (videoRef.current) {
       videoRef.current.muted = !muted;
       setMuted(!muted);
     }
-  };
+  }, [muted]);
 
   const changeSpeed = (rate: number) => {
     setPlaybackRate(rate);
@@ -85,7 +84,7 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
     if (videoRef.current) videoRef.current.playbackRate = rate;
   };
 
-  const toggleFullscreen = async () => {
+  const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) {
       await containerRef.current?.requestFullscreen();
       setIsFullscreen(true);
@@ -93,7 +92,7 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
       await document.exitFullscreen();
       setIsFullscreen(false);
     }
-  };
+  }, []);
 
   const togglePiP = async () => {
     try {
@@ -105,11 +104,11 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
     } catch { /* PiP not supported */ }
   };
 
-  const skip = (seconds: number) => {
+  const skip = useCallback((seconds: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.currentTime + seconds, duration));
     }
-  };
+  }, [duration]);
 
   const handleDownload = () => {
     const a = document.createElement("a");
@@ -128,7 +127,7 @@ export function VideoViewer({ src, filename, mimeType, onClose }: VideoViewerPro
       case "f": toggleFullscreen(); break;
       case "m": toggleMute(); break;
     }
-  }, [togglePlay, toggleFullscreen, toggleMute, onClose]);
+  }, [togglePlay, toggleFullscreen, toggleMute, onClose, skip]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);

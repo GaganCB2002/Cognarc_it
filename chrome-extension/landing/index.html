@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DocAgent — Smart Document Processor</title>
+  <link rel="stylesheet" href="../styles/global.css">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <header class="hero">
+    <nav class="hero-nav">
+      <div class="hero-brand">
+        <span class="hero-logo">📋</span>
+        <span class="hero-name">DocAgent</span>
+      </div>
+      <div class="hero-nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </nav>
+
+    <div class="hero-content">
+      <div class="hero-badge">🚀 Chrome Extension</div>
+      <h1 class="hero-title">
+        Your <span class="gradient-text">Document Agent</span><br>
+        Extract. Store. Recall.
+      </h1>
+      <p class="hero-subtitle">
+        Upload PDFs, images, or any text document — DocAgent extracts every word, saves it locally,<br>
+        and lets you search and recall it all in a fraction of a second.
+      </p>
+      <div class="hero-actions">
+        <button class="btn-primary" id="extendBtn">
+          <span class="btn-icon">📋</span>
+          Extend to Chrome
+          <span class="btn-badge">Free</span>
+        </button>
+        <button class="btn-secondary" id="learnBtn">
+          Learn More
+        </button>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-value">100%</span>
+          <span class="hero-stat-label">Local & Private</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">&lt;1s</span>
+          <span class="hero-stat-label">Extraction Speed</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-value">Unlimited</span>
+          <span class="hero-stat-label">Document Storage</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="section" id="features">
+    <h2 class="section-title">Everything at your fingertips</h2>
+    <p class="section-desc">Powerful document intelligence that works entirely in your browser.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>PDF Text Extraction</h3>
+        <p>Upload any PDF — extract every word, heading, and paragraph with sub-second speed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖼️</div>
+        <h3>Image OCR</h3>
+        <p>Extract text from images, screenshots, and scanned documents using on-device OCR.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <h3>Text & Code</h3>
+        <p>Upload .txt, .md, .csv, .json, source code — anything with text gets indexed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Instant Recall</h3>
+        <p>Click any document to see its full content. Search across everything you've saved.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏠</div>
+        <h3>100% Local</h3>
+        <p>All data stays in your browser's IndexedDB. Nothing leaves your machine. Ever.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Sub-Second Speed</h3>
+        <p>Optimized chunking and indexing means results in milliseconds, not seconds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark" id="how-it-works">
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-desc">Three simple steps to never lose important content again.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Upload</h3>
+        <p>Click the DocAgent button on any page and upload your PDF, image, or text file.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Extract</h3>
+        <p>Our agent processes every page, every pixel, every character — instantly.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Recall</h3>
+        <p>Open your dashboard, click any document, and view the full extracted text immediately.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <div class="faq-q">Is my data private?</div>
+        <div class="faq-a">100%. Everything stays in your browser's local database. Nothing is uploaded to any server.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">How fast is document processing?</div>
+        <div class="faq-a">Most PDFs and text files process in under a second. Image OCR takes 1-5 seconds depending on size.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">What file types are supported?</div>
+        <div class="faq-a">PDF, PNG, JPG, JPEG, GIF, BMP, WebP, TXT, MD, CSV, JSON, XML, HTML, and source code files.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Is there a limit on storage?</div>
+        <div class="faq-a">The extension uses your browser's IndexedDB, which typically allows hundreds of MBs.</div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Does it work offline?</div>
+        <div class="faq-a">Yes! Once installed, text extraction and document viewing work entirely offline.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <span class="footer-logo">📋</span>
+        <span>DocAgent</span>
+      </div>
+      <p class="footer-text">Built with ❤️ for people who need to remember everything they read.</p>
+    </div>
+  </footer>
+
+  <script src="landing.js"></script>
+</body>
+</html>

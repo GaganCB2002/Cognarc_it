@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearAuthState();
       api.setToken(null);
     }
-  }, [clerkSignedIn, clerkLoaded]);
+  }, [clerkSignedIn, clerkLoaded, token]);
 
   // On mount, verify saved token is still valid via /auth/me (handled above).
   // Token expiry and cleanup are managed by the api client's onUnauthorized callback.
@@ -186,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token || !clerkSignedIn) return;
 
     let cancelled = false;
+    let retryCount = 0;
 
     const tryExchange = async () => {
       try {
@@ -205,12 +206,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!res.ok || cancelled) {
-          if (!cancelled) setIsLoading(false);
-          return;
+          throw new Error('Exchange failed');
         }
 
-        const data = await res.json();
+        const json = await res.json();
         if (cancelled) return;
+
+        const data = json.data || json;
 
         api.setToken(data.token, data.refreshToken || null);
         setToken(data.token);
@@ -218,11 +220,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         writeStoredUser(data.user);
         if (!cancelled) setIsLoading(false);
       } catch {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          retryCount++;
+          if (retryCount < 5) {
+             setTimeout(tryExchange, 2000 * retryCount);
+          } else {
+             setIsLoading(false);
+          }
+        }
       }
     };
 
     tryExchange();
+    return () => { cancelled = true; };
   }, [token, clerkSignedIn, getClerkToken]);
 
   const refreshUser = useCallback(async () => {
@@ -271,7 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAllLocalData();
     setUserKey(k => k + 1);
     window.location.replace("/");
-  }, [router]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{

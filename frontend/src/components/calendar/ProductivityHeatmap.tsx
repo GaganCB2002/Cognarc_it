@@ -4,7 +4,7 @@ import React from "react";
 import { format, subDays, startOfDay, getDay, isSameDay } from "date-fns";
 
 interface HeatmapProps {
-  events: any[];
+  events: { start: string | Date; [key: string]: unknown }[];
 }
 
 export function ProductivityHeatmap({ events }: HeatmapProps) {

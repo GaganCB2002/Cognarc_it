@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { Search, Download, Clock, MessageSquare, Activity, LogIn, FileText, Database, ChevronLeft, ChevronRight, Loader2, Copy, Check } from "lucide-react";

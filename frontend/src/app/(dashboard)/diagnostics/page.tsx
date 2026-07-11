@@ -20,36 +20,46 @@ export default function DiagnosticsPage() {
   const [socketStatus, setSocketStatus] = useState<"connected" | "error" | "checking">("checking");
   const [browserExtStatus, setBrowserExtStatus] = useState<{ connected: boolean; lastEvent: Date | null }>({ connected: false, lastEvent: null });
   const [desktopAppStatus, setDesktopAppStatus] = useState<{ connected: boolean; lastEvent: Date | null }>({ connected: false, lastEvent: null });
-  const [socketClient, setSocketClient] = useState<any>(null);
+  const [socketClient, setSocketClient] = useState<ReturnType<typeof socketIO> | null>(null);
 
   useEffect(() => {
-    // 1. Test Backend/DB connection via live telemetry check
     const checkConnections = async () => {
       try {
-        const res = await api.get<{ success: boolean; data: any }>("/tracking/sessions/live");
+        const healthRes = await fetch(API_URL.replace('/api', '/health'));
+        if (!healthRes.ok) {
+          setDbStatus("error");
+          return;
+        }
         setDbStatus("connected");
         
-        if (res.data) {
-          const now = Date.now();
-          const { liveTab, liveApp } = res.data;
-          
-          if (liveTab && liveTab.timestamp) {
-            const tabTime = new Date(liveTab.timestamp).getTime();
-            setBrowserExtStatus({
-              connected: (now - tabTime) < 30000, // active within 30 seconds
-              lastEvent: new Date(liveTab.timestamp)
-            });
-          }
-          
-          if (liveApp && liveApp.timestamp) {
-            const appTime = new Date(liveApp.timestamp).getTime();
-            setDesktopAppStatus({
-              connected: (now - appTime) < 30000,
-              lastEvent: new Date(liveApp.timestamp)
-            });
+        if (user?.id) {
+          try {
+            const res = await api.get<{ success: boolean; data: { liveTab?: { timestamp: string }; liveApp?: { timestamp: string } } }>("/tracking/sessions/live");
+            if (res.data) {
+              const now = Date.now();
+              const { liveTab, liveApp } = res.data;
+              
+              if (liveTab && liveTab.timestamp) {
+                const tabTime = new Date(liveTab.timestamp).getTime();
+                setBrowserExtStatus({
+                  connected: (now - tabTime) < 30000, // active within 30 seconds
+                  lastEvent: new Date(liveTab.timestamp)
+                });
+              }
+              
+              if (liveApp && liveApp.timestamp) {
+                const appTime = new Date(liveApp.timestamp).getTime();
+                setDesktopAppStatus({
+                  connected: (now - appTime) < 30000,
+                  lastEvent: new Date(liveApp.timestamp)
+                });
+              }
+            }
+          } catch (telemetryError) {
+            // Ignore telemetry fetch errors (e.g. 401 when not fully authed) to keep dbStatus accurate
           }
         }
-      } catch (e) {
+      } catch {
         setDbStatus("error");
       }
     };
@@ -72,10 +82,15 @@ export default function DiagnosticsPage() {
       return () => {
         clearInterval(interval);
         socket.disconnect();
+        setSocketClient(null);
+        setSocketStatus("checking");
       };
     }
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setSocketClient(null);
+    };
   }, [user?.id]);
 
   return (
@@ -164,7 +179,7 @@ export default function DiagnosticsPage() {
         <div className="min-w-0">
           <h4 className="font-bold mb-1">Important Note About Data Detection</h4>
           <p className="text-sm text-st-text-secondary mb-4">
-            The tracking dashboard will intentionally display <b>"No tab detected"</b> or <b>"No app detected"</b> if the telemetry services are not running. For security and privacy reasons, web browsers sandbox websites and strictly prevent them from reading your other open tabs or desktop applications.
+            The tracking dashboard will intentionally display <b>&quot;No tab detected&quot;</b> or <b>&quot;No app detected&quot;</b> if the telemetry services are not running. For security and privacy reasons, web browsers sandbox websites and strictly prevent them from reading your other open tabs or desktop applications.
           </p>
           <div className="bg-st-bg-primary p-4 rounded-lg text-sm font-mono text-st-text-muted space-y-2 overflow-x-auto">
             <p>To enable live tracking, you must launch the agents locally:</p>

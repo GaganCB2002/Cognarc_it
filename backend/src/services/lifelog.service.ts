@@ -3,17 +3,17 @@ import path from "path";
 
 const LIFELOG_DIR = path.resolve(__dirname, "..", "..", "lifelogs");
 
-function ensureDir(dir: string) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+async function ensureDir(dir: string) {
+  try {
+    await fs.promises.mkdir(dir, { recursive: true });
+  } catch (err) {
+    console.error("[Lifelog] ensureDir error:", err);
   }
 }
 
 function getLogFilePath(userId: string): string {
   const date = new Date().toISOString().split("T")[0];
-  const userDir = path.join(LIFELOG_DIR, userId);
-  ensureDir(userDir);
-  return path.join(userDir, `${date}.jsonl`);
+  return path.join(LIFELOG_DIR, userId, `${date}.jsonl`);
 }
 
 export interface LifelogEntry {
@@ -30,18 +30,19 @@ function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 10)}`;
 }
 
-function writeEntry(entry: LifelogEntry): void {
+async function writeEntry(entry: LifelogEntry): Promise<void> {
   try {
     const filePath = getLogFilePath(entry.userId);
-    fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf-8");
+    await ensureDir(path.dirname(filePath));
+    await fs.promises.appendFile(filePath, JSON.stringify(entry) + "\n", "utf-8");
   } catch (err) {
     console.error("[Lifelog] Write error:", err);
   }
 }
 
 export const lifelog = {
-  transaction(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async transaction(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -52,8 +53,8 @@ export const lifelog = {
     });
   },
 
-  conversation(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async conversation(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -64,8 +65,8 @@ export const lifelog = {
     });
   },
 
-  tracking(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async tracking(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -76,8 +77,8 @@ export const lifelog = {
     });
   },
 
-  file(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async file(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -88,8 +89,8 @@ export const lifelog = {
     });
   },
 
-  auth(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async auth(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -100,8 +101,8 @@ export const lifelog = {
     });
   },
 
-  system(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
-    writeEntry({
+  async system(userId: string, action: string, summary: string, data: Record<string, unknown> = {}) {
+    await writeEntry({
       id: generateId(),
       timestamp: new Date().toISOString(),
       userId,
@@ -112,64 +113,91 @@ export const lifelog = {
     });
   },
 
-  getAllEntries(userId: string, options: { type?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): { entries: LifelogEntry[]; total: number } {
-    const userDir = path.join(LIFELOG_DIR, userId);
-    if (!fs.existsSync(userDir)) {
-      return { entries: [], total: 0 };
-    }
+  async getAllEntries(userId: string, options: { type?: string; from?: string; to?: string; limit?: number; offset?: number } = {}): Promise<{ entries: LifelogEntry[]; total: number }> {
+    try {
+      const userDir = path.join(LIFELOG_DIR, userId);
+      try {
+        await fs.promises.access(userDir);
+      } catch {
+        return { entries: [], total: 0 };
+      }
 
-    const files = fs.readdirSync(userDir).filter(f => f.endsWith(".jsonl")).sort();
-    const allEntries: LifelogEntry[] = [];
+      const files = (await fs.promises.readdir(userDir)).filter(f => f.endsWith(".jsonl")).sort();
+      const allEntries: LifelogEntry[] = [];
 
-    for (const file of files) {
-      const dateStr = file.replace(".jsonl", "");
-      if (options.from && dateStr < options.from) continue;
-      if (options.to && dateStr > options.to) continue;
+      for (const file of files) {
+        const dateStr = file.replace(".jsonl", "");
+        if (options.from && dateStr < options.from) continue;
+        if (options.to && dateStr > options.to) continue;
 
-      const filePath = path.join(userDir, file);
-      const content = fs.readFileSync(filePath, "utf-8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line) as LifelogEntry;
-          if (options.type && entry.type !== options.type) continue;
-          allEntries.push(entry);
-        } catch {
-          // skip malformed lines
+        const filePath = path.join(userDir, file);
+        const content = await fs.promises.readFile(filePath, "utf-8");
+        const lines = content.trim().split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const entry = JSON.parse(line) as LifelogEntry;
+            if (options.type && entry.type !== options.type) continue;
+            allEntries.push(entry);
+          } catch {
+            // skip malformed lines
+          }
         }
       }
+
+      allEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+      const total = allEntries.length;
+      const offset = options.offset || 0;
+      const limit = options.limit || 200;
+      const paginated = allEntries.slice(offset, offset + limit);
+
+      return { entries: paginated, total };
+    } catch (err) {
+      console.error("[Lifelog] getAllEntries error:", err);
+      return { entries: [], total: 0 };
     }
-
-    // newest first
-    allEntries.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-
-    const total = allEntries.length;
-    const offset = options.offset || 0;
-    const limit = options.limit || 200;
-    const paginated = allEntries.slice(offset, offset + limit);
-
-    return { entries: paginated, total };
   },
 
-  getAvailableDates(userId: string): string[] {
-    const userDir = path.join(LIFELOG_DIR, userId);
-    if (!fs.existsSync(userDir)) return [];
-    return fs.readdirSync(userDir)
-      .filter(f => f.endsWith(".jsonl"))
-      .map(f => f.replace(".jsonl", ""))
-      .sort();
-  },
-
-  getDatabaseSize(userId: string): number {
-    const userDir = path.join(LIFELOG_DIR, userId);
-    if (!fs.existsSync(userDir)) return 0;
-    const files = fs.readdirSync(userDir).filter(f => f.endsWith(".jsonl"));
-    return files.reduce((size, file) => {
+  async getAvailableDates(userId: string): Promise<string[]> {
+    try {
+      const userDir = path.join(LIFELOG_DIR, userId);
       try {
-        return size + fs.statSync(path.join(userDir, file)).size;
+        await fs.promises.access(userDir);
       } catch {
-        return size;
+        return [];
       }
-    }, 0);
+      return (await fs.promises.readdir(userDir))
+        .filter(f => f.endsWith(".jsonl"))
+        .map(f => f.replace(".jsonl", ""))
+        .sort();
+    } catch (err) {
+      console.error("[Lifelog] getAvailableDates error:", err);
+      return [];
+    }
+  },
+
+  async getDatabaseSize(userId: string): Promise<number> {
+    try {
+      const userDir = path.join(LIFELOG_DIR, userId);
+      try {
+        await fs.promises.access(userDir);
+      } catch {
+        return 0;
+      }
+      const files = (await fs.promises.readdir(userDir)).filter(f => f.endsWith(".jsonl"));
+      let size = 0;
+      for (const file of files) {
+        try {
+          const stat = await fs.promises.stat(path.join(userDir, file));
+          size += stat.size;
+        } catch {
+          // skip file stat errors
+        }
+      }
+      return size;
+    } catch (err) {
+      console.error("[Lifelog] getDatabaseSize error:", err);
+      return 0;
+    }
   },
 };

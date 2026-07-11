@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {},
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
@@ -13,11 +12,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'date-fns', 'framer-motion'],
   },
-  webpack: (config) => {
-    config.resolve.alias.canvas = false;
-    config.resolve.alias.encoding = false;
-    return config;
-  },
   serverExternalPackages: ['canvas'],
   headers: async () => [
     {
@@ -25,6 +19,7 @@ const nextConfig: NextConfig = {
       headers: [
         { key: 'X-DNS-Prefetch-Control', value: 'on' },
         { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Cache-Control', value: 'no-store, must-revalidate' },
       ],
     },
     {

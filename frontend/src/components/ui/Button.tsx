@@ -1,5 +1,14 @@
-import React from "react";
+"use client";
+// cache-buster
+
+import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+
+interface Ripple {
+  id: number;
+  x: number;
+  y: number;
+}
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger" | "outline";
@@ -7,26 +16,53 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", onClick, ...props }, ref) => {
+    const [ripples, setRipples] = useState<Ripple[]>([]);
+
+    const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const id = Date.now();
+      setRipples(prev => [...prev, { id, x, y }]);
+      setTimeout(() => setRipples(prev => prev.filter(r => r.id !== id)), 600);
+      onClick?.(e);
+    }, [onClick]);
+
     return (
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-st-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-st-bg-primary disabled:pointer-events-none disabled:opacity-40 select-none",
+          "relative inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-st-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-st-bg-primary disabled:pointer-events-none disabled:opacity-40 select-none",
           {
-            "bg-gradient-to-b from-st-accent to-st-accent-hover text-black hover:from-st-accent-hover hover:to-st-accent shadow-lg shadow-st-accent/15 hover:shadow-st-accent/25 active:shadow-md active:translate-y-px": variant === "primary",
-            "bg-st-bg-elevated text-st-text-primary border border-st-border hover:bg-st-border hover:border-st-border-light active:bg-st-bg-card shadow-sm": variant === "secondary",
-            "border border-st-border bg-transparent text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated hover:border-st-border-light active:bg-st-bg-card": variant === "outline",
-            "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated active:bg-st-bg-card": variant === "ghost",
-            "bg-gradient-to-b from-st-danger to-red-600 text-white hover:from-red-600 hover:to-st-danger shadow-lg shadow-st-danger/15 hover:shadow-st-danger/25 active:shadow-md active:translate-y-px": variant === "danger",
+            "bg-gradient-to-b from-st-accent to-st-accent-hover text-white hover:from-st-accent-hover hover:to-st-accent hover:-translate-y-0.5 shadow-lg shadow-st-accent/20 hover:shadow-st-accent/30 active:shadow-md active:translate-y-px": variant === "primary",
+            "bg-st-bg-elevated/80 text-st-text-primary border border-st-border hover:bg-st-bg-card hover:-translate-y-0.5 active:bg-st-bg-elevated shadow-sm": variant === "secondary",
+            "border border-st-border bg-transparent text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/50 active:bg-st-bg-card": variant === "outline",
+            "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/50 active:bg-st-bg-card": variant === "ghost",
+            "bg-gradient-to-b from-st-danger to-red-500 text-white hover:from-red-500 hover:to-st-danger hover:-translate-y-0.5 shadow-lg shadow-st-danger/20 hover:shadow-st-danger/30 active:shadow-md active:translate-y-px": variant === "danger",
             "h-8 px-3 text-xs gap-1.5": size === "sm",
             "h-10 px-4 text-sm gap-2": size === "md",
             "h-12 px-6 text-base gap-2.5": size === "lg",
           },
           className
         )}
+        onClick={handleClick}
         {...props}
-      />
+      >
+        {ripples.map(ripple => (
+          <span
+            key={ripple.id}
+            className="absolute pointer-events-none rounded-full bg-white/25 animate-[ripple_0.6s_ease-out]"
+            style={{
+              left: ripple.x - 10,
+              top: ripple.y - 10,
+              width: 20,
+              height: 20,
+            }}
+          />
+        ))}
+        {props.children}
+      </button>
     );
   }
 );

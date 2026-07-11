@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -14,8 +14,44 @@ import {
   Database, Upload, Search, Star, Grid, List, FileText, Video, Image,
   Link2, Code, FolderOpen, Heart, Trash2, ExternalLink,
   Clock, RefreshCw, AlertCircle, Plus, X, Globe,
-  FileSpreadsheet, File, FileArchive, Music
+  Music, Download, Edit3
 } from "lucide-react";
+import NextImage from "next/image";
+import { ActionMenu } from "@/components/crud/ActionMenu";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { downloadFile, copyLink, shareResource } from "@/components/crud/crudHelpers";
+import toast from "react-hot-toast";
+
+type RawUpload = {
+  id: string;
+  name?: string;
+  originalName?: string;
+  title?: string;
+  mimeType?: string;
+  size?: number;
+  type?: string;
+  status?: string;
+  folder?: string | null;
+  tags?: string[];
+  isFavorite?: boolean;
+  resourceId?: string | null;
+  publicUrl?: string | null;
+  uploadedAt?: string;
+  createdAt?: string;
+};
+
+type RawResource = {
+  id: string;
+  title?: string;
+  url?: string;
+  mimeType?: string;
+  fileSize?: number;
+  type?: string;
+  tags?: string[];
+  isFavorite?: boolean;
+  isUpload?: boolean;
+  createdAt?: string;
+};
 
 type FileItem = {
   id: string;
@@ -150,6 +186,9 @@ export default function KnowledgeVaultPage() {
   const [videoViewer, setVideoViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
   const [documentViewer, setDocumentViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
 
+  const [confirmDelete, setConfirmDelete] = useState<FileItem | null>(null);
+  const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
 
   const fetchFiles = async () => {
@@ -157,16 +196,16 @@ export default function KnowledgeVaultPage() {
     setError(null);
     try {
       const [uploaded, resources] = await Promise.all([
-        api.get<any[]>("/upload/my-files").catch(() => [] as any[]),
-        api.get<any[]>("/resources").catch(() => [] as any[]),
+        api.get<RawUpload[]>("/upload/my-files").catch(() => [] as RawUpload[]),
+        api.get<RawResource[]>("/resources").catch(() => [] as RawResource[]),
       ]);
-      const uploadedFiles: FileItem[] = (uploaded || []).map((r: any) => ({
+      const uploadedFiles: FileItem[] = (uploaded || []).map((r: RawUpload) => ({
         id: r.id,
         name: r.name || r.originalName || "",
         title: r.title || r.originalName || "Untitled",
         mimeType: r.mimeType || "",
         size: r.size || 0,
-        type: r.type || getFileTypeFromMime(r.mimeType),
+        type: (r.type || getFileTypeFromMime(r.mimeType || "")) as FileItem["type"],
         status: r.status || "READY",
         folder: r.folder || null,
         tags: r.tags || [],
@@ -176,14 +215,14 @@ export default function KnowledgeVaultPage() {
         uploadedAt: r.uploadedAt || r.createdAt || new Date().toISOString(),
       }));
       const resourceFiles: FileItem[] = (resources || [])
-        .filter((r: any) => !r.isUpload)
-        .map((r: any) => ({
+        .filter((r: RawResource) => !r.isUpload)
+        .map((r: RawResource) => ({
           id: r.id,
           name: r.title || r.url || "Untitled",
           title: r.title || r.url || "Untitled",
           mimeType: r.mimeType || "",
           size: r.fileSize || 0,
-          type: r.type || "LINK",
+          type: (r.type || "LINK") as FileItem["type"],
           status: "READY",
           folder: null,
           tags: r.tags || [],
@@ -193,8 +232,8 @@ export default function KnowledgeVaultPage() {
           uploadedAt: r.createdAt || new Date().toISOString(),
         }));
       setFiles([...uploadedFiles, ...resourceFiles]);
-    } catch (err: any) {
-      setError(err.message || "Failed to load files");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load files");
     } finally {
       setLoading(false);
     }
@@ -268,15 +307,16 @@ export default function KnowledgeVaultPage() {
       setUrlTitle("");
       setUrlError(null);
       await fetchFiles();
-    } catch (err: any) {
-      setUrlError(err.message || "Failed to add URL");
+    } catch (err: unknown) {
+      setUrlError(err instanceof Error ? err.message : "Failed to add URL");
     } finally {
       setAddingUrl(false);
     }
   };
 
-  const handleDelete = async (file: FileItem) => {
-    if (!confirm("Delete this file permanently?")) return;
+  const handleDeleteConfirm = async () => {
+    if (!confirmDelete) return;
+    const file = confirmDelete;
     try {
       if (file.resourceId) {
         await api.delete(`/resources/${file.resourceId}`);
@@ -284,8 +324,31 @@ export default function KnowledgeVaultPage() {
         await api.delete(`/upload/${file.id}`);
       }
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
-    } catch (err: any) {
-      setError(err.message || "Delete failed");
+      toast.success("Deleted successfully");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
+
+  const handleRename = async () => {
+    if (!renameTarget || !renameValue.trim()) return;
+    try {
+      if (renameTarget.resourceId) {
+        await api.put(`/resources/${renameTarget.resourceId}`, { title: renameValue.trim() });
+      } else {
+        await api.patch(`/upload/${renameTarget.id}/metadata`, { title: renameValue.trim() });
+      }
+      setFiles((prev) =>
+        prev.map((f) => (f.id === renameTarget.id ? { ...f, title: renameValue.trim() } : f))
+      );
+      toast.success("Renamed successfully");
+    } catch {
+      toast.error("Rename failed");
+    } finally {
+      setRenameTarget(null);
+      setRenameValue("");
     }
   };
 
@@ -299,7 +362,7 @@ export default function KnowledgeVaultPage() {
       setFiles((prev) =>
         prev.map((f) => (f.id === file.id ? { ...f, isFavorite: !f.isFavorite } : f))
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Toggle favorite error:", err);
     }
   };
@@ -478,23 +541,29 @@ export default function KnowledgeVaultPage() {
                       <Icon className={`w-5 h-5 ${getFileTypeColor(file.type)}`} />
                     )}
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
-                      <Star className={`w-4 h-4 ${file.isFavorite ? "fill-st-accent text-st-accent" : "text-st-text-muted"}`} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(file); }} className="hover:text-st-danger transition-colors">
-                      <Trash2 className="w-4 h-4 text-st-text-muted" />
-                    </button>
-                  </div>
+                  <ActionMenu
+                    actions={[
+                      { id: "view", label: "View", icon: ExternalLink, onClick: () => handleFileClick(file) },
+                      { id: "download", label: "Download", icon: Download, onClick: () => downloadFile(file.id, file.name) },
+                      ...(file.type !== "LINK" ? [{ id: "rename", label: "Rename", icon: Edit3, onClick: () => { setRenameTarget(file); setRenameValue(file.title); } }] : []),
+                      { id: "copy-link", label: "Copy Link", icon: Link2, onClick: () => copyLink(file.id) },
+                      { id: "share", label: "Share", icon: Heart, onClick: () => shareResource(file.title, `${BASE}/upload/${file.id}`) },
+                      { id: "favorite", label: file.isFavorite ? "Unfavorite" : "Favorite", icon: Star, variant: "warning" as const, onClick: () => handleToggleFavorite(file) },
+                      { id: "delete", label: "Delete", icon: Trash2, variant: "danger" as const, divider: true, onClick: () => setConfirmDelete(file) },
+                    ]}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
                 </div>
 
                 {/* YouTube thumbnail for LINK type */}
                 {file.type === "LINK" && ytInfo.isYt && ytInfo.videoId && (
                   <div className="mb-3 rounded-lg overflow-hidden bg-st-bg-primary aspect-video relative">
-                    <img
+                    <NextImage
                       src={`https://img.youtube.com/vi/${ytInfo.videoId}/mqdefault.jpg`}
                       alt={file.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized
+                      className="object-cover"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -510,9 +579,12 @@ export default function KnowledgeVaultPage() {
                 {/* Favicon for LINK type */}
                 {file.type === "LINK" && !ytInfo.isYt && file.publicUrl && (
                   <div className="mb-2 flex items-center gap-2">
-                    <img
+                    <NextImage
                       src={getFaviconUrl(file.publicUrl)}
                       alt=""
+                      width={16}
+                      height={16}
+                      unoptimized
                       className="w-4 h-4 rounded"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
@@ -569,7 +641,7 @@ export default function KnowledgeVaultPage() {
                     {file.type === "LINK" && file.publicUrl && (
                       <div className="flex items-center gap-1.5 mb-0.5">
                         {!ytInfo.isYt && (
-                          <img src={getFaviconUrl(file.publicUrl)} alt="" className="w-3 h-3 rounded"
+                          <NextImage src={getFaviconUrl(file.publicUrl)} alt="" width={12} height={12} unoptimized className="w-3 h-3 rounded"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                         )}
                         <span className="text-[10px] text-st-text-muted">{getDomainFromUrl(file.publicUrl)}</span>
@@ -582,24 +654,18 @@ export default function KnowledgeVaultPage() {
                       {formatDate(file.uploadedAt)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); handleToggleFavorite(file); }}>
-                      <Star className={`w-4 h-4 ${file.isFavorite ? "fill-st-accent text-st-accent" : "text-st-text-muted hover:text-st-accent"}`} />
-                    </button>
-                    {file.type === "LINK" && file.publicUrl && (
-                      <button onClick={(e) => { e.stopPropagation(); window.open(file.publicUrl!, "_blank", "noopener,noreferrer"); }}>
-                        <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
-                      </button>
-                    )}
-                    {file.type !== "LINK" && (
-                      <button onClick={(e) => { e.stopPropagation(); window.open(`${BASE}/upload/${file.id}`, "_blank"); }}>
-                        <ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" />
-                      </button>
-                    )}
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(file); }}>
-                      <Trash2 className="w-4 h-4 text-st-text-muted hover:text-st-danger" />
-                    </button>
-                  </div>
+                  <ActionMenu
+                    actions={[
+                      { id: "view", label: "View", icon: ExternalLink, onClick: () => handleFileClick(file) },
+                      { id: "download", label: "Download", icon: Download, onClick: () => downloadFile(file.id, file.name) },
+                      ...(file.type !== "LINK" ? [{ id: "rename", label: "Rename", icon: Edit3, onClick: () => { setRenameTarget(file); setRenameValue(file.title); } }] : []),
+                      { id: "copy-link", label: "Copy Link", icon: Link2, onClick: () => copyLink(file.id) },
+                      { id: "share", label: "Share", icon: Heart, onClick: () => shareResource(file.title, `${BASE}/upload/${file.id}`) },
+                      { id: "favorite", label: file.isFavorite ? "Unfavorite" : "Favorite", icon: Star, variant: "warning" as const, onClick: () => handleToggleFavorite(file) },
+                      { id: "delete", label: "Delete", icon: Trash2, variant: "danger" as const, divider: true, onClick: () => setConfirmDelete(file) },
+                    ]}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
                   {file.type === "LINK" ? (
                     <span className="text-[10px] text-blue-400 font-medium">LINK</span>
                   ) : (
@@ -648,7 +714,7 @@ export default function KnowledgeVaultPage() {
               {/* URL preview */}
               {isValidUrl(urlInput) && (
                 <div className="bg-st-bg-elevated rounded-lg p-3 border border-st-border flex items-center gap-3">
-                  <img src={getFaviconUrl(urlInput)} alt="" className="w-5 h-5 rounded"
+                  <NextImage src={getFaviconUrl(urlInput)} alt="" width={20} height={20} unoptimized className="w-5 h-5 rounded"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-st-text-primary truncate font-medium">{urlTitle || urlInput}</p>
@@ -676,6 +742,45 @@ export default function KnowledgeVaultPage() {
         onClose={() => setShowUploadModal(false)}
         onUploadSuccess={fetchFiles}
       />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Delete File"
+        message="This action cannot be undone. The file will be permanently removed from storage."
+        itemName={confirmDelete?.title}
+        confirmLabel="Delete"
+        variant="danger"
+      />
+
+      {/* Rename Modal */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => { setRenameTarget(null); setRenameValue(""); }}>
+          <Card className="w-full max-w-sm p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-st-text-primary">Rename File</h3>
+              <button onClick={() => { setRenameTarget(null); setRenameValue(""); }} className="text-st-text-muted hover:text-st-text-primary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs text-st-text-muted mb-1">New Name</label>
+              <input
+                type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleRename(); if (e.key === "Escape") { setRenameTarget(null); setRenameValue(""); } }}
+                className="w-full px-3 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="ghost" size="sm" onClick={() => { setRenameTarget(null); setRenameValue(""); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={handleRename} disabled={!renameValue.trim()}>Rename</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,13 +3,30 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Settings as SettingsIcon, User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, ChevronRight, Save, LogOut, CheckCircle2, ScanFace, Camera } from "lucide-react";
+import Image from "next/image";
+import { User, Shield, Bell, Palette, Globe, Brain, Eye, Link2, Database, Activity, Moon, Sun, Monitor, Save, LogOut, CheckCircle2, ScanFace, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useTheme } from "@/lib/theme-context";
 import { api } from "@/lib/api";
+
+type BlendshapeCategory = {
+  categoryName: string;
+  score: number;
+};
+
+type AppSettings = {
+  appearance: { theme: string; accentColor: string };
+  notifications: { taskReminders: boolean; learningStreak: boolean; aiRecommendations: boolean; weeklyReport: boolean; achievementAlerts: boolean };
+  language: string;
+  ai: { autoSuggestions: boolean; smartSummaries: boolean; interviewPrep: boolean };
+  privacy: { dataSharing: boolean; analyticsOptIn: boolean; publicProfile: boolean };
+  tracking: { desktopAgent: boolean; browserExtension: boolean; idleDetection: boolean };
+  auth: { passwordLogin: boolean; otpLogin: boolean; faceLogin: boolean };
+};
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
+  const { setTheme } = useTheme();
   const [activeSection, setActiveSection] = useState("profile");
   
   // States
@@ -37,8 +54,8 @@ export default function SettingsPage() {
     confirmPassword: ""
   });
 
-  const [settings, setSettings] = useState<any>({
-    appearance: { theme: "dark", accentColor: "#FFCF70" },
+  const [settings, setSettings] = useState<AppSettings>({
+    appearance: { theme: "light", accentColor: "#D4A373" },
     notifications: {
       taskReminders: true,
       learningStreak: true,
@@ -67,7 +84,7 @@ export default function SettingsPage() {
 
   // Blink Detection
   const [blinkCount, setBlinkCount] = useState(0);
-  const faceLandmarkerRef = useRef<any>(null);
+  const faceLandmarkerRef = useRef<{ detectForVideo: (video: HTMLVideoElement, startTimeMs: number) => { faceBlendshapes?: { categories: BlendshapeCategory[] }[] } } | null>(null);
   const requestRef = useRef<number | null>(null);
   const blinkCountRef = useRef(0);
   const cameraActiveRef = useRef(false);
@@ -111,9 +128,10 @@ export default function SettingsPage() {
 
   // Cleanup camera on unmount
   useEffect(() => {
+    const video = videoRef.current;
     return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
+      if (video?.srcObject) {
+        const stream = video.srcObject as MediaStream;
         stream.getTracks().forEach(t => t.stop());
       }
     };
@@ -188,8 +206,8 @@ export default function SettingsPage() {
              
              if (results.faceBlendshapes && results.faceBlendshapes.length > 0) {
                  const blendshapes = results.faceBlendshapes[0].categories;
-                 const leftEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkLeft')?.score || 0;
-                 const rightEye = blendshapes.find((b: any) => b.categoryName === 'eyeBlinkRight')?.score || 0;
+                  const leftEye = blendshapes.find((b: BlendshapeCategory) => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+                  const rightEye = blendshapes.find((b: BlendshapeCategory) => b.categoryName === 'eyeBlinkRight')?.score || 0;
                  
                  const isCurrentlyBlinking = leftEye > 0.4 && rightEye > 0.4;
                  
@@ -229,8 +247,8 @@ export default function SettingsPage() {
       await api.put("/auth/enroll-face", { faceImage });
       setFaceEnrolled(true);
       showSuccess("Face enrolled successfully!");
-    } catch (err: any) {
-      showError(err.message || "Failed to enroll face");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to enroll face");
       setFaceImage(null);
     } finally {
       setFaceSaving(false);
@@ -250,38 +268,37 @@ export default function SettingsPage() {
     { key: "tracking", label: "Activity Tracking", icon: Activity },
   ];
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const meRes = await api.get<any>("/auth/me");
-      const settingsRes = await api.get<any>("/auth/settings");
-      
-      const u = meRes.user;
-      const p = u.profile || {};
-      setProfileData({
-        name: u.name || "",
-        bio: p.bio || "",
-        targetRole: p.targetRole || "",
-        currentLevel: p.currentLevel || "",
-        weeklyHours: p.weeklyHours || 0,
-        timezone: p.timezone || "UTC",
-        skills: p.skills || [],
-        githubUrl: p.githubUrl || "",
-        linkedinUrl: p.linkedinUrl || "",
-        portfolioUrl: p.portfolioUrl || "",
-      });
-
-      if (settingsRes.settings && Object.keys(settingsRes.settings).length > 0) {
-        setSettings({ ...settings, ...settingsRes.settings });
-      }
-    } catch (error) {
-      console.error("Failed to load settings:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const meRes = await api.get<{ user: { name: string; profile?: { bio?: string; targetRole?: string; currentLevel?: string; weeklyHours?: number; timezone?: string; skills?: string[]; githubUrl?: string; linkedinUrl?: string; portfolioUrl?: string } } }>("/auth/me");
+        const settingsRes = await api.get<{ settings: AppSettings }>("/auth/settings");
+
+        const u = meRes.user;
+        const p = u.profile || {};
+        setProfileData({
+          name: u.name || "",
+          bio: p.bio || "",
+          targetRole: p.targetRole || "",
+          currentLevel: p.currentLevel || "",
+          weeklyHours: p.weeklyHours || 0,
+          timezone: p.timezone || "UTC",
+          skills: p.skills || [],
+          githubUrl: p.githubUrl || "",
+          linkedinUrl: p.linkedinUrl || "",
+          portfolioUrl: p.portfolioUrl || "",
+        });
+
+        if (settingsRes.settings && Object.keys(settingsRes.settings).length > 0) {
+          setSettings(settingsRes.settings);
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchData();
   }, []);
 
@@ -303,8 +320,8 @@ export default function SettingsPage() {
       await api.put("/auth/profile", { avatar: dataUrl });
       showSuccess("Avatar updated! If a face was detected, it is now enrolled for face login.");
       if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch (err: any) {
-      showError(err.message || "Failed to upload avatar");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to upload avatar");
     } finally {
       setAvatarUploading(false);
     }
@@ -315,27 +332,27 @@ export default function SettingsPage() {
     try {
       await api.put("/auth/profile", profileData);
       showSuccess("Profile updated successfully!");
-    } catch (err: any) {
-      showError(err.message || "Failed to update profile");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to update profile");
     } finally {
       setSaving(false);
     }
   };
 
-  const saveSettings = async (newSettings: any) => {
+  const saveSettings = async (newSettings: AppSettings) => {
     try {
       await api.put("/auth/settings", { settings: newSettings });
       setSettings(newSettings);
       showSuccess("Settings saved");
-    } catch (err: any) {
+    } catch {
       showError("Failed to save settings");
     }
   };
 
-  const updateSettingField = (category: string, field: string, value: any) => {
+  const updateSettingField = (category: keyof AppSettings, field: string, value: boolean | string) => {
     const newSettings = { 
       ...settings, 
-      [category]: { ...settings[category], [field]: value } 
+      [category]: { ...(settings[category] as Record<string, boolean | string>), [field]: value } 
     };
     setSettings(newSettings);
     // Auto-save on toggle
@@ -355,8 +372,8 @@ export default function SettingsPage() {
       });
       setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
       showSuccess("Password changed successfully");
-    } catch (err: any) {
-      showError(err.message || "Failed to change password");
+    } catch (err: unknown) {
+      showError(err instanceof Error ? err.message : "Failed to change password");
     } finally {
       setSaving(false);
     }
@@ -366,7 +383,7 @@ export default function SettingsPage() {
     try {
       showSuccess("Initiating export...");
       // Add export logic here when implemented on backend
-    } catch (err) {
+    } catch {
       showError("Failed to export data");
     }
   };
@@ -417,7 +434,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-6">
                 <div className="w-20 h-20 rounded-full bg-st-bg-elevated flex items-center justify-center border-2 border-st-accent/30 overflow-hidden">
                   {user?.avatar ? (
-                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                    <Image src={user.avatar} alt="Avatar" width={80} height={80} unoptimized className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-8 h-8 text-st-text-muted" />
                   )}
@@ -501,12 +518,12 @@ export default function SettingsPage() {
                     { icon: Moon, label: "dark", display: "Dark" },
                     { icon: Sun, label: "light", display: "Light" },
                     { icon: Monitor, label: "system", display: "System" },
-                  ].map((theme, i) => {
-                    const isActive = settings.appearance.theme === theme.label;
+                  ].map((t, i) => {
+                    const isActive = settings.appearance.theme === t.label;
                     return (
-                      <button key={i} onClick={() => updateSettingField("appearance", "theme", theme.label)}
+                      <button key={i} onClick={() => { setTheme(t.label); updateSettingField("appearance", "theme", t.label); }}
                         className={`px-6 py-3 rounded-lg border text-sm font-medium flex items-center gap-2 transition-colors ${isActive ? "bg-st-accent/10 border-st-accent/30 text-st-accent" : "bg-st-bg-elevated border-st-border text-st-text-secondary hover:bg-st-bg-secondary"}`}>
-                        <theme.icon className="w-4 h-4" />{theme.display}
+                        <t.icon className="w-4 h-4" />{t.display}
                       </button>
                     )
                   })}
@@ -532,11 +549,11 @@ export default function SettingsPage() {
             <Card className="p-6 space-y-6">
               <h3 className="text-lg font-bold text-st-text-primary">Notification Preferences</h3>
               {[
-                { key: "taskReminders", label: "Task Reminders", desc: "Get notified before task deadlines" },
-                { key: "learningStreak", label: "Learning Streak", desc: "Daily reminder to maintain your streak" },
-                { key: "aiRecommendations", label: "AI Recommendations", desc: "New learning suggestions from AI" },
-                { key: "weeklyReport", label: "Weekly Report", desc: "Automated weekly productivity summary" },
-                { key: "achievementAlerts", label: "Achievement Alerts", desc: "Celebrate milestones and achievements" },
+                { key: "taskReminders" as const, label: "Task Reminders", desc: "Get notified before task deadlines" },
+                { key: "learningStreak" as const, label: "Learning Streak", desc: "Daily reminder to maintain your streak" },
+                { key: "aiRecommendations" as const, label: "AI Recommendations", desc: "New learning suggestions from AI" },
+                { key: "weeklyReport" as const, label: "Weekly Report", desc: "Automated weekly productivity summary" },
+                { key: "achievementAlerts" as const, label: "Achievement Alerts", desc: "Celebrate milestones and achievements" },
               ].map((n, i) => {
                 const enabled = settings.notifications[n.key];
                 return (
@@ -586,9 +603,9 @@ export default function SettingsPage() {
                 </h4>
                 <p className="text-xs text-st-text-muted mb-4">Enable or disable sign-in methods for your account.</p>
                 {[
-                  { key: "passwordLogin", label: "Password Login", desc: "Sign in using your email and password" },
-                  { key: "otpLogin", label: "OTP / Email Login", desc: "Sign in using a one-time code sent to your email" },
-                  { key: "faceLogin", label: "Face Login", desc: "Sign in using facial recognition" },
+                  { key: "passwordLogin" as const, label: "Password Login", desc: "Sign in using your email and password" },
+                  { key: "otpLogin" as const, label: "OTP / Email Login", desc: "Sign in using a one-time code sent to your email" },
+                  { key: "faceLogin" as const, label: "Face Login", desc: "Sign in using facial recognition" },
                 ].map((n, i) => {
                   const enabled = settings.auth?.[n.key];
                   return (
@@ -640,7 +657,7 @@ export default function SettingsPage() {
                 ) : (
                   <div className="text-center py-4 bg-st-bg-elevated rounded-lg border border-st-border">
                     <div className="inline-block rounded-lg overflow-hidden border-2 border-emerald-500/50 mb-2">
-                      <img src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" className="w-24 h-24 object-cover" />
+                      <Image src={`data:image/jpeg;base64,${faceImage}`} alt="Captured face" width={96} height={96} unoptimized className="w-24 h-24 object-cover" />
                     </div>
                     <p className="text-xs text-emerald-400 mb-2 flex items-center justify-center gap-1">
                       <CheckCircle2 className="w-3 h-3" /> Face captured
@@ -686,9 +703,9 @@ export default function SettingsPage() {
             <Card className="p-6 space-y-6">
               <h3 className="text-lg font-bold text-st-text-primary">AI Preferences</h3>
               {[
-                { key: "autoSuggestions", label: "Auto-Suggestions", desc: "AI assists with writing code and notes" },
-                { key: "smartSummaries", label: "Smart Summaries", desc: "Automatically summarize long documents" },
-                { key: "interviewPrep", label: "Interview Prep Mode", desc: "Tailor AI responses for interview readiness" },
+                { key: "autoSuggestions" as const, label: "Auto-Suggestions", desc: "AI assists with writing code and notes" },
+                { key: "smartSummaries" as const, label: "Smart Summaries", desc: "Automatically summarize long documents" },
+                { key: "interviewPrep" as const, label: "Interview Prep Mode", desc: "Tailor AI responses for interview readiness" },
               ].map((n, i) => {
                 const enabled = settings.ai?.[n.key];
                 return (
@@ -711,9 +728,9 @@ export default function SettingsPage() {
             <Card className="p-6 space-y-6">
               <h3 className="text-lg font-bold text-st-text-primary">Privacy Settings</h3>
               {[
-                { key: "dataSharing", label: "Anonymous Data Sharing", desc: "Help improve the product by sharing usage stats" },
-                { key: "analyticsOptIn", label: "Personal Analytics", desc: "Allow system to analyze your study patterns" },
-                { key: "publicProfile", label: "Public Profile", desc: "Allow others to see your public achievements" },
+                { key: "dataSharing" as const, label: "Anonymous Data Sharing", desc: "Help improve the product by sharing usage stats" },
+                { key: "analyticsOptIn" as const, label: "Personal Analytics", desc: "Allow system to analyze your study patterns" },
+                { key: "publicProfile" as const, label: "Public Profile", desc: "Allow others to see your public achievements" },
               ].map((n, i) => {
                 const enabled = settings.privacy?.[n.key];
                 return (
@@ -769,9 +786,9 @@ export default function SettingsPage() {
                 <Activity className="w-5 h-5 text-st-accent" /> Activity Tracking
               </h3>
               {[
-                { key: "desktopAgent", label: "Desktop Agent Integration", desc: "Allow tracking from local Desktop Agent" },
-                { key: "browserExtension", label: "Browser Extension Integration", desc: "Allow tracking from Chrome Extension" },
-                { key: "idleDetection", label: "Smart Idle Detection", desc: "Automatically pause sessions when inactive" },
+                { key: "desktopAgent" as const, label: "Desktop Agent Integration", desc: "Allow tracking from local Desktop Agent" },
+                { key: "browserExtension" as const, label: "Browser Extension Integration", desc: "Allow tracking from Chrome Extension" },
+                { key: "idleDetection" as const, label: "Smart Idle Detection", desc: "Automatically pause sessions when inactive" },
               ].map((n, i) => {
                 const enabled = settings.tracking?.[n.key];
                 return (

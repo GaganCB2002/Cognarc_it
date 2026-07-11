@@ -6,6 +6,24 @@ const RESET_TOKEN_EXPIRY_MINUTES = 15;
 const otpStore = new Map<string, { otp: string; userId: string; expiresAt: number; used: boolean }>();
 const resetTokenStore = new Map<string, { userId: string; expiresAt: number; used: boolean }>();
 
+// Periodic cleanup of expired OTPs and reset tokens every 60 seconds
+const cleanupTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of otpStore.entries()) {
+    if (record.expiresAt < now) {
+      otpStore.delete(key);
+    }
+  }
+  for (const [token, record] of resetTokenStore.entries()) {
+    if (record.expiresAt < now) {
+      resetTokenStore.delete(token);
+    }
+  }
+}, 60000);
+if (cleanupTimer.unref) {
+  cleanupTimer.unref();
+}
+
 export function generateOTP(userId: string): { otp: string; key: string } {
   const existing = Array.from(otpStore.entries()).find(
     ([_, v]) => v.userId === userId && v.expiresAt > Date.now() && !v.used

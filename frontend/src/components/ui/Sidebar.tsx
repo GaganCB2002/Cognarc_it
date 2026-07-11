@@ -7,13 +7,9 @@ import {
   LayoutDashboard,
   BookOpen,
   Calendar as CalendarIcon,
-  TrendingUp,
-  HelpCircle,
-  LogOut,
   CheckSquare,
   FileText,
   Database,
-  Bot,
   FileSearch,
   Video,
   BarChart,
@@ -23,18 +19,26 @@ import {
   Settings,
   User,
   Menu,
-  X,
   Shield,
   Server,
   ChevronLeft,
+  BrainCircuit,
+  MessageCircle,
+  HelpCircle,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { SidebarSessionPanel } from "@/components/dashboard/SidebarSessionPanel";
 import { useAuth } from "@/lib/auth-context";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+}
+
+const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Tracking", href: "/tracking", icon: Activity },
   { name: "Diagnostics", href: "/diagnostics", icon: Server },
@@ -43,13 +47,14 @@ const navigation = [
   { name: "Tasks", href: "/tasks", icon: CheckSquare },
   { name: "Notes", href: "/notes", icon: FileText },
   { name: "Knowledge Vault", href: "/knowledge-vault", icon: Database },
-  { name: "StudyBot", href: "#", icon: Bot, chatbot: true },
   { name: "PDF Intelligence", href: "/pdf-intelligence", icon: FileSearch },
   { name: "Video Intelligence", href: "/video-intelligence", icon: Video },
   { name: "Reports", href: "/reports", icon: BarChart },
   { name: "Analytics", href: "/analytics", icon: PieChart },
   { name: "Productivity", href: "/productivity", icon: Activity },
   { name: "Career", href: "/career", icon: Briefcase },
+  { name: "Interview Hub", href: "/interview-hub", icon: BrainCircuit },
+  { name: "Contact Us", href: "/contact-us", icon: MessageCircle },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "Profile", href: "/profile", icon: User },
 ];
@@ -70,7 +75,7 @@ function useMediaQuery(query: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
@@ -89,16 +94,12 @@ export function Sidebar() {
   }, [isTablet, isMobile]);
 
   useEffect(() => {
-    if (isMobile) {
-      setMobileOpen(false);
-    }
+    if (isMobile) setMobileOpen(false);
   }, [pathname, isMobile, setMobileOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isMobileOpen) {
-        setMobileOpen(false);
-      }
+      if (e.key === "Escape" && isMobileOpen) setMobileOpen(false);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -119,18 +120,19 @@ export function Sidebar() {
       ref={sidebarRef}
       role="navigation"
       aria-label="Main navigation"
+      style={{ willChange: "width" }}
       className={cn(
-        "flex flex-col shrink-0 h-full transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        "bg-gradient-to-b from-st-bg-secondary via-st-bg-secondary to-st-bg-card border-r border-st-border/80",
+        "flex flex-col shrink-0 h-full transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+        "bg-st-bg-sidebar border-r border-st-border",
         isCollapsed ? "w-[68px]" : "w-64"
       )}
     >
-      {/* Logo / Header */}
-      <div className={cn("flex items-center border-b border-st-border/50 shrink-0", isCollapsed ? "p-3 justify-center" : "p-4 justify-between")}>
+      <div className={cn("flex items-center shrink-0 relative", isCollapsed ? "p-3 justify-center" : "p-4 justify-between")}>
+        <div className="absolute bottom-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-st-border to-transparent" />
         {!isCollapsed && (
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-lg shadow-st-accent/15 shrink-0 group-hover:shadow-st-accent/25 transition-shadow">
-              <span className="font-bold text-black text-sm">S</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-lg shadow-st-accent/15 shrink-0 group-hover:shadow-st-accent/25 transition-shadow duration-200">
+              <span className="font-bold text-white text-sm">S</span>
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold tracking-tight text-st-text-primary leading-tight">StudyTrack</span>
@@ -141,7 +143,7 @@ export function Sidebar() {
         {isCollapsed && (
           <Link href="/dashboard" className="flex items-center justify-center">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-lg shadow-st-accent/15">
-              <span className="font-bold text-black text-sm">S</span>
+              <span className="font-bold text-white text-sm">S</span>
             </div>
           </Link>
         )}
@@ -158,88 +160,36 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto overflow-x-hidden">
-        {dynamicNavigation.map((item: any) => {
-          const isActive = !item.chatbot && (pathname === item.href || pathname?.startsWith(`${item.href}/`));
-
-          if (item.chatbot) {
-            return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  const event = new CustomEvent('opencode-chatbot-toggle');
-                  window.dispatchEvent(event);
-                }}
-                className={cn(
-                  "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group w-full",
-                  isCollapsed ? "justify-center px-0 py-2.5 mx-auto w-10" : "px-3 py-2.5",
-                  "text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80"
-                )}
-              >
-                <div className="relative z-10 flex items-center justify-center w-5 h-5 shrink-0 text-st-text-muted group-hover:text-st-accent transition-colors">
-                  <item.icon className="w-4.5 h-4.5" strokeWidth={1.5} />
-                </div>
-                <AnimatePresence mode="wait">
-                  {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      transition={{ duration: 0.15, ease: "easeInOut" }}
-                      className="relative z-10 truncate text-sm"
-                    >
-                      {item.name}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          }
+        {dynamicNavigation.map((item: NavItem) => {
+          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
 
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
-                "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group",
+                "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-150 group",
                 isCollapsed ? "justify-center px-0 py-2.5 mx-auto w-10" : "px-3 py-2.5",
                 isActive
-                  ? "text-st-text-primary"
-                  : "text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80"
+                  ? "text-st-accent bg-st-accent-soft"
+                  : "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/80"
               )}
               aria-current={isActive ? "page" : undefined}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="sidebar-active"
-                  className={cn(
-                    "absolute inset-0 bg-st-accent/[0.08] rounded-lg",
-                    isCollapsed ? "mx-auto w-10" : ""
-                  )}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
-              {isActive && !isCollapsed && (
-                <motion.div
-                  layoutId="sidebar-active-border"
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-gradient-to-b from-st-accent to-st-accent-hover rounded-full"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              )}
               <div className={cn(
                 "relative z-10 flex items-center justify-center w-5 h-5 shrink-0",
-                isActive ? "text-st-accent" : "text-st-text-muted group-hover:text-st-text-primary transition-colors"
+                isActive ? "text-st-accent" : "text-st-text-muted group-hover:text-st-text-primary transition-colors duration-150"
               )}>
-                <item.icon className="w-4.5 h-4.5" strokeWidth={isActive ? 2.5 : 1.5} />
+                <item.icon className="w-[18px] h-[18px]" strokeWidth={isActive ? 2.5 : 1.5} />
               </div>
-              <AnimatePresence mode="wait">
+              <AnimatePresence>
                 {!isCollapsed && (
                   <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    transition={{ duration: 0.15, ease: "easeInOut" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
                     className="relative z-10 truncate text-sm"
                   >
                     {item.name}
@@ -250,6 +200,7 @@ export function Sidebar() {
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   className="relative z-10 ml-auto w-1.5 h-1.5 rounded-full bg-st-accent shrink-0"
                 />
               )}
@@ -258,51 +209,29 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom Section */}
-      <div className={cn("border-t border-st-border/50 shrink-0", isCollapsed ? "p-2" : "p-4")}>
-        <AnimatePresence mode="wait">
-          {!isCollapsed ? (
-            <motion.div
-              key="expanded"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <SidebarSessionPanel />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="collapsed"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex flex-col items-center gap-1"
-            >
-              <button className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated transition-all" aria-label="Help">
-                <HelpCircle className="w-4 h-4" />
-              </button>
-              <button onClick={logout} className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-danger hover:bg-st-danger-bg transition-all" aria-label="Logout">
-                <LogOut className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {!isCollapsed && (
+      <div className={cn("border-t border-st-border shrink-0", isCollapsed ? "p-2" : "p-4")}>
+        {!isCollapsed ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-0.5 mt-3"
+            transition={{ duration: 0.15 }}
           >
-            <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated/80 transition-all">
+            <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/80 transition-all duration-150">
               <HelpCircle className="w-4 h-4 shrink-0" />
               <span>Help & Support</span>
             </button>
-            <button onClick={logout} className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-muted hover:text-st-danger hover:bg-st-danger-bg transition-all">
-              <LogOut className="w-4 h-4 shrink-0" />
-              <span className="truncate">{user?.name || "Sign Out"}</span>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex flex-col items-center gap-1"
+          >
+            <button className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated transition-all duration-200" aria-label="Help">
+              <HelpCircle className="w-4 h-4" />
             </button>
           </motion.div>
         )}
@@ -315,10 +244,10 @@ export function Sidebar() {
       <>
         <button
           onClick={() => setMobileOpen(true)}
-          className="fixed top-3 left-3 z-50 w-9 h-9 flex items-center justify-center rounded-lg bg-st-bg-card border border-st-border/80 text-st-text-secondary hover:text-st-text-primary transition-all md:hidden shadow-sm"
+          className="fixed top-3 left-3 z-50 w-9 h-9 flex items-center justify-center rounded-lg bg-st-bg-card border border-st-border text-st-text-secondary hover:text-st-text-primary transition-all duration-200 md:hidden shadow-sm"
           aria-label="Open navigation menu"
         >
-          <Menu className="w-4.5 h-4.5" />
+          <Menu className="w-[18px] h-[18px]" />
         </button>
 
         <AnimatePresence>
@@ -329,7 +258,7 @@ export function Sidebar() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
                 onClick={() => setMobileOpen(false)}
                 aria-hidden="true"
               />
@@ -341,8 +270,8 @@ export function Sidebar() {
                 className="fixed left-0 top-0 bottom-0 z-50 md:hidden"
               >
                 <div className="h-full">
-                  {React.cloneElement(sidebarContent as React.ReactElement<any>, {
-                    style: { borderRight: "1px solid rgba(30, 30, 30, 0.8)" }
+                  {React.cloneElement(sidebarContent as React.ReactElement<{ style?: React.CSSProperties }>, {
+                    style: { borderRight: "1px solid var(--color-st-border)", willChange: "transform" }
                   })}
                 </div>
               </motion.div>

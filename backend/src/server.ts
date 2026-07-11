@@ -28,9 +28,11 @@ import reportsRoutes from "./routes/reports.routes";
 import trackingRoutes from "./routes/tracking.routes";
 import exportRoutes from "./routes/export.routes";
 import insightsRoutes from "./routes/insights.routes";
+import interviewRoutes from "./routes/interview.routes";
+import notificationRoutes from "./routes/notifications.routes";
 import webhookRoutes from "./routes/webhooks";
-import { projectIndexer } from "./services/project-indexer.service";
 import { lifelogMiddleware } from "./middleware/lifelog";
+import { authenticate } from "./middleware/auth";
 import { lifelog } from "./services/lifelog.service";
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -86,7 +88,7 @@ export const io = new Server(httpServer, {
 });
 
 io.use((socket, next) => {
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  const token = socket.handshake.auth?.token;
   if (!token) return next(new Error('Authentication required'));
   const decoded = verifyAccessToken(token as string);
   if (!decoded) return next(new Error('Invalid or expired token'));
@@ -100,7 +102,7 @@ io.on('connection', (socket) => {
   console.log(`[Socket] User ${userId} connected (socket: ${socket.id})`);
   
   socket.on('joinRoom', (roomUserId: string) => {
-    if (roomUserId === userId) {
+    if (typeof roomUserId === 'string' && roomUserId.trim() && roomUserId === userId) {
       socket.join(`user_${userId}`);
     }
   });
@@ -188,11 +190,12 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/tracking", trackingRoutes);
 app.use("/api/export", exportRoutes);
 app.use("/api/insights", insightsRoutes);
+app.use("/api/interview", interviewRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Lifelog retrieval API
-app.get("/api/lifelog", async (req, res) => {
-  const userId = (req as any).user?.userId;
-  if (!userId) return res.status(401).json({ error: "Authentication required" });
+app.get("/api/lifelog", authenticate, async (req, res) => {
+  const userId = req.user!.userId;
   
   const type = req.query.type as string | undefined;
   const from = req.query.from as string | undefined;
@@ -200,16 +203,17 @@ app.get("/api/lifelog", async (req, res) => {
   const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 200), 1000);
   const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
 
-  const result = lifelog.getAllEntries(userId, { type, from, to, limit, offset });
+  const result = await lifelog.getAllEntries(userId, { type, from, to, limit, offset });
   res.json({ success: true, ...result });
 });
 
-app.get("/api/lifelog/dates", async (req, res) => {
-  const userId = (req as any).user?.userId;
-  if (!userId) return res.status(401).json({ error: "Authentication required" });
+app.get("/api/lifelog/dates", authenticate, async (req, res) => {
+  const userId = req.user!.userId;
   
-  const dates = lifelog.getAvailableDates(userId);
-  const totalSize = lifelog.getDatabaseSize(userId);
+  const [dates, totalSize] = await Promise.all([
+    lifelog.getAvailableDates(userId),
+    lifelog.getDatabaseSize(userId),
+  ]);
   res.json({ success: true, dates, totalSizeBytes: totalSize });
 });
 
@@ -228,10 +232,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 httpServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT} (${isProduction ? 'production' : 'development'})`);
-  const projectRoot = path.resolve(__dirname, "..", "..");
-  projectIndexer.initialize(projectRoot).catch((err) =>
-    console.error("Failed to initialize project indexer:", err)
-  );
+
 });
 
 // Graceful shutdown

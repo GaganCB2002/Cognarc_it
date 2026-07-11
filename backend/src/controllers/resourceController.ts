@@ -12,7 +12,7 @@ export const getResources = async (req: AuthRequest, res: Response) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
@@ -33,10 +33,10 @@ export const getResources = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: "desc" },
     });
 
-    res.status(200).json(resources);
+    res.status(200).json({ success: true, data: resources });
   } catch (error) {
     console.error("Get resources error:", error);
-    res.status(500).json({ error: "Failed to fetch resources" });
+    res.status(500).json({ success: false, message: "Failed to fetch resources" });
   }
 };
 
@@ -47,19 +47,19 @@ export const getResourceById = async (req: AuthRequest, res: Response) => {
 
     const resource = await prisma.resource.findUnique({ where: { id } });
     if (!resource) {
-      res.status(404).json({ error: "Resource not found" });
+      res.status(404).json({ success: false, message: "Resource not found" });
       return;
     }
 
     if (resource.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
 
-    res.status(200).json(resource);
+    res.status(200).json({ success: true, data: resource });
   } catch (error) {
     console.error("Get resource by ID error:", error);
-    res.status(500).json({ error: "Failed to fetch resource" });
+    res.status(500).json({ success: false, message: "Failed to fetch resource" });
   }
 };
 
@@ -67,14 +67,14 @@ export const createResource = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const { title, type, url, tags, collectionId } = req.body;
 
     if (!type) {
-      res.status(400).json({ error: "Type is required" });
+      res.status(400).json({ success: false, message: "Type is required" });
       return;
     }
 
@@ -83,11 +83,11 @@ export const createResource = async (req: AuthRequest, res: Response) => {
       try {
         const parsed = new URL(url);
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          res.status(400).json({ error: "URL must use http or https protocol" });
+          res.status(400).json({ success: false, message: "URL must use http or https protocol" });
           return;
         }
       } catch {
-        res.status(400).json({ error: "Invalid URL format" });
+        res.status(400).json({ success: false, message: "Invalid URL format" });
         return;
       }
     }
@@ -103,10 +103,10 @@ export const createResource = async (req: AuthRequest, res: Response) => {
       },
     });
 
-    res.status(201).json(resource);
+    res.status(201).json({ success: true, data: resource });
   } catch (error) {
     console.error("Create resource error:", error);
-    res.status(500).json({ error: "Failed to create resource" });
+    res.status(500).json({ success: false, message: "Failed to create resource" });
   }
 };
 
@@ -117,12 +117,12 @@ export const updateResource = async (req: AuthRequest, res: Response) => {
 
     const existing = await prisma.resource.findUnique({ where: { id } });
     if (!existing) {
-      res.status(404).json({ error: "Resource not found" });
+      res.status(404).json({ success: false, message: "Resource not found" });
       return;
     }
 
     if (existing.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
 
@@ -139,10 +139,10 @@ export const updateResource = async (req: AuthRequest, res: Response) => {
       data,
     });
 
-    res.status(200).json(resource);
+    res.status(200).json({ success: true, data: resource });
   } catch (error) {
     console.error("Update resource error:", error);
-    res.status(500).json({ error: "Failed to update resource" });
+    res.status(500).json({ success: false, message: "Failed to update resource" });
   }
 };
 
@@ -153,20 +153,20 @@ export const deleteResource = async (req: AuthRequest, res: Response) => {
 
     const resource = await prisma.resource.findUnique({ where: { id } });
     if (!resource) {
-      res.status(404).json({ error: "Resource not found" });
+      res.status(404).json({ success: false, message: "Resource not found" });
       return;
     }
 
     if (resource.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
+      res.status(403).json({ success: false, message: "Forbidden" });
       return;
     }
 
     await prisma.resource.delete({ where: { id } });
 
-    res.status(200).json({ message: "Resource deleted successfully" });
+    res.status(200).json({ success: true, data: { message: "Resource deleted successfully" } });
   } catch (error) {
     console.error("Delete resource error:", error);
-    res.status(500).json({ error: "Failed to delete resource" });
+    res.status(500).json({ success: false, message: "Failed to delete resource" });
   }
 };

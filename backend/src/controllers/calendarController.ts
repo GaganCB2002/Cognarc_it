@@ -21,6 +21,12 @@ export async function createCalendarEvent(req: Request, res: Response): Promise<
       return;
     }
 
+    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER'];
+    if (!validEventTypes.includes(eventType)) {
+      res.status(400).json({ success: false, message: 'Invalid event type' });
+      return;
+    }
+
     const event = await createEvent({
       userId,
       title,
@@ -119,10 +125,23 @@ export async function listCalendarEvents(req: Request, res: Response): Promise<v
       return;
     }
 
+    const startDate = new Date(start as string);
+    const endDate = new Date(end as string);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      res.status(400).json({ success: false, message: 'Invalid date format' });
+      return;
+    }
+
+    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER'];
+    if (eventType && !validEventTypes.includes(eventType as string)) {
+      res.status(400).json({ success: false, message: 'Invalid event type' });
+      return;
+    }
+
     const events = await getEventsInRange(
       userId,
-      new Date(start as string),
-      new Date(end as string),
+      startDate,
+      endDate,
       {
         eventType: eventType as string,
         tags: tags ? (tags as string).split(',') : undefined,
@@ -164,7 +183,14 @@ export async function getCalendarStats(req: Request, res: Response): Promise<voi
       return;
     }
 
-    const stats = await getEventStats(userId, new Date(from as string), new Date(to as string));
+    const fromDate = new Date(from as string);
+    const toDate = new Date(to as string);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      res.status(400).json({ success: false, message: 'Invalid date format' });
+      return;
+    }
+
+    const stats = await getEventStats(userId, fromDate, toDate);
     res.json({ success: true, data: stats });
   } catch (error) {
     console.error('getCalendarStats error:', error);

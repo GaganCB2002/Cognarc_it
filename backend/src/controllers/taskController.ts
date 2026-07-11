@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma';
 export async function getTasks(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { status, priority, category, search, page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -32,7 +32,7 @@ export async function getTasks(req: Request, res: Response): Promise<void> {
 export async function getTaskStats(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const [total, byStatus, byPriority] = await Promise.all([
       prisma.task.count({ where: { userId } }),
@@ -51,7 +51,7 @@ export async function getTaskStats(req: Request, res: Response): Promise<void> {
 export async function getTaskById(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const task = await prisma.task.findFirst({ where: { id, userId } });
@@ -68,10 +68,19 @@ export async function getTaskById(req: Request, res: Response): Promise<void> {
 export async function createTask(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { title, description, priority, status, dueDate, category, checklist } = req.body;
     if (!title) { res.status(400).json({ success: false, message: 'Title is required' }); return; }
+
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'BACKLOG', 'CANCELLED'];
+    if (priority && !validPriorities.includes(priority)) {
+      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+    }
+    if (status && !validStatuses.includes(status)) {
+      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+    }
 
     const task = await prisma.task.create({
       data: {
@@ -97,13 +106,23 @@ export async function createTask(req: Request, res: Response): Promise<void> {
 export async function updateTask(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.task.findFirst({ where: { id, userId } });
     if (!existing) { res.status(404).json({ success: false, message: 'Task not found' }); return; }
 
     const { title, description, priority, status, dueDate, category, checklist } = req.body;
+
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'BACKLOG', 'CANCELLED'];
+    if (priority && !validPriorities.includes(priority)) {
+      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+    }
+    if (status && !validStatuses.includes(status)) {
+      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+    }
+
     const updateData: Record<string, any> = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
@@ -126,7 +145,7 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
 export async function deleteTask(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.task.findFirst({ where: { id, userId } });

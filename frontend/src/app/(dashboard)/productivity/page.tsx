@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { api } from "@/lib/api";
-import { Activity, Clock, Zap, Brain, Code, BookOpen, Coffee, Target, TrendingUp, Eye, Moon, Flame, Loader2 } from "lucide-react";
+import { Clock, Zap, Brain, Code, BookOpen, Target, TrendingUp, Loader2 } from "lucide-react";
 
 type AggregatedStats = {
   sessionIntensity: string;

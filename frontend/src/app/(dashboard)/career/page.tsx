@@ -3,8 +3,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Briefcase, Target, TrendingUp, Award, FileText, Globe, BookOpen, Code, ChevronRight, ExternalLink, Building2, DollarSign, GraduationCap, MapPin, Bot, Send, Loader2, MessageCircle, X, Sparkles, CalendarIcon } from "lucide-react";
+import { Badge, type BadgeProps } from "@/components/ui/Badge";
+import { Target, TrendingUp, FileText, Globe, ExternalLink, DollarSign, GraduationCap, MapPin, Bot, Send, Loader2, MessageCircle, X, CalendarIcon } from "lucide-react";
 import api from "@/lib/api";
 
 export default function CareerPage() {
@@ -34,7 +34,7 @@ export default function CareerPage() {
     { name: "System Design Expert", provider: "Educative", status: "Completed", progress: 100 },
   ];
 
-  const statusColors: Record<string, string> = { Applied: "outline", Interview: "warning", Screening: "success", Saved: "default" };
+  const statusColors: Record<string, BadgeProps["variant"]> = { Applied: "outline", Interview: "warning", Screening: "success", Saved: "default" };
 
   return (
     <div className="h-full flex flex-col gap-6 pb-8 overflow-y-auto">
@@ -51,7 +51,7 @@ export default function CareerPage() {
           { key: "resume", label: "Resume & Portfolio" },
           { key: "interview", label: "Interview Prep" },
         ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key as any)}
+          <button key={tab.key} onClick={() => setActiveTab(tab.key as "roadmap" | "jobs" | "resume" | "interview")}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab.key ? "bg-st-accent text-black" : "text-st-text-secondary hover:text-st-text-primary"}`}>
             {tab.label}
           </button>
@@ -132,7 +132,7 @@ export default function CareerPage() {
                 </div>
                 <div className="col-span-2 text-sm text-st-text-secondary flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location}</div>
                 <div className="col-span-2 text-sm text-st-text-secondary flex items-center gap-1"><DollarSign className="w-3 h-3" />{job.salary}</div>
-                <div className="col-span-2"><Badge variant={statusColors[job.status] as any}>{job.status}</Badge></div>
+                <div className="col-span-2"><Badge variant={statusColors[job.status]}>{job.status}</Badge></div>
                 <div className="col-span-2 text-xs text-st-text-muted">{job.appliedDate || "—"}</div>
                 <div className="col-span-1"><ExternalLink className="w-4 h-4 text-st-text-muted hover:text-st-accent" /></div>
               </div>
@@ -224,8 +224,8 @@ function CareerBotWidget() {
         messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
       });
       setMessages(prev => [...prev, { role: "assistant", content: res.reply }]);
-    } catch (err: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: `**Error:** ${err.message || "Failed to get response."}` }]);
+    } catch (err: unknown) {
+      setMessages(prev => [...prev, { role: "assistant", content: `**Error:** ${err instanceof Error ? err.message : "Failed to get response."}` }]);
     } finally {
       setSending(false);
     }

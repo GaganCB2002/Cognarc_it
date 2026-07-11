@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import Image from "next/image";
 import {
   X, ZoomIn, ZoomOut, RotateCw, Maximize2, Minimize2,
-  Download, Share2, ChevronLeft, ChevronRight, Loader2,
-  FileX, AlertTriangle
+  Download, Share2, Loader2,
+  FileX
 } from "lucide-react";
 
 interface ImageViewerProps {
@@ -16,6 +15,8 @@ interface ImageViewerProps {
 }
 
 const SUPPORTED_FORMATS = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp", "ico"];
+
+const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
 
 export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
   const [zoom, setZoom] = useState(1);
@@ -27,21 +28,19 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const zoomLevels = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4, 5];
-
-  const currentZoomIndex = zoomLevels.reduce((prev, curr, idx) =>
-    Math.abs(curr - zoom) < Math.abs(zoomLevels[prev] - zoom) ? idx : prev, 0
+  const currentZoomIndex = ZOOM_LEVELS.reduce((prev, curr, idx) =>
+    Math.abs(curr - zoom) < Math.abs(ZOOM_LEVELS[prev] - zoom) ? idx : prev, 0
   );
 
-  const zoomIn = () => {
-    const next = Math.min(currentZoomIndex + 1, zoomLevels.length - 1);
-    setZoom(zoomLevels[next]);
-  };
+  const zoomIn = useCallback(() => {
+    const next = Math.min(currentZoomIndex + 1, ZOOM_LEVELS.length - 1);
+    setZoom(ZOOM_LEVELS[next]);
+  }, [currentZoomIndex]);
 
-  const zoomOut = () => {
+  const zoomOut = useCallback(() => {
     const prev = Math.max(currentZoomIndex - 1, 0);
-    setZoom(zoomLevels[prev]);
-  };
+    setZoom(ZOOM_LEVELS[prev]);
+  }, [currentZoomIndex]);
 
   const fitToScreen = () => {
     if (!imgRef.current || !containerRef.current) return;
@@ -52,7 +51,7 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
     setZoom(Math.min(wRatio, hRatio, 1));
   };
 
-  const rotate = () => setRotation((r) => (r + 90) % 360);
+  const rotate = useCallback(() => setRotation((r) => (r + 90) % 360), []);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
@@ -128,14 +127,14 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
         </div>
         <div className="flex items-center gap-1">
           <div className="flex items-center gap-0.5 mr-2 bg-white/10 rounded-lg p-0.5">
-            <button onClick={zoomOut} disabled={zoom <= zoomLevels[0]}
+            <button onClick={zoomOut} disabled={zoom <= ZOOM_LEVELS[0]}
               className="p-1.5 rounded-md hover:bg-white/10 transition-colors disabled:opacity-30">
               <ZoomOut className="w-4 h-4 text-white" />
             </button>
             <span className="text-xs text-white/80 w-12 text-center font-mono tabular-nums">
               {Math.round(zoom * 100)}%
             </span>
-            <button onClick={zoomIn} disabled={zoom >= zoomLevels[zoomLevels.length - 1]}
+            <button onClick={zoomIn} disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
               className="p-1.5 rounded-md hover:bg-white/10 transition-colors disabled:opacity-30">
               <ZoomIn className="w-4 h-4 text-white" />
             </button>
@@ -166,7 +165,7 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex items-center justify-center overflow-hidden p-4">
+      <div className="flex-1 flex items-center justify-center overflow-hidden p-4 relative">
         {loading && (
           <div className="flex items-center gap-3 text-white/60">
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -179,15 +178,18 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
             <p className="text-white/70 text-sm">{error}</p>
           </div>
         )}
-        <img
-          ref={imgRef}
+        <Image
           src={src}
           alt={filename}
+          fill
+          unoptimized
+          sizes="100vw"
           onLoad={(e) => {
             setLoading(false);
             setError(null);
-            const img = e.currentTarget;
+            const img = e.target as HTMLImageElement;
             setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+            imgRef.current = img;
           }}
           onError={() => {
             setLoading(false);
@@ -197,7 +199,7 @@ export function ImageViewer({ src, filename, onClose }: ImageViewerProps) {
               setError("Failed to load image. The file may be corrupted or inaccessible.");
             }
           }}
-          className="max-w-full max-h-full object-contain transition-transform duration-200"
+          className="object-contain transition-transform duration-200"
           style={{
             transform: `scale(${zoom}) rotate(${rotation}deg)`,
             display: loading || error ? "none" : "block",

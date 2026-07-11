@@ -2,15 +2,44 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Calendar as CalendarIcon, Clock, AlignLeft, Tag } from "lucide-react";
+import { X, Calendar as CalendarIcon, Clock, AlignLeft, Tag, Palette } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+
+const EVENT_COLORS = [
+  { label: "Emerald", value: "#10b981" },
+  { label: "Violet", value: "#8b5cf6" },
+  { label: "Amber", value: "#f59e0b" },
+  { label: "Rose", value: "#f43f5e" },
+  { label: "Blue", value: "#3b82f6" },
+  { label: "Cyan", value: "#06b6d4" },
+  { label: "Pink", value: "#ec4899" },
+  { label: "Indigo", value: "#6366f1" },
+];
+
+const TYPE_COLORS: Record<string, string> = {
+  learning: "#10b981",
+  coding: "#8b5cf6",
+  meeting: "#f59e0b",
+  task: "#f43f5e",
+  other: "#3b82f6",
+};
+
+interface CalendarEvent {
+  id?: string;
+  title: string;
+  start: string | Date;
+  end?: string | Date;
+  type: string;
+  color?: string;
+  notes?: string;
+}
 
 interface NewEventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: any) => void;
+  onSave: (event: CalendarEvent) => void;
   onDelete?: () => void;
-  initialData?: any;
+  initialData?: CalendarEvent;
 }
 
 export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }: NewEventModalProps) {
@@ -20,6 +49,7 @@ export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }
   const [endTime, setEndTime] = useState(initialData?.end ? formatTimeForInput(new Date(initialData.end)) : "");
   const [type, setType] = useState(initialData?.type || "learning");
   const [notes, setNotes] = useState(initialData?.notes || "");
+  const [color, setColor] = useState<string>(initialData?.color || (initialData?.type ? TYPE_COLORS[initialData.type] : undefined) || "#3b82f6");
   const [error, setError] = useState("");
 
   const isEditing = !!initialData;
@@ -37,9 +67,10 @@ export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }
       setTitle(initialData.title || "");
       setDate(formatDateForInput(new Date(initialData.start)));
       setStartTime(formatTimeForInput(new Date(initialData.start)));
-      setEndTime(formatTimeForInput(new Date(initialData.end)));
+      setEndTime(formatTimeForInput(new Date(initialData.end || initialData.start)));
       setType(initialData.type || "learning");
       setNotes(initialData.notes || "");
+      setColor(initialData.color || TYPE_COLORS[initialData.type] || "#3b82f6");
       setError("");
     } else if (isOpen && !initialData) {
       setTitle("");
@@ -48,6 +79,7 @@ export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }
       setEndTime("");
       setType("learning");
       setNotes("");
+      setColor("#10b981");
       setError("");
     }
   }, [isOpen, initialData]);
@@ -70,6 +102,7 @@ export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }
       end: endDateTime,
       type,
       notes,
+      color,
     });
     
     onClose();
@@ -143,6 +176,32 @@ export function NewEventModal({ isOpen, onClose, onSave, onDelete, initialData }
                     <option value="task">Task</option>
                     <option value="other">Other</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-st-text-secondary flex items-center gap-2">
+                  <Palette className="w-4 h-4" /> Event Color
+                </label>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {EVENT_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setColor(c.value)}
+                      className={`w-7 h-7 rounded-full transition-all border-2 ${color === c.value ? "border-white scale-110 shadow-lg" : "border-transparent hover:scale-110"}`}
+                      style={{ backgroundColor: c.value }}
+                      title={c.label}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="w-7 h-7 rounded-full border-0 cursor-pointer overflow-hidden bg-transparent"
+                    title="Custom color"
+                  />
+                  <span className="text-xs text-st-text-muted ml-1">{color}</span>
                 </div>
               </div>
 

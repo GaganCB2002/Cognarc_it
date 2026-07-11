@@ -101,8 +101,8 @@ export default function AIAssistantPage() {
         setSelectedId(res.conversationId);
         loadConversations();
       }
-    } catch (err: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: `**Error:** ${err.message || "Failed to get response. Please try again."}` }]);
+    } catch (err: unknown) {
+      setMessages(prev => [...prev, { role: "assistant", content: `**Error:** ${err instanceof Error ? err.message : "Failed to get response. Please try again."}` }]);
     }
     finally { setSending(false); }
   };
@@ -201,8 +201,8 @@ export default function AIAssistantPage() {
               <div className="w-16 h-16 rounded-2xl bg-st-accent/10 flex items-center justify-center mx-auto mb-6">
                 <Bot className="w-8 h-8 text-st-accent" />
               </div>
-              <h2 className="text-2xl font-bold text-st-text-primary mb-2">StudyBot</h2>
-              <p className="text-sm text-st-text-secondary mb-6">Project-aware AI assistant. Ask me anything about the codebase, architecture, or how things work.</p>
+              <h2 className="text-2xl font-bold text-st-text-primary mb-2">AI Assistant</h2>
+              <p className="text-sm text-st-text-secondary mb-6">Your personal AI tutor. Ask anything about coding, concepts, or your learning journey.</p>
               <div className="grid grid-cols-2 gap-3 mb-6">
                 {suggestions.map((s, i) => (
                   <button key={i} onClick={() => handleSuggestion(s.text)}

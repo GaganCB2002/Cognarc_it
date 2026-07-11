@@ -21,6 +21,7 @@ class ApiClient {
     if (refreshToken !== undefined) {
       this.refreshToken = refreshToken;
     }
+    if (typeof window === "undefined") return;
     if (accessToken) {
       localStorage.setItem("accessToken", accessToken);
     } else {
@@ -97,7 +98,7 @@ class ApiClient {
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json() as RefreshTokenResponse;
           this.accessToken = refreshData.token;
-          localStorage.setItem('accessToken', refreshData.token);
+          if (typeof window !== "undefined") localStorage.setItem('accessToken', refreshData.token);
           headers['Authorization'] = `Bearer ${refreshData.token}`;
           const retryResponse = await fetch(`${API_URL}${endpoint}`, {
             ...options,
@@ -131,17 +132,22 @@ class ApiClient {
       throw new Error(errMsg);
     }
 
-    return response.json();
+    const json = await response.json();
+    if (json && typeof json === "object" && json.success === true && "data" in json) {
+      return json.data as T;
+    }
+    return json as T;
   }
 
   get<T>(endpoint: string) {
     return this.request<T>(endpoint);
   }
 
-  post<T>(endpoint: string, data?: unknown) {
+  post<T>(endpoint: string, data?: unknown, extraOptions?: Omit<RequestInit, 'method'>) {
     return this.request<T>(endpoint, {
       method: "POST",
       body: data instanceof FormData ? data : JSON.stringify(data),
+      ...extraOptions,
     });
   }
 

@@ -1,0 +1,69 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 340px;
+  min-height: 400px;
+  background: #0f0f13;
+  color: #e4e4e7;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+#app { display: flex; flex-direction: column; height: 100%; padding: 16px; gap: 12px; }
+
+header { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #27272a; }
+.logo { font-size: 22px; }
+.brand { font-weight: 600; font-size: 15px; flex: 1; }
+.badge {
+  background: #6366f1; color: #fff; font-size: 10px;
+  padding: 2px 8px; border-radius: 10px; font-weight: 500;
+}
+
+.quick-actions { display: flex; flex-direction: column; gap: 8px; }
+
+.btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 10px 14px; border: none; border-radius: 10px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary { background: #6366f1; color: #fff; }
+.btn-primary:hover { background: #4f46e5; }
+.btn-secondary { background: #18181b; color: #e4e4e7; border: 1px solid #27272a; }
+.btn-secondary:hover { background: #27272a; }
+
+.status { font-size: 12px; color: #a1a1aa; min-height: 18px; }
+
+.progress-wrap { display: flex; align-items: center; gap: 8px; }
+.progress-bar { flex: 1; height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.3s; }
+.progress-text { font-size: 11px; color: #a1a1aa; min-width: 32px; text-align: right; }
+
+.recent { flex: 1; }
+.recent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.recent-header span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; }
+
+.link-btn { background: none; border: none; color: #6366f1; cursor: pointer; font-size: 12px; }
+.link-btn:hover { color: #8b5cf6; }
+
+.recent-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.empty { color: #52525b; font-size: 12px; text-align: center; padding: 20px 0; }
+
+.doc-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; transition: background 0.15s;
+}
+.doc-item:hover { background: #18181b; }
+.doc-icon { font-size: 16px; }
+.doc-info { flex: 1; min-width: 0; }
+.doc-title { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-meta { font-size: 10px; color: #71717a; }
+.doc-type {
+  font-size: 9px; padding: 2px 6px; border-radius: 4px;
+  background: #18181b; color: #a1a1aa; text-transform: uppercase;
+}
+
+footer { display: flex; align-items: center; justify-content: space-between; padding-top: 12px; border-top: 1px solid #27272a; }
+.stats { font-size: 11px; color: #71717a; }

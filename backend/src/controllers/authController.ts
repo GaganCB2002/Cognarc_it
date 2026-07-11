@@ -15,34 +15,34 @@ export async function register(req: Request, res: Response): Promise<void> {
     const { email, password, name, captchaKey, captchaAnswer } = req.body;
 
     if (!email || !password || !name) {
-      res.status(400).json({ message: 'Email, password, and name are required' });
+      res.status(400).json({ success: false, message: 'Email, password, and name are required' });
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      res.status(400).json({ message: 'Invalid email format' });
+      res.status(400).json({ success: false, message: 'Invalid email format' });
       return;
     }
 
     if (password.length < 8) {
-      res.status(400).json({ message: 'Password must be at least 8 characters long' });
+      res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
       return;
     }
 
     if (name.length < 2) {
-      res.status(400).json({ message: 'Name must be at least 2 characters long' });
+      res.status(400).json({ success: false, message: 'Name must be at least 2 characters long' });
       return;
     }
 
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
       return;
     }
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      res.status(409).json({ message: 'Email already registered' });
+      res.status(409).json({ success: false, message: 'Email already registered' });
       return;
     }
 
@@ -54,19 +54,19 @@ export async function register(req: Request, res: Response): Promise<void> {
     });
     const { password: _, ...user } = createdUser;
 
-    lifelog.auth(createdUser.id, "REGISTER", `User registered: ${email}`, {
+    await lifelog.auth(createdUser.id, "REGISTER", `User registered: ${email}`, {
       email,
       name,
       userId: createdUser.id,
     });
 
     res.status(201).json({
-      message: 'Registration successful. You can now login.',
-      user,
+      success: true,
+      data: { message: 'Registration successful. You can now login.', user },
     });
   } catch (error: any) {
     console.error('Register error:', { message: error?.message, timestamp: new Date().toISOString() });
-    res.status(500).json({ message: 'Registration failed. Please try again.' });
+    res.status(500).json({ success: false, message: 'Registration failed. Please try again.' });
   }
 }
 
@@ -77,82 +77,84 @@ export async function login(req: Request, res: Response): Promise<void> {
     console.log('[DEBUG] request body parsed');
 
     if (!email || !password) {
-      res.status(400).json({ message: 'Email and password are required' });
+      res.status(400).json({ success: false, message: 'Email and password are required' });
       return;
     }
 
     if (password.length > 100) {
-      res.status(400).json({ message: 'Password is too long' });
+      res.status(400).json({ success: false, message: 'Password is too long' });
       return;
     }
 
-    // if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-    //   res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
-    //   return;
-    // }
+    if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
+      return;
+    }
 
     email = email.toLowerCase();
     let user = await prisma.user.findUnique({ where: { email } });
     
     // Auto-create test accounts (configured via env vars, disabled by default)
-    const testEmails = (process.env.TEST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-    const testPassword = process.env.TEST_PASSWORD || '';
-    if (!user && testPassword && testEmails.includes(email.toLowerCase()) && password === testPassword) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
-      user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'Admin' : 'Test User',
-          role: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'ADMIN' : 'STUDENT',
-          isApproved: true,
-          emailVerified: new Date(),
-          otpCode,
-        }
-      });
-    }
+    if (process.env.NODE_ENV !== 'production') {
+      const testEmails = (process.env.TEST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const testPassword = process.env.TEST_PASSWORD || '';
+      if (!user && testPassword && testEmails.includes(email.toLowerCase()) && password === testPassword) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+        user = await prisma.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'Admin' : 'Test User',
+            role: email === process.env.ADMIN_EMAIL?.toLowerCase() ? 'ADMIN' : 'STUDENT',
+            isApproved: true,
+            emailVerified: new Date(),
+            otpCode,
+          }
+        });
+      }
 
-    // Special user account (configured via env vars, disabled by default)
-    const specialEmail = (process.env.SPECIAL_USER_EMAIL || '').toLowerCase();
-    const specialPassword = process.env.SPECIAL_USER_PASSWORD || '';
-    const specialName = process.env.SPECIAL_USER_NAME || '';
-    if (!user && specialEmail && specialPassword && email.toLowerCase() === specialEmail && password === specialPassword) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const otpCode = String(Math.floor(100000 + Math.random() * 900000));
-      user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name: specialName || email.split('@')[0],
-          role: 'STUDENT',
-          isApproved: true,
-          emailVerified: new Date(),
-          otpCode,
-        }
-      });
+      // Special user account (configured via env vars, disabled by default)
+      const specialEmail = (process.env.SPECIAL_USER_EMAIL || '').toLowerCase();
+      const specialPassword = process.env.SPECIAL_USER_PASSWORD || '';
+      const specialName = process.env.SPECIAL_USER_NAME || '';
+      if (!user && specialEmail && specialPassword && email.toLowerCase() === specialEmail && password === specialPassword) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+        user = await prisma.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name: specialName || email.split('@')[0],
+            role: 'STUDENT',
+            isApproved: true,
+            emailVerified: new Date(),
+            otpCode,
+          }
+        });
+      }
     }
 
     if (!user) {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ success: false, message: 'Invalid email or password' });
       return;
     }
 
     // Check if password login is enabled in user settings
     const userSettings: any = user.settings || {};
     if (userSettings.auth?.passwordLogin === false) {
-      res.status(403).json({ message: 'Password login is disabled for this account. Use another sign-in method.' });
+      res.status(403).json({ success: false, message: 'Password login is disabled for this account. Use another sign-in method.' });
       return;
     }
 
     if (!user.password) {
-      res.status(401).json({ message: 'Account uses OAuth. Please sign in with the appropriate provider.' });
+      res.status(401).json({ success: false, message: 'Account uses OAuth. Please sign in with the appropriate provider.' });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ success: false, message: 'Invalid email or password' });
       return;
     }
 
@@ -166,28 +168,31 @@ export async function login(req: Request, res: Response): Promise<void> {
         });
         user.isApproved = true;
       } else {
-        res.status(403).json({ message: 'Your account is pending admin approval.' });
+        res.status(403).json({ success: false, message: 'Your account is pending admin approval.' });
         return;
       }
     }
 
     const tokens = generateToken(user.id);
 
-    lifelog.auth(user.id, "LOGIN", `User logged in: ${email}`, {
+    await lifelog.auth(user.id, "LOGIN", `User logged in: ${email}`, {
       email,
       userId: user.id,
       role: user.role,
     });
 
     res.status(200).json({
-      message: 'Login successful',
-      token: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: { ...user, password: undefined },
+      success: true,
+      data: {
+        message: 'Login successful',
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: { ...user, password: undefined },
+      },
     });
   } catch (error: any) {
     console.error('Login error:', { message: error?.message, timestamp: new Date().toISOString() });
-    res.status(500).json({ message: 'Login failed. Please try again later.' });
+    res.status(500).json({ success: false, message: 'Login failed. Please try again later.' });
   }
 }
 
@@ -196,32 +201,32 @@ export async function sendOtp(req: Request, res: Response): Promise<void> {
     let { email, captchaKey, captchaAnswer } = req.body;
 
     if (!email) {
-      res.status(400).json({ message: 'Email is required' });
+      res.status(400).json({ success: false, message: 'Email is required' });
       return;
     }
 
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
       return;
     }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.otpCode) {
-      res.status(404).json({ message: 'User not found or OTP not configured' });
+      res.status(404).json({ success: false, message: 'User not found or OTP not configured' });
       return;
     }
 
-    // Send OTP to the user's registered email
+    // Fire-and-forget: email delivery failure shouldn't block auth
     sendOTPEmail(user.email, user.otpCode).catch(err => console.error('[EMAIL] Failed to send OTP:', err));
 
     res.status(200).json({
-      message: 'OTP sent to your registered email',
-      otpKey: user.id,
+      success: true,
+      data: { message: 'OTP sent to your registered email', otpKey: user.id },
     });
   } catch (error) {
     console.error('SendOTP error:', error);
-    res.status(500).json({ message: 'Failed to send OTP' });
+    res.status(500).json({ success: false, message: 'Failed to send OTP' });
   }
 }
 
@@ -230,31 +235,31 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
     let { email, otp, captchaKey, captchaAnswer } = req.body;
 
     if (!email || !otp) {
-      res.status(400).json({ message: 'Email and OTP are required' });
+      res.status(400).json({ success: false, message: 'Email and OTP are required' });
       return;
     }
 
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
       return;
     }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(401).json({ message: 'Invalid email' });
+      res.status(401).json({ success: false, message: 'Invalid email' });
       return;
     }
 
     // Check if OTP login is enabled in user settings
     const userSettings: any = user.settings || {};
     if (userSettings.auth?.otpLogin === false) {
-      res.status(403).json({ message: 'OTP login is disabled for this account. Use another sign-in method.' });
+      res.status(403).json({ success: false, message: 'OTP login is disabled for this account. Use another sign-in method.' });
       return;
     }
 
     if (!user.otpCode || user.otpCode !== otp) {
-      res.status(401).json({ message: 'Invalid OTP' });
+      res.status(401).json({ success: false, message: 'Invalid OTP' });
       return;
     }
 
@@ -265,21 +270,24 @@ export async function verifyOtpLogin(req: Request, res: Response): Promise<void>
         await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
         user.isApproved = true;
       } else {
-        res.status(403).json({ message: 'Your account is pending admin approval.' });
+        res.status(403).json({ success: false, message: 'Your account is pending admin approval.' });
         return;
       }
     }
 
     const tokens = generateToken(user.id);
     res.status(200).json({
-      message: 'Login successful',
-      token: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: { ...user, password: undefined },
+      success: true,
+      data: {
+        message: 'Login successful',
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: { ...user, password: undefined },
+      },
     });
   } catch (error: any) {
     console.error('VerifyOtpLogin error:', { message: error?.message, timestamp: new Date().toISOString() });
-    res.status(500).json({ message: 'Login failed. Please try again.' });
+    res.status(500).json({ success: false, message: 'Login failed. Please try again.' });
   }
 }
 
@@ -287,13 +295,13 @@ export async function enrollFace(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const { faceImage } = req.body;
     if (!faceImage) {
-      res.status(400).json({ message: 'Face image is required' });
+      res.status(400).json({ success: false, message: 'Face image is required' });
       return;
     }
 
@@ -301,7 +309,7 @@ export async function enrollFace(req: Request, res: Response): Promise<void> {
     const faceCheck = await geminiService.detectFace(faceImage);
 
     if (!faceCheck.hasFace) {
-      res.status(400).json({ message: 'No clear face detected in the image. Please try again with better lighting.' });
+      res.status(400).json({ success: false, message: 'No clear face detected in the image. Please try again with better lighting.' });
       return;
     }
 
@@ -310,10 +318,10 @@ export async function enrollFace(req: Request, res: Response): Promise<void> {
       data: { faceData: faceImage },
     });
 
-    res.status(200).json({ message: 'Face enrolled successfully' });
+    res.status(200).json({ success: true, data: { message: 'Face enrolled successfully' } });
   } catch (error) {
     console.error('EnrollFace error:', error);
-    res.status(500).json({ message: 'Failed to enroll face' });
+    res.status(500).json({ success: false, message: 'Failed to enroll face' });
   }
 }
 
@@ -322,55 +330,55 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
     let { email, faceImage, captchaKey, captchaAnswer } = req.body;
 
     if (!email || !faceImage) {
-      res.status(400).json({ message: 'Email and face image are required' });
+      res.status(400).json({ success: false, message: 'Email and face image are required' });
       return;
     }
 
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
       return;
     }
 
     email = email.toLowerCase();
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(401).json({ message: 'User not found' });
+      res.status(401).json({ success: false, message: 'User not found' });
       return;
     }
 
     // Check if face login is enabled in user settings
     const userSettings: any = user.settings || {};
     if (userSettings.auth?.faceLogin === false) {
-      res.status(403).json({ message: 'Face login is disabled for this account. Use another sign-in method.' });
+      res.status(403).json({ success: false, message: 'Face login is disabled for this account. Use another sign-in method.' });
       return;
     }
 
     if (!user.faceData) {
-      res.status(400).json({ message: 'Face not enrolled. Please enroll your face first in Settings.' });
+      res.status(400).json({ success: false, message: 'Face not enrolled. Please enroll your face first in Settings.' });
       return;
     }
 
     // Verify face using Gemini
     if (!process.env.GEMINI_API_KEY) {
-      res.status(500).json({ message: 'Face verification is not available (AI service not configured). Please contact the administrator.' });
+      res.status(500).json({ success: false, message: 'Face verification is not available (AI service not configured). Please contact the administrator.' });
       return;
     }
 
     const result = await geminiService.verifyFace(faceImage, user.faceData);
 
     if (!result.faceDetected) {
-      res.status(401).json({ message: 'No face detected in the image. Please ensure good lighting and try again.' });
+      res.status(401).json({ success: false, message: 'No face detected in the image. Please ensure good lighting and try again.' });
       return;
     }
 
     if (!result.eyesOpen) {
-      res.status(401).json({ message: 'Please keep your eyes open and try again.' });
+      res.status(401).json({ success: false, message: 'Please keep your eyes open and try again.' });
       return;
     }
 
     if (!result.match) {
       const score = result.matchScore !== undefined ? ` (score: ${result.matchScore}/100)` : '';
-      res.status(401).json({ message: `Face does not match${score}. Please try again with better lighting.` });
+      res.status(401).json({ success: false, message: `Face does not match${score}. Please try again with better lighting.` });
       return;
     }
 
@@ -381,26 +389,29 @@ export async function faceLogin(req: Request, res: Response): Promise<void> {
         await prisma.user.update({ where: { id: user.id }, data: { isApproved: true } });
         user.isApproved = true;
       } else {
-        res.status(403).json({ message: 'Your account is pending admin approval.' });
+        res.status(403).json({ success: false, message: 'Your account is pending admin approval.' });
         return;
       }
     }
 
     const tokens = generateToken(user.id);
     res.status(200).json({
-      message: 'Face login successful',
-      token: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      user: { ...user, password: undefined },
+      success: true,
+      data: {
+        message: 'Face login successful',
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        user: { ...user, password: undefined },
+      },
     });
   } catch (error: any) {
     console.error('FaceLogin error:', { message: error?.message, timestamp: new Date().toISOString() });
     if (error?.message?.includes('API key')) {
-      res.status(500).json({ message: 'Face verification service is not configured. Please contact the administrator.' });
+      res.status(500).json({ success: false, message: 'Face verification service is not configured. Please contact the administrator.' });
     } else if (error?.message?.includes('No response from Gemini')) {
-      res.status(500).json({ message: 'Face verification service is temporarily unavailable. Please try again later.' });
+      res.status(500).json({ success: false, message: 'Face verification service is temporarily unavailable. Please try again later.' });
     } else {
-      res.status(500).json({ message: 'Face verification failed. Please try again.' });
+      res.status(500).json({ success: false, message: 'Face verification failed. Please try again.' });
     }
   }
 }
@@ -409,13 +420,13 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
   try {
     const newAccessToken = res.locals?.newAccessToken;
     if (!newAccessToken) {
-      res.status(401).json({ message: 'Unable to refresh token' });
+      res.status(401).json({ success: false, message: 'Unable to refresh token' });
       return;
     }
-    res.status(200).json({ token: newAccessToken });
+    res.status(200).json({ success: true, data: { token: newAccessToken } });
   } catch (error: any) {
     console.error('RefreshToken error:', { message: error?.message, timestamp: new Date().toISOString() });
-    res.status(500).json({ message: 'Token refresh failed' });
+    res.status(500).json({ success: false, message: 'Token refresh failed' });
   }
 }
 
@@ -423,7 +434,7 @@ export async function getMe(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
@@ -433,16 +444,16 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     });
 
     if (!foundUser) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     foundUser.password = undefined as any;
-    res.status(200).json({ user: foundUser });
+    res.status(200).json({ success: true, data: { user: foundUser } });
   } catch (error) {
     console.error('GetMe error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -450,11 +461,11 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
-    const { name, avatar, bio, targetRole, currentLevel, weeklyHours, timezone, skills, careerGoals, githubUrl, linkedinUrl, portfolioUrl } = req.body;
+    const { name, avatar, bio, targetRole, currentLevel, weeklyHours, timezone, skills, careerGoals, githubUrl, linkedinUrl, portfolioUrl, resume, jobDescription } = req.body;
 
     const userUpdateData: Record<string, any> = {};
     if (name !== undefined) userUpdateData.name = name;
@@ -495,6 +506,8 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     if (githubUrl !== undefined) profileUpdateData.githubUrl = githubUrl;
     if (linkedinUrl !== undefined) profileUpdateData.linkedinUrl = linkedinUrl;
     if (portfolioUrl !== undefined) profileUpdateData.portfolioUrl = portfolioUrl;
+    if (resume !== undefined) profileUpdateData.resume = resume;
+    if (jobDescription !== undefined) profileUpdateData.jobDescription = jobDescription;
 
     if (Object.keys(profileUpdateData).length > 0) {
       await prisma.profile.upsert({
@@ -512,13 +525,13 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
     if (updatedUser) updatedUser.password = undefined as any;
 
     res.status(200).json({
-      message: 'Profile updated successfully',
-      user: updatedUser,
+      success: true,
+      data: { message: 'Profile updated successfully', user: updatedUser },
     });
   } catch (error) {
     console.error('UpdateProfile error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -526,13 +539,13 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const { settings } = req.body;
     if (!settings) {
-      res.status(400).json({ message: 'Settings payload is required' });
+      res.status(400).json({ success: false, message: 'Settings payload is required' });
       return;
     }
 
@@ -554,13 +567,13 @@ export async function updateSettings(req: Request, res: Response): Promise<void>
     });
 
     res.status(200).json({
-      message: 'Settings updated successfully',
-      settings: updatedUser.settings,
+      success: true,
+      data: { message: 'Settings updated successfully', settings: updatedUser.settings },
     });
   } catch (error) {
     console.error('UpdateSettings error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -568,21 +581,21 @@ export async function getSettings(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
-    res.status(200).json({ settings: user.settings || {} });
+    res.status(200).json({ success: true, data: { settings: user.settings || {} } });
   } catch (error) {
     console.error('GetSettings error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -590,30 +603,30 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) {
-      res.status(400).json({ message: 'Current and new passwords are required' });
+      res.status(400).json({ success: false, message: 'Current and new passwords are required' });
       return;
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     if (!user.password) {
-      res.status(400).json({ message: 'Account uses OAuth and does not have a password' });
+      res.status(400).json({ success: false, message: 'Account uses OAuth and does not have a password' });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
     if (!isPasswordValid) {
-      res.status(401).json({ message: 'Invalid current password' });
+      res.status(401).json({ success: false, message: 'Invalid current password' });
       return;
     }
 
@@ -623,11 +636,11 @@ export async function changePassword(req: Request, res: Response): Promise<void>
       data: { password: hashedPassword },
     });
 
-    res.status(200).json({ message: 'Password updated successfully' });
+    res.status(200).json({ success: true, data: { message: 'Password updated successfully' } });
   } catch (error) {
     console.error('ChangePassword error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -636,32 +649,31 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
     const { email, captchaKey, captchaAnswer } = req.body;
 
     if (!email) {
-      res.status(400).json({ message: 'Email is required' });
+      res.status(400).json({ success: false, message: 'Email is required' });
       return;
     }
 
     if (!captchaKey || !captchaAnswer || !verifyCaptcha(captchaKey, String(captchaAnswer))) {
-      res.status(400).json({ message: 'Invalid or expired captcha. Please try again.' });
+      res.status(400).json({ success: false, message: 'Invalid or expired captcha. Please try again.' });
       return;
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(404).json({ message: 'No account found with this email address.' });
+      res.status(404).json({ success: false, message: 'No account found with this email address.' });
       return;
     }
 
     const token = generateResetToken(user.id);
 
     res.status(200).json({
-      message: 'Email verified. You can now reset your password.',
-      token,
-      email,
+      success: true,
+      data: { message: 'Email verified. You can now reset your password.', token, email },
     });
   } catch (error) {
     console.error('ForgotPassword error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -670,19 +682,19 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
     const { token, email, password } = req.body;
 
     if (!token || !email || !password) {
-      res.status(400).json({ message: 'Token, email, and new password are required' });
+      res.status(400).json({ success: false, message: 'Token, email, and new password are required' });
       return;
     }
 
     const userId = verifyResetToken(token);
     if (!userId) {
-      res.status(400).json({ message: 'Invalid or expired reset token' });
+      res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
       return;
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.email !== email) {
-      res.status(400).json({ message: 'Invalid reset request' });
+      res.status(400).json({ success: false, message: 'Invalid reset request' });
       return;
     }
 
@@ -694,11 +706,11 @@ export async function resetPassword(req: Request, res: Response): Promise<void> 
 
     markResetTokenUsed(token);
 
-    res.status(200).json({ message: 'Password reset successfully. You can now login with your new password.' });
+    res.status(200).json({ success: true, data: { message: 'Password reset successfully. You can now login with your new password.' } });
   } catch (error) {
     console.error('ResetPassword error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -706,13 +718,13 @@ export async function requestCaptcha(req: Request, res: Response): Promise<void>
   try {
     const captcha = generateCaptcha();
     res.status(200).json({
-      key: captcha.key,
-      question: captcha.question,
+      success: true,
+      data: { key: captcha.key, question: captcha.question },
     });
   } catch (error) {
     console.error('Captcha error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -720,7 +732,7 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ message: 'Clerk session token required' });
+      res.status(401).json({ success: false, message: 'Clerk session token required' });
       return;
     }
 
@@ -732,20 +744,20 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
     try {
       decoded = jwt.decode(clerkToken);
     } catch {
-      res.status(401).json({ message: 'Invalid Clerk token format' });
+      res.status(401).json({ success: false, message: 'Invalid Clerk token format' });
       return;
     }
 
     const clerkId = decoded.sub;
     if (!clerkId) {
-      res.status(401).json({ message: 'Invalid Clerk token' });
+      res.status(401).json({ success: false, message: 'Invalid Clerk token' });
       return;
     }
 
     // Verify the user exists in Clerk by calling Clerk's API directly
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
-      res.status(500).json({ message: 'Clerk secret key not configured' });
+      res.status(500).json({ success: false, message: 'Clerk secret key not configured' });
       return;
     }
 
@@ -755,12 +767,12 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
         headers: { Authorization: `Bearer ${secretKey}` },
       });
       if (!clerkRes.ok) {
-        res.status(401).json({ message: 'Invalid or expired Clerk session' });
+        res.status(401).json({ success: false, message: 'Invalid or expired Clerk session' });
         return;
       }
       clerkUserData = await clerkRes.json();
     } catch {
-      res.status(401).json({ message: 'Invalid or expired Clerk session' });
+      res.status(401).json({ success: false, message: 'Invalid or expired Clerk session' });
       return;
     }
 
@@ -787,22 +799,25 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
     const { accessToken, refreshToken } = generateToken(user.id);
 
     res.json({
-      message: 'Authenticated via Clerk',
-      token: accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        role: user.role,
-        emailVerified: user.emailVerified,
+      success: true,
+      data: {
+        message: 'Authenticated via Clerk',
+        token: accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          avatar: user.avatar,
+          role: user.role,
+          emailVerified: user.emailVerified,
+        },
       },
     });
   } catch (error) {
     console.error('Clerk exchange error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -828,13 +843,13 @@ export async function logout(req: Request, res: Response): Promise<void> {
     });
 
     if (userId) {
-      lifelog.auth(userId, "LOGOUT", `User logged out`, { userId });
+      await lifelog.auth(userId, "LOGOUT", `User logged out`, { userId });
     }
 
-    res.status(200).json({ message: 'Logged out successfully' });
+    res.status(200).json({ success: true, data: { message: 'Logged out successfully' } });
   } catch (error) {
     console.error('Logout error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }

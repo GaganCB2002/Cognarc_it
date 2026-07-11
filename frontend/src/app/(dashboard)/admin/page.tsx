@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { toast } from "react-hot-toast";
 import {
-  Shield, Users, UserCheck, UserX, Clock, Trash2, CheckCircle,
+  Shield, Users, UserCheck, Clock, Trash2, CheckCircle,
   XCircle, Search, BarChart3, FileText, ListTodo, Activity,
-  ChevronDown, Eye, RefreshCw
+  Eye, RefreshCw
 } from "lucide-react";
 
 type User = {
@@ -47,42 +47,42 @@ export default function AdminDashboardPage() {
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      const res = await api.get("/users/admin/stats") as any;
+      const res = await api.get<{ stats: AdminStats }>("/users/admin/stats");
       setStats(res.stats);
     } catch (err) {
       console.error("Failed to fetch admin stats", err);
     }
-  };
+  }, []);
 
-  const fetchAllUsers = async () => {
+  const fetchAllUsers = useCallback(async () => {
     try {
-      const res = await api.get("/users?limit=100") as any;
+      const res = await api.get<{ users: User[] }>("/users?limit=100");
       setAllUsers(res.users || []);
     } catch (err) {
       console.error("Failed to fetch users", err);
     }
-  };
+  }, []);
 
-  const fetchPendingUsers = async () => {
+  const fetchPendingUsers = useCallback(async () => {
     try {
-      const res = await api.get("/users/pending?limit=100") as any;
+      const res = await api.get<{ users: User[] }>("/users/pending?limit=100");
       setPendingUsers(res.users || []);
     } catch (err) {
       console.error("Failed to fetch pending users", err);
     }
-  };
+  }, []);
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     await Promise.all([fetchStats(), fetchAllUsers(), fetchPendingUsers()]);
     setLoading(false);
-  };
+  }, [fetchStats, fetchAllUsers, fetchPendingUsers]);
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   const handleApprove = async (id: string) => {
     setActionLoading(id);
@@ -92,8 +92,8 @@ export default function AdminDashboardPage() {
       setPendingUsers(prev => prev.filter(u => u.id !== id));
       setAllUsers(prev => prev.map(u => u.id === id ? { ...u, isApproved: true } : u));
       if (stats) setStats({ ...stats, pendingUsers: stats.pendingUsers - 1, approvedUsers: stats.approvedUsers + 1 });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to approve user");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve user");
     } finally {
       setActionLoading(null);
     }
@@ -107,8 +107,8 @@ export default function AdminDashboardPage() {
       setPendingUsers(prev => prev.filter(u => u.id !== id));
       setAllUsers(prev => prev.filter(u => u.id !== id));
       if (stats) setStats({ ...stats, pendingUsers: stats.pendingUsers - 1, totalUsers: stats.totalUsers - 1 });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to reject user");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject user");
     } finally {
       setActionLoading(null);
     }
@@ -123,8 +123,8 @@ export default function AdminDashboardPage() {
       setPendingUsers(prev => prev.filter(u => u.id !== id));
       if (stats) setStats({ ...stats, totalUsers: stats.totalUsers - 1 });
       setConfirmDelete(null);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete user");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete user");
     } finally {
       setActionLoading(null);
     }
@@ -136,7 +136,7 @@ export default function AdminDashboardPage() {
     u.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadgeColor = (role: string): "success" | "warning" | "danger" | "outline" => {
     switch (role) {
       case "SUPER_ADMIN": return "danger";
       case "ADMIN": return "warning";
@@ -251,7 +251,7 @@ export default function AdminDashboardPage() {
           <div className="flex flex-wrap gap-3">
             {stats.roleBreakdown.map(r => (
               <div key={r.role} className="flex items-center gap-2 px-4 py-2 bg-st-bg-elevated rounded-lg border border-st-border">
-                <Badge variant={getRoleBadgeColor(r.role) as any}>{r.role}</Badge>
+                <Badge variant={getRoleBadgeColor(r.role)}>{r.role}</Badge>
                 <span className="text-lg font-bold text-st-text-primary">{r.count}</span>
               </div>
             ))}
@@ -292,7 +292,7 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={getRoleBadgeColor(user.role) as any}>{user.role}</Badge>
+                    <Badge variant={getRoleBadgeColor(user.role)}>{user.role}</Badge>
                     {user.isApproved ? (
                       <span className="w-2 h-2 rounded-full bg-emerald-400" title="Approved" />
                     ) : (
@@ -436,7 +436,7 @@ export default function AdminDashboardPage() {
                       </div>
                       {/* Role */}
                       <div className="col-span-2">
-                        <Badge variant={getRoleBadgeColor(user.role) as any}>{user.role}</Badge>
+                        <Badge variant={getRoleBadgeColor(user.role)}>{user.role}</Badge>
                       </div>
                       {/* Status */}
                       <div className="col-span-2">

@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma';
 export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { startDate, endDate, page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -33,7 +33,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
 export async function getTodaySessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -56,7 +56,7 @@ export async function getTodaySessions(req: Request, res: Response): Promise<voi
 export async function getSessionById(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const session = await prisma.studySession.findFirst({
@@ -76,9 +76,16 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
 export async function createSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { topic, duration, type, notes } = req.body;
+
+    const validTypes = ['DEEP_WORK', 'LEARNING', 'MEETING', 'BREAK', 'OTHER'];
+    if (type && !validTypes.includes(type)) {
+      res.status(400).json({ success: false, message: 'Invalid session type' });
+      return;
+    }
+
     if (!topic || duration === undefined) {
       res.status(400).json({ success: false, message: 'Topic and duration are required' });
       return;
@@ -99,13 +106,20 @@ export async function createSession(req: Request, res: Response): Promise<void> 
 export async function updateSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.studySession.findFirst({ where: { id, userId } });
     if (!existing) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
     const { topic, duration, type, notes } = req.body;
+
+    const validTypes = ['DEEP_WORK', 'LEARNING', 'MEETING', 'BREAK', 'OTHER'];
+    if (type && !validTypes.includes(type)) {
+      res.status(400).json({ success: false, message: 'Invalid session type' });
+      return;
+    }
+
     const updateData: Record<string, any> = {};
     if (topic !== undefined) updateData.topic = topic;
     if (duration !== undefined) updateData.duration = parseInt(duration);
@@ -128,7 +142,7 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
 export async function deleteSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
     const existing = await prisma.studySession.findFirst({ where: { id, userId } });

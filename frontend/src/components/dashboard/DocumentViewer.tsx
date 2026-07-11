@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import {
   X, FileText, Download, ExternalLink, Loader2, AlertCircle,
@@ -17,7 +16,7 @@ interface DocumentViewerProps {
 
 const OFFICE_VIEWER_URL = "https://docs.google.com/viewer?embedded=true&url=";
 
-const MIME_TO_ICON: Record<string, any> = {
+const MIME_TO_ICON: Record<string, React.ElementType> = {
   "application/msword": FileText,
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": FileText,
   "application/vnd.ms-excel": FileSpreadsheet,

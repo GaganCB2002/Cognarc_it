@@ -1,17 +1,26 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 
+async function requireAdmin(userId: string | undefined, res: Response): Promise<boolean> {
+  if (!userId) {
+    res.status(403).json({ message: 'Access denied. Admin only.' });
+    return false;
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
+    res.status(403).json({ message: 'Access denied. Admin only.' });
+    return false;
+  }
+  return true;
+}
+
 export async function getUsers(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -71,15 +80,8 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
 
 export async function deleteUser(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const id = req.params.id as string;
 
@@ -130,15 +132,8 @@ export async function getUserStats(req: Request, res: Response): Promise<void> {
 
 export async function getPendingUsers(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -173,15 +168,8 @@ export async function getPendingUsers(req: Request, res: Response): Promise<void
 
 export async function approveUser(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const id = req.params.id as string;
     await prisma.user.update({
@@ -199,15 +187,8 @@ export async function approveUser(req: Request, res: Response): Promise<void> {
 
 export async function rejectUser(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const id = req.params.id as string;
     await prisma.user.delete({
@@ -224,15 +205,8 @@ export async function rejectUser(req: Request, res: Response): Promise<void> {
 
 export async function getAdminDashboardStats(req: Request, res: Response): Promise<void> {
   try {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.user?.userId },
-      select: { role: true },
-    });
-
-    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'SUPER_ADMIN')) {
-      res.status(403).json({ message: 'Access denied. Admin only.' });
-      return;
-    }
+    const ok = await requireAdmin(req.user?.userId, res);
+    if (!ok) return;
 
     const [totalUsers, pendingUsers, approvedUsers, totalTasks, totalNotes, totalSessions] = await Promise.all([
       prisma.user.count(),

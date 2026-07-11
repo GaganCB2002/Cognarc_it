@@ -6,6 +6,10 @@ const TELEMETRY_URL = `${API_BASE}/telemetry/desktop`;
 const SESSION_URL = `${API_BASE}/tracking/sessions/current`;
 const AUTH_TOKEN = process.env.STUDYTRACK_AUTH_TOKEN || "";
 
+function authHeaders() {
+  return AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {};
+}
+
 function authUrl(baseUrl) {
   return AUTH_TOKEN ? `${baseUrl}?token=${encodeURIComponent(AUTH_TOKEN)}` : baseUrl;
 }
@@ -30,7 +34,7 @@ function categorizeApp(ownerName) {
 
 async function checkActiveSession() {
   try {
-    const res = await axios.get(authUrl(SESSION_URL));
+    const res = await axios.get(authUrl(SESSION_URL), { headers: authHeaders() });
     if (res.data && res.data.success && res.data.data && res.data.data.status === 'ACTIVE') {
       if (activeSessionId !== res.data.data.id) {
         console.log(`[Session Started] ID: ${res.data.data.id}`);
@@ -71,7 +75,7 @@ async function sendTelemetry(win, durationSec) {
       duration: durationSec,
       isIdle: false,
       category: category
-    });
+    }, { headers: authHeaders() });
     console.log(`Sent telemetry: ${win.owner.name} [${category}] for ${durationSec}s`);
   } catch (err) {
     console.error("Failed to send telemetry:", err.message);

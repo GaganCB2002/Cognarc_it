@@ -6,9 +6,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import {
-  CheckCircle2, Circle, Clock, Plus, Filter, LayoutGrid, List,
-  Calendar, Tag, Paperclip, ChevronDown, Search, Archive, X
+  CheckCircle2, Circle, Clock, Plus, LayoutGrid, List,
+  Calendar, Search, X, Trash2, Edit3, Copy
 } from "lucide-react";
+import { ActionMenu } from "@/components/crud/ActionMenu";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import toast from "react-hot-toast";
 
 type Task = {
   id: string; title: string; description: string; priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -16,7 +19,7 @@ type Task = {
   checklist?: { text: string; done: boolean }[];
 };
 
-const priorityColors: Record<string, string> = { CRITICAL: "danger", HIGH: "warning", MEDIUM: "outline", LOW: "success" };
+const priorityColors: Record<string, "danger" | "warning" | "outline" | "success"> = { CRITICAL: "danger", HIGH: "warning", MEDIUM: "outline", LOW: "success" };
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -26,6 +29,8 @@ export default function TasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  const [confirmDelete, setConfirmDelete] = useState<Task | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   // New task form state
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDesc, setNewTaskDesc] = useState("");
@@ -34,7 +39,7 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/tasks') as any;
+      const res = await api.get<{ data: Task[] }>('/tasks');
       if (res && res.data) setTasks(res.data);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
@@ -50,12 +55,12 @@ export default function TasksPage() {
   const handleCreateTask = async () => {
     if (!newTaskTitle) return;
     try {
-      const res = await api.post('/tasks', {
+      const res = await api.post<{ data: Task }>('/tasks', {
         title: newTaskTitle,
         description: newTaskDesc,
         priority: newTaskPriority,
         status: "TODO",
-      }) as any;
+      });
       setTasks(prev => [res.data, ...prev]);
       setIsModalOpen(false);
       setNewTaskTitle("");
@@ -76,6 +81,38 @@ export default function TasksPage() {
       console.error("Failed to update status", err);
       // Revert on fail
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!confirmDelete) return;
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/tasks/${confirmDelete.id}`);
+      setTasks(prev => prev.filter(t => t.id !== confirmDelete.id));
+      toast.success("Task deleted");
+    } catch {
+      toast.error("Failed to delete task");
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDelete(null);
+    }
+  };
+
+  const handleDuplicateTask = async (task: Task) => {
+    try {
+      const res = await api.post<{ data: Task }>('/tasks', {
+        title: `${task.title} (Copy)`,
+        description: task.description,
+        priority: task.priority,
+        status: "TODO",
+        category: task.category,
+        dueDate: task.dueDate,
+      });
+      setTasks(prev => [res.data, ...prev]);
+      toast.success("Task duplicated");
+    } catch {
+      toast.error("Failed to duplicate task");
     }
   };
 
@@ -100,7 +137,7 @@ export default function TasksPage() {
           </button>
           <h4 className={`font-semibold text-sm transition-colors ${task.status === "DONE" ? 'line-through text-st-text-muted' : 'text-st-text-primary group-hover:text-st-accent'}`}>{task.title}</h4>
         </div>
-        <Badge variant={priorityColors[task.priority] as any}>{task.priority}</Badge>
+        <Badge variant={priorityColors[task.priority]}>{task.priority}</Badge>
       </div>
       {task.description && <p className="text-xs text-st-text-muted mb-3 line-clamp-2 ml-6">{task.description}</p>}
       
@@ -119,7 +156,16 @@ export default function TasksPage() {
         <div className="flex items-center gap-2">
           {task.dueDate && <span className="text-[10px] text-st-text-muted flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(task.dueDate).toLocaleDateString()}</span>}
         </div>
-        {task.category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-elevated text-st-text-muted">{task.category}</span>}
+        <div className="flex items-center gap-2">
+          {task.category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-elevated text-st-text-muted">{task.category}</span>}
+          <ActionMenu
+            actions={[
+              { id: "edit", label: "Edit", icon: Edit3, onClick: () => {} },
+              { id: "duplicate", label: "Duplicate", icon: Copy, onClick: () => handleDuplicateTask(task) },
+              { id: "delete", label: "Delete", icon: Trash2, variant: "danger", divider: true, onClick: () => setConfirmDelete(task) },
+            ]}
+          />
+        </div>
       </div>
     </Card>
   );
@@ -183,27 +229,36 @@ export default function TasksPage() {
             <Card className="p-0 overflow-hidden flex-1">
               <div className="divide-y divide-st-border overflow-y-auto max-h-full">
                 <div className="grid grid-cols-12 gap-4 p-4 text-xs font-semibold text-st-text-muted uppercase tracking-wider bg-st-bg-elevated sticky top-0">
-                  <div className="col-span-1">Status</div><div className="col-span-5">Task</div><div className="col-span-2">Priority</div>
-                  <div className="col-span-2">Category</div><div className="col-span-2">Due Date</div>
+                  <div className="col-span-1">Status</div><div className="col-span-4">Task</div><div className="col-span-2">Priority</div>
+                  <div className="col-span-2">Category</div><div className="col-span-2">Due Date</div><div className="col-span-1" />
                 </div>
                 {filtered.length === 0 && <div className="p-8 text-center text-st-text-muted">No tasks found.</div>}
                 {filtered.map(task => (
-                  <div key={task.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-st-bg-elevated transition-colors">
+                  <div key={task.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-st-bg-elevated transition-colors group">
                     <div className="col-span-1">
                       <button onClick={() => toggleTaskStatus(task)} className="text-st-text-muted hover:text-st-accent">
                         {task.status === "DONE" ? <CheckCircle2 className="w-5 h-5 text-st-success" /> : <Circle className="w-5 h-5" />}
                       </button>
                     </div>
-                    <div className="col-span-5">
+                    <div className="col-span-4">
                       <h4 className={`font-medium text-sm ${task.status === "DONE" ? "line-through text-st-text-muted" : "text-st-text-primary"}`}>{task.title}</h4>
                       {task.description && <p className="text-xs text-st-text-muted mt-0.5 truncate">{task.description}</p>}
                     </div>
-                    <div className="col-span-2"><Badge variant={priorityColors[task.priority] as any}>{task.priority}</Badge></div>
+                    <div className="col-span-2"><Badge variant={priorityColors[task.priority]}>{task.priority}</Badge></div>
                     <div className="col-span-2"><span className="text-sm text-st-text-secondary">{task.category || '—'}</span></div>
                     <div className="col-span-2">
                       <span className="text-sm text-st-text-muted flex items-center gap-1">
                         {task.dueDate ? <><Clock className="w-3 h-3" /> {new Date(task.dueDate).toLocaleDateString()}</> : '—'}
                       </span>
+                    </div>
+                    <div className="col-span-1 flex items-center justify-end">
+                      <ActionMenu
+                        actions={[
+                          { id: "edit", label: "Edit", icon: Edit3, onClick: () => {} },
+                          { id: "duplicate", label: "Duplicate", icon: Copy, onClick: () => handleDuplicateTask(task) },
+                          { id: "delete", label: "Delete", icon: Trash2, variant: "danger", divider: true, onClick: () => setConfirmDelete(task) },
+                        ]}
+                      />
                     </div>
                   </div>
                 ))}
@@ -212,6 +267,18 @@ export default function TasksPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDeleteTask}
+        title="Delete Task"
+        message="This task will be permanently removed."
+        itemName={confirmDelete?.title}
+        confirmLabel="Delete"
+        variant="danger"
+        isLoading={deleteLoading}
+      />
 
       {/* Quick Add Modal */}
       {isModalOpen && (
@@ -233,7 +300,7 @@ export default function TasksPage() {
             </div>
             <div>
               <label className="text-xs text-st-text-secondary mb-1 block">Priority</label>
-              <select value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}
+              <select value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")}
                 className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none">
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>

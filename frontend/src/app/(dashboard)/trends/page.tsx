@@ -113,7 +113,7 @@ export default function TrendsPage() {
                      <div className="h-full bg-st-accent" style={{ width: `${session.progress}%` }}></div>
                    </div>
                 </div>
-                <p className="text-sm text-st-text-muted italic">"{session.desc}"</p>
+                <p className="text-sm text-st-text-muted italic">&quot;{session.desc}&quot;</p>
               </Card>
             ))}
           </div>

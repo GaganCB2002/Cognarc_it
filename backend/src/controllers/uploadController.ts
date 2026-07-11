@@ -54,40 +54,42 @@ async function processUpload(
     uploadedBy: userId,
   };
 
-  // Create Document record
-  const document = await prisma.document.create({
-    data: {
-      userId,
-      originalName: originalname,
-      mimeType: mimetype,
-      size,
-      storageProvider: stored.provider,
-      storageKey: stored.storageKey,
-      publicUrl: stored.publicUrl,
-      resourceType: getFileType(mimetype),
-      status: "READY",
-      tags: [],
-      metadata: fileMetadata,
-    },
-  });
+  // Create Document & Resource in a transaction
+  const { document, resource } = await prisma.$transaction(async (tx) => {
+    const doc = await tx.document.create({
+      data: {
+        userId,
+        originalName: originalname,
+        mimeType: mimetype,
+        size,
+        storageProvider: stored.provider,
+        storageKey: stored.storageKey,
+        publicUrl: stored.publicUrl,
+        resourceType: getFileType(mimetype),
+        status: "READY",
+        tags: [],
+        metadata: fileMetadata,
+      },
+    });
 
-  // Create Resource record
-  const resource = await prisma.resource.create({
-    data: {
-      title,
-      type: getFileType(mimetype),
-      fileKey: stored.storageKey,
-      fileSize: size,
-      mimeType: mimetype,
-      isUpload: true,
-      userId,
-    },
-  });
+    const res = await tx.resource.create({
+      data: {
+        title,
+        type: getFileType(mimetype),
+        fileKey: stored.storageKey,
+        fileSize: size,
+        mimeType: mimetype,
+        isUpload: true,
+        userId,
+      },
+    });
 
-  // Link Document to Resource
-  const updatedDoc = await prisma.document.update({
-    where: { id: document.id },
-    data: { resourceId: resource.id },
+    const updatedDoc = await tx.document.update({
+      where: { id: doc.id },
+      data: { resourceId: res.id },
+    });
+
+    return { document: updatedDoc, resource: res };
   });
 
   // Trigger asynchronous AI processing if it's a PDF
@@ -95,7 +97,7 @@ async function processUpload(
     queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: document.id });
   }
 
-  return { document: updatedDoc, resource };
+  return { document, resource };
 }
 
 /**
@@ -104,21 +106,22 @@ async function processUpload(
 export const uploadFile = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
-      res.status(400).json({ error: "No file provided" });
+      res.status(400).json({ success: false, message: "No file provided" });
       return;
     }
 
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const result = await processUpload(userId, req.file, req.body.title);
-    res.status(201).json(result);
+    res.status(201).json({ success: true, data: result });
   } catch (error: any) {
     console.error("Upload error:", error);
-    res.status(500).json({ error: error.message || "Failed to upload file" });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error.message || "Failed to upload file");
+    res.status(500).json({ success: false, message: msg });
   }
 };
 
@@ -129,13 +132,13 @@ export const uploadMultipleFiles = async (req: AuthRequest, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
-      res.status(400).json({ error: "No files provided" });
+      res.status(400).json({ success: false, message: "No files provided" });
       return;
     }
 
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
@@ -148,10 +151,11 @@ export const uploadMultipleFiles = async (req: AuthRequest, res: Response) => {
     );
 
     const results = await Promise.all(uploadPromises);
-    res.status(200).json(results);
+    res.status(200).json({ success: true, data: results });
   } catch (error: any) {
     console.error("Multiple uploads error:", error);
-    res.status(500).json({ error: error.message || "Failed to upload files" });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error.message || "Failed to upload files");
+    res.status(500).json({ success: false, message: msg });
   }
 };
 
@@ -164,20 +168,20 @@ export const getFile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
     const doc = check.document!;
     const data = await getStorageFile(doc.storageKey);
     if (!data) {
-      res.status(404).json({ error: "File data not found on storage" });
+      res.status(404).json({ success: false, message: "File data not found on storage" });
       return;
     }
 
@@ -187,7 +191,7 @@ export const getFile = async (req: AuthRequest, res: Response) => {
     res.send(data);
   } catch (error) {
     console.error("Get file error:", error);
-    res.status(500).json({ error: "Failed to retrieve file" });
+    res.status(500).json({ success: false, message: "Failed to retrieve file" });
   }
 };
 
@@ -200,20 +204,20 @@ export const downloadFile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
     const doc = check.document!;
     const data = await getStorageFile(doc.storageKey);
     if (!data) {
-      res.status(404).json({ error: "File data not found on storage" });
+      res.status(404).json({ success: false, message: "File data not found on storage" });
       return;
     }
 
@@ -223,7 +227,7 @@ export const downloadFile = async (req: AuthRequest, res: Response) => {
     res.send(data);
   } catch (error) {
     console.error("Download file error:", error);
-    res.status(500).json({ error: "Failed to download file" });
+    res.status(500).json({ success: false, message: "Failed to download file" });
   }
 };
 
@@ -236,13 +240,13 @@ export const previewFile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -257,7 +261,7 @@ export const previewFile = async (req: AuthRequest, res: Response) => {
     // Otherwise stream it inline
     const data = await getStorageFile(doc.storageKey);
     if (!data) {
-      res.status(404).json({ error: "File data not found on storage" });
+      res.status(404).json({ success: false, message: "File data not found on storage" });
       return;
     }
 
@@ -267,7 +271,7 @@ export const previewFile = async (req: AuthRequest, res: Response) => {
     res.send(data);
   } catch (error) {
     console.error("Preview file error:", error);
-    res.status(500).json({ error: "Failed to preview file" });
+    res.status(500).json({ success: false, message: "Failed to preview file" });
   }
 };
 
@@ -277,7 +281,7 @@ export const previewFile = async (req: AuthRequest, res: Response) => {
 export const replaceFile = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.file) {
-      res.status(400).json({ error: "No file provided" });
+      res.status(400).json({ success: false, message: "No file provided" });
       return;
     }
 
@@ -285,13 +289,13 @@ export const replaceFile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -345,10 +349,11 @@ export const replaceFile = async (req: AuthRequest, res: Response) => {
       queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: doc.id });
     }
 
-    res.status(200).json(updatedDoc);
+    res.status(200).json({ success: true, data: updatedDoc });
   } catch (error: any) {
     console.error("Replace file error:", error);
-    res.status(500).json({ error: error.message || "Failed to replace file" });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error.message || "Failed to replace file");
+    res.status(500).json({ success: false, message: msg });
   }
 };
 
@@ -362,18 +367,18 @@ export const renameFile = async (req: AuthRequest, res: Response) => {
     const { name } = req.body;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "Valid new name is required" });
+      res.status(400).json({ success: false, message: "Valid new name is required" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -396,10 +401,11 @@ export const renameFile = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.status(200).json(updatedDoc);
+    res.status(200).json({ success: true, data: updatedDoc });
   } catch (error: any) {
     console.error("Rename file error:", error);
-    res.status(500).json({ error: error.message || "Failed to rename file" });
+    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error.message || "Failed to rename file");
+    res.status(500).json({ success: false, message: msg });
   }
 };
 
@@ -412,13 +418,13 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -438,10 +444,10 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
       await prisma.resource.delete({ where: { id: doc.resourceId } }).catch(() => {});
     }
 
-    res.status(200).json({ message: "File deleted successfully" });
+    res.status(200).json({ success: true, data: { message: "File deleted successfully" } });
   } catch (error) {
     console.error("Delete file error:", error);
-    res.status(500).json({ error: "Failed to delete file" });
+    res.status(500).json({ success: false, message: "Failed to delete file" });
   }
 };
 
@@ -452,7 +458,7 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
@@ -516,10 +522,10 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
       uploadedAt: doc.createdAt,
     }));
 
-    res.status(200).json(files);
+    res.status(200).json({ success: true, data: files });
   } catch (error) {
     console.error("Get my files error:", error);
-    res.status(500).json({ error: "Failed to fetch files" });
+    res.status(500).json({ success: false, message: "Failed to fetch files" });
   }
 };
 
@@ -532,13 +538,13 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -564,10 +570,10 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.status(200).json({ message: "Metadata updated successfully" });
+    res.status(200).json({ success: true, data: { message: "Metadata updated successfully" } });
   } catch (error) {
     console.error("Update metadata error:", error);
-    res.status(500).json({ error: "Failed to update metadata" });
+    res.status(500).json({ success: false, message: "Failed to update metadata" });
   }
 };
 
@@ -580,13 +586,13 @@ export const extractText = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId as string;
 
     if (!userId) {
-      res.status(401).json({ error: "Unauthorized" });
+      res.status(401).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     const check = await checkOwnership(id, userId);
     if (check.error) {
-      res.status(check.status || 500).json({ error: check.error });
+      res.status(check.status || 500).json({ success: false, message: check.error });
       return;
     }
 
@@ -596,7 +602,7 @@ export const extractText = async (req: AuthRequest, res: Response) => {
     // PDF parse or text parse
     const data = await getStorageFile(doc.storageKey);
     if (!data) {
-      res.status(404).json({ error: "File data not found" });
+      res.status(404).json({ success: false, message: "File data not found" });
       return;
     }
 
@@ -607,13 +613,13 @@ export const extractText = async (req: AuthRequest, res: Response) => {
     } else if (doc.mimeType.startsWith("text/")) {
       text = data.toString("utf-8");
     } else {
-      res.status(400).json({ error: `Text extraction not supported for ${doc.mimeType}` });
+      res.status(400).json({ success: false, message: `Text extraction not supported for ${doc.mimeType}` });
       return;
     }
 
-    res.json({ text, title: doc.originalName });
+    res.json({ success: true, data: { text, title: doc.originalName } });
   } catch (error) {
     console.error("Extract text error:", error);
-    res.status(500).json({ error: "Failed to extract text from file" });
+    res.status(500).json({ success: false, message: "Failed to extract text from file" });
   }
 };

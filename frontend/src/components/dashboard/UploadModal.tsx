@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
-import { 
-  X, Upload, FileText, Image as ImageIcon, Video as VideoIcon, 
-  RefreshCw, Play, Trash2, CheckCircle, AlertTriangle, HelpCircle, Loader2
+"use client";
+
+import React, { useState, useRef } from "react";
+import Image from "next/image";
+import {
+  X, Upload, FileText, Video as VideoIcon,
+  RefreshCw, Trash2, CheckCircle, AlertTriangle, HelpCircle, Loader2
 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
@@ -92,8 +95,8 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
         prev.map(q => q.id === item.id ? { ...q, status: "success", progress: 100 } : q)
       );
       onUploadSuccess();
-    } catch (err: any) {
-      const errorMsg = err.message || "Upload failed";
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Upload failed";
       setQueue(prev =>
         prev.map(q => q.id === item.id ? { ...q, status: "error", errorMsg } : q)
       );
@@ -130,7 +133,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
     if (file.type.startsWith("image/")) {
       return (
         <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-st-bg-elevated flex items-center justify-center">
-          <img src={url} alt={file.name} className="object-cover w-full h-full" />
+          <Image src={url} alt={file.name} fill unoptimized className="object-cover" />
         </div>
       );
     }
