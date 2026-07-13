@@ -22,6 +22,16 @@ export interface LogActivityInput {
 }
 
 export const startTrackingSession = async (input: StartSessionInput) => {
+  // Auto-cancel any abandoned active/paused sessions
+  await prisma.trackingSession.updateMany({
+    where: { userId: input.userId, status: { in: ["ACTIVE", "PAUSED"] } },
+    data: {
+      status: "COMPLETED",
+      endTime: new Date(),
+      lastActivity: new Date(),
+    },
+  });
+
   return prisma.trackingSession.create({
     data: {
       userId: input.userId,

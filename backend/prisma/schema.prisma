@@ -158,6 +158,10 @@ model Task {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, priority])
+  @@index([userId, dueDate])
 }
 
 model Note {
@@ -174,6 +178,10 @@ model Note {
   
   // AI Integration
   intelligence NoteIntelligence?
+
+  @@index([userId, createdAt])
+  @@index([userId, isPinned])
+  @@index([folderId])
 }
 
 model Resource {
@@ -223,6 +231,10 @@ model Notification {
   actionUrl String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isRead])
+  @@index([userId, isRead, createdAt])
 }
 
 model ActivityLog {
@@ -548,6 +560,10 @@ model BrowserTelemetry {
   timestamp DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
+
+  @@index([trackingSessionId, userId, timestamp])
+  @@index([userId, timestamp])
+  @@index([trackingSessionId, category])
 }
 
 model DesktopTelemetry {
@@ -563,6 +579,10 @@ model DesktopTelemetry {
   timestamp   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
+
+  @@index([trackingSessionId, userId, timestamp])
+  @@index([userId, timestamp])
+  @@index([trackingSessionId, category])
 }
 
 // -----------------------------------------------------------------------------

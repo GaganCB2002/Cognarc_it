@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useActivityTracker } from '@/lib/useActivityTracker';
+import toast from 'react-hot-toast';
 
 export type SessionStatus = 'IDLE' | 'ACTIVE' | 'PAUSED';
 
@@ -36,6 +37,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     productivityScore: 0,
   });
   const [isInitializing, setIsInitializing] = useState(true);
+  const isProcessing = useRef(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -106,6 +108,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [session.status]);
 
   const startSession = async (projectName: string = 'General Deep Work') => {
+    if (isProcessing.current) return;
+    isProcessing.current = true;
+
     const deviceName = typeof window !== 'undefined' ? window.navigator.userAgent : 'Unknown Device';
 
     try {
@@ -123,39 +128,50 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         focusScore: 0,
         productivityScore: 0,
       });
+      toast.success('Session started');
     } catch (err: unknown) {
-      if (err instanceof Error && err.message && err.message.includes('already exists')) {
-        // Auto-recover if the server says an active session exists
-        // DO NOT throw an error to the user, just silently sync the state
-        await fetchCurrentSession();
-        return;
-      }
+      toast.error(err instanceof Error ? err.message : 'Failed to start session');
       throw err;
+    } finally {
+      isProcessing.current = false;
     }
   };
 
   const pauseSession = async () => {
-    if (!session.sessionId) return;
+    if (isProcessing.current || !session.sessionId) return;
+    isProcessing.current = true;
     try {
       await api.post(`/tracking/sessions/${session.sessionId}/pause`);
       setSession(prev => ({ ...prev, status: 'PAUSED' }));
+      toast.success('Session paused');
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to pause session';
+      toast.error(msg);
       console.error('Failed to pause session', error);
+    } finally {
+      isProcessing.current = false;
     }
   };
 
   const resumeSession = async () => {
-    if (!session.sessionId) return;
+    if (isProcessing.current || !session.sessionId) return;
+    isProcessing.current = true;
     try {
       await api.post(`/tracking/sessions/${session.sessionId}/resume`);
       setSession(prev => ({ ...prev, status: 'ACTIVE' }));
+      toast.success('Session resumed');
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to resume session';
+      toast.error(msg);
       console.error('Failed to resume session', error);
+    } finally {
+      isProcessing.current = false;
     }
   };
 
   const stopSession = async () => {
-    if (!session.sessionId) return null;
+    if (isProcessing.current || !session.sessionId) return null;
+    isProcessing.current = true;
     try {
       const res = await api.post<{ report?: { session?: { id: string }; id?: string }; session?: { id: string }; id?: string }>(`/tracking/sessions/${session.sessionId}/stop`);
       setSession({
@@ -167,10 +183,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         productivityScore: 0,
       });
       const reportData = res.report || res.session || res;
+      toast.success('Session completed');
       return reportData;
     } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to stop session';
+      toast.error(msg);
       console.error('Failed to stop session:', error);
-      // Force reset local state even if backend call fails
       setSession({
         status: 'IDLE',
         sessionId: null,
@@ -180,6 +198,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         productivityScore: 0,
       });
       return null;
+    } finally {
+      isProcessing.current = false;
     }
   };
 

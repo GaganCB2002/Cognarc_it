@@ -222,12 +222,18 @@ app.use((req, res) => {
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error("Unhandled error:", {
+  const errorPayload = {
+    method: req.method,
+    path: req.path,
     message: err.message,
-    stack: isProduction ? undefined : err.stack,
+    statusCode: (err as any).statusCode || 500,
     timestamp: new Date().toISOString(),
-  });
-  res.status(500).json({ message: isProduction ? "Internal server error" : err.message });
+  };
+  console.error("[UnhandledError]", JSON.stringify(errorPayload));
+  if (!isProduction) {
+    console.error("[UnhandledError:stack]", err.stack);
+  }
+  res.status(errorPayload.statusCode).json({ message: isProduction ? "Internal server error" : err.message });
 });
 
 httpServer.listen(PORT, () => {

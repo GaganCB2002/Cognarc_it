@@ -23,12 +23,6 @@ export async function startSession(req: Request, res: Response): Promise<void> {
     const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
 
-    const existing = await getActiveSession(userId);
-    if (existing) {
-      res.status(409).json({ message: 'An active session already exists. Stop it first.', session: existing });
-      return;
-    }
-
     const { deviceId, deviceName, projectName } = req.body;
     const session = await startTrackingSession({ userId, deviceId, deviceName, projectName });
     await lifelog.tracking(userId, "SESSION_START", `Tracking session started: ${projectName || "General"}`, {
@@ -39,7 +33,7 @@ export async function startSession(req: Request, res: Response): Promise<void> {
     res.status(201).json({ success: true, data: session });
   } catch (error) {
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    console.error('startSession error:', error);
+    console.error('[startSession]', { userId: req.user?.userId, error: (error as Error).message });
     res.status(500).json({ success: false, message: msg });
   }
 }
@@ -55,13 +49,13 @@ export async function pauseSession(req: Request, res: Response): Promise<void> {
     const session = await pauseTrackingSession(sessionId, userId);
     await lifelog.tracking(userId, "SESSION_PAUSE", `Session paused: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
-  } catch (error: any) {
-    console.error('pauseSession error:', error);
+    } catch (error: any) {
+    console.error('[pauseSession]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: error.message });
     if (error.message === 'Active session not found') {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message });
   }
 }
 
@@ -77,7 +71,7 @@ export async function resumeSession(req: Request, res: Response): Promise<void> 
     await lifelog.tracking(userId, "SESSION_RESUME", `Session resumed: ${sessionId.substring(0, 8)}...`, { sessionId });
     res.json({ success: true, data: session });
   } catch (error: any) {
-    console.error('resumeSession error:', error);
+    console.error('[resumeSession]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: error.message });
     if (error.message === 'Paused session not found') {
       res.status(404).json({ success: false, message: error.message });
       return;
@@ -122,12 +116,12 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
     // We return immediately with report: null. The UI will fetch the report when it's ready.
     res.json({ success: true, data: { session, report: null } });
   } catch (error: any) {
-    console.error('stopSession error:', error);
+    console.error('[stopSession]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: error.message });
     if (error.message === 'Session not found') {
       res.status(404).json({ success: false, message: error.message });
       return;
     }
-    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message });
+    res.status(500).json({ success: false, message: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message });
   }
 }
 
@@ -157,12 +151,12 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
     res.setHeader('Content-Disposition', `attachment; filename="session-report-${sessionId}.pdf"`);
     const pdfStream = fs.createReadStream(pdfPath);
     pdfStream.on('error', (err) => {
-      console.error('PDF stream error:', err);
+      console.error('[downloadSessionPdf:stream]', { sessionId: req.params.sessionId, error: err.message });
       if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming PDF' });
     });
     pdfStream.pipe(res);
   } catch (error) {
-    console.error('downloadSessionPdf error:', error);
+    console.error('[downloadSessionPdf]', { sessionId: req.params.sessionId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -194,7 +188,7 @@ export async function logActivity(req: Request, res: Response): Promise<void> {
     });
     res.status(201).json({ success: true, data: event });
   } catch (error) {
-    console.error('logActivity error:', error);
+    console.error('[logActivity]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -256,7 +250,7 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
 
     res.status(201).json({ success: true, data: allCreated, count: allCreated.length });
   } catch (error) {
-    console.error('batchLogActivities error:', error);
+    console.error('[batchLogActivities]', { userId: req.user?.userId, count: req.body?.events?.length || 0, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -270,8 +264,8 @@ export async function getCurrentSession(req: Request, res: Response): Promise<vo
     const session = await getActiveSession(userId);
     res.json({ success: true, data: session });
   } catch (error) {
+    console.error('[getCurrentSession]', { userId: req.user?.userId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    console.error('getCurrentSession error:', error);
     res.status(500).json({ success: false, message: msg });
   }
 }
@@ -289,7 +283,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     const result = await getSessionHistory(userId, { limit, offset, from, to });
     res.json({ success: true, ...result });
   } catch (error) {
-    console.error('getSessions error:', error);
+    console.error('[getSessions]', { userId: req.user?.userId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -308,7 +302,7 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
 
     res.json({ success: true, data: session });
   } catch (error) {
-    console.error('getSessionById error:', error);
+    console.error('[getSessionById]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -325,7 +319,7 @@ export async function getSessionStats(req: Request, res: Response): Promise<void
     const stats = await getAggregatedSessionStats(sessionId, userId);
     res.json({ success: true, data: stats });
   } catch (error: any) {
-    console.error('getSessionStats error:', error);
+    console.error('[getSessionStats]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: error.message });
     if (error.message === 'Session not found') {
       res.status(404).json({ success: false, message: error.message });
       return;
@@ -346,7 +340,7 @@ export async function getSessionActivitiesHandler(req: Request, res: Response): 
     const activities = await getSessionActivities(sessionId, userId, { category });
     res.json({ success: true, data: activities });
   } catch (error) {
-    console.error('getSessionActivities error:', error);
+    console.error('[getSessionActivitiesHandler]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -405,7 +399,7 @@ export async function getLiveTelemetry(req: Request, res: Response): Promise<voi
       },
     });
   } catch (error) {
-    console.error('getLiveTelemetry error:', error);
+    console.error('[getLiveTelemetry]', { userId: req.user?.userId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
@@ -464,7 +458,7 @@ export async function getDashboardData(req: Request, res: Response): Promise<voi
       } 
     });
   } catch (error) {
-    console.error('getDashboardData error:', error);
+    console.error('[getDashboardData]', { userId: req.user?.userId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
     res.status(500).json({ success: false, message: msg });
   }
