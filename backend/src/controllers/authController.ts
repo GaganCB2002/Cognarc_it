@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
@@ -727,6 +728,78 @@ export async function requestCaptcha(req: Request, res: Response): Promise<void>
   }
 }
 
+export async function clerkExchange(req: Request, res: Response): Promise<void> {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ success: false, message: 'Clerk session token required' });
+      return;
+    }
+
+    const clerkToken = authHeader.split(' ')[1];
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      res.status(500).json({ success: false, message: 'Clerk secret key not configured' });
+      return;
+    }
+
+    let decoded: any;
+    try {
+      decoded = jwt.decode(clerkToken);
+    } catch {
+      res.status(401).json({ success: false, message: 'Invalid Clerk token format' });
+      return;
+    }
+
+    const clerkId = decoded.sub;
+    if (!clerkId) {
+      res.status(401).json({ success: false, message: 'Invalid Clerk token' });
+      return;
+    }
+
+    const clerkRes = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    if (!clerkRes.ok) {
+      res.status(401).json({ success: false, message: 'Invalid or expired Clerk session' });
+      return;
+    }
+
+    const clerkUserData = await clerkRes.json();
+    const email = clerkUserData.email_addresses?.[0]?.email_address || clerkUserData.email || '';
+    const name = clerkUserData.first_name
+      ? `${clerkUserData.first_name} ${clerkUserData.last_name || ''}`.trim()
+      : clerkUserData.username || 'User';
+
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name || email.split('@')[0] || 'User',
+          role: 'STUDENT',
+          isApproved: true,
+          emailVerified: new Date(),
+        },
+      });
+    }
+
+    const { accessToken, refreshToken } = generateToken(user.id);
+
+    res.json({
+      success: true,
+      data: {
+        message: 'Authenticated via Clerk',
+        token: accessToken,
+        refreshToken,
+        user: { ...user, password: undefined },
+      },
+    });
+  } catch (error) {
+    console.error('Clerk exchange error:', error);
+    res.status(500).json({ success: false, message: 'Clerk exchange failed' });
+  }
+}
 
 export async function logout(req: Request, res: Response): Promise<void> {
   try {

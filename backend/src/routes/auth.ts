@@ -17,6 +17,7 @@ import {
   requestCaptcha,
   logout,
   refreshToken,
+  clerkExchange,
 } from '../controllers/authController';
 
 const router = Router();
@@ -32,6 +33,7 @@ router.put('/enroll-face', authenticate, enrollFace);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/clerk', clerkExchange);
 router.post('/refresh-token', refreshTokenMiddleware, refreshToken);
 
 router.get('/me', authenticate, getMe);
