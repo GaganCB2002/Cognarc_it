@@ -25,10 +25,12 @@ import {
   BrainCircuit,
   MessageCircle,
   HelpCircle,
+  LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
+import { useClerk } from "@clerk/nextjs";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { cn } from "@/lib/utils";
 
@@ -77,9 +79,19 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
+  const { signOut } = useClerk();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      window.location.href = "/";
+    } catch {
+      window.location.href = "/";
+    }
+  };
 
   const dynamicNavigation = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"
     ? [...navigation, { name: "Admin Dashboard", href: "/admin", icon: Shield }]
@@ -209,17 +221,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={cn("border-t border-st-border shrink-0", isCollapsed ? "p-2" : "p-4")}>
+      <div className={cn("border-t border-st-border shrink-0 space-y-1", isCollapsed ? "p-2" : "p-4")}>
         {!isCollapsed ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
+            className="space-y-1"
           >
             <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/80 transition-all duration-150">
               <HelpCircle className="w-4 h-4 shrink-0" />
               <span>Help & Support</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm font-medium text-st-danger hover:bg-st-danger/10 transition-all duration-150"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span>Logout</span>
             </button>
           </motion.div>
         ) : (
@@ -232,6 +252,13 @@ export function Sidebar() {
           >
             <button className="w-9 h-9 flex items-center justify-center rounded-lg text-st-text-muted hover:text-st-text-primary hover:bg-st-bg-elevated transition-all duration-200" aria-label="Help">
               <HelpCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-st-danger hover:bg-st-danger/10 transition-all duration-200"
+              aria-label="Logout"
+            >
+              <LogOut className="w-4 h-4" />
             </button>
           </motion.div>
         )}
