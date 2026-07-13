@@ -1,11 +1,17 @@
 const { Client } = require('pg');
 const fs = require('fs');
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 
 async function seed() {
   try {
-    const client = new Client({ connectionString: 'postgresql://neondb_owner:npg_a2Bd7zunFQGS@ep-raspy-field-atf5mbs5.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require' });
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      console.error('DATABASE_URL not set in environment');
+      process.exit(1);
+    }
+    const client = new Client({ connectionString });
     await client.connect();
-    console.log('Connected to Neon DB');
+    console.log('Connected to database');
     
     const tables = [
       'User', 'Profile', 'LearningStreak', 'StudySession', 'Task', 'Note', 
