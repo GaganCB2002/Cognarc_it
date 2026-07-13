@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "@/components/crud/ActionMenu";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { NotesListSkeleton } from "@/components/ui/ListSkeleton";
 import toast from "react-hot-toast";
 
 type Note = {
@@ -309,7 +310,7 @@ export default function NotesPage() {
               className="w-full pl-9 pr-4 py-2 bg-st-bg-elevated border border-st-border rounded-lg text-sm text-st-text-primary placeholder:text-st-text-muted focus:outline-none focus:border-st-accent/50" />
           </div>
           {loading ? (
-            <div className="p-8 text-center text-st-text-muted">Loading...</div>
+            <NotesListSkeleton />
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-st-text-muted">No notes found.</div>
           ) : (

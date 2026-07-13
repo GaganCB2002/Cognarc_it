@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "@/components/crud/ActionMenu";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
+import { TaskCardSkeleton } from "@/components/ui/ListSkeleton";
 import toast from "react-hot-toast";
 
 type Task = {
@@ -239,8 +240,18 @@ export default function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-2 border-st-accent border-t-transparent rounded-full" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
+          {columns.map(col => (
+            <div key={col.key} className="flex flex-col gap-4">
+              <div className={`flex items-center justify-between border-b-2 ${col.color} pb-3`}>
+                <h3 className="font-semibold text-sm text-st-text-primary">{col.label}</h3>
+                <div className="w-12 h-5 rounded-md skeleton-shimmer" />
+              </div>
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => <TaskCardSkeleton key={i} />)}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LiveActivityWidget } from "@/components/dashboard/LiveActivityWidget";
+import { DashboardSkeleton } from "@/components/ui/DashboardSkeleton";
 import { api } from "@/lib/api";
 import {
   Flame, CheckCircle2, Clock, PlayCircle, Pause, RotateCcw,
@@ -89,15 +90,8 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-8 relative">
-      {loading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-st-bg-primary/50 backdrop-blur-sm rounded-xl">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-7 h-7 border-2 border-st-accent border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs text-st-text-muted">Loading dashboard...</p>
-          </div>
-        </div>
-      )}
-
+      {loading ? <DashboardSkeleton /> : (
+      <>
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
@@ -343,6 +337,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+    </>
+    )}
     </div>
   );
 }

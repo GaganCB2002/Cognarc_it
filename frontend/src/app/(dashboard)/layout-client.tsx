@@ -151,9 +151,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {/* Body */}
                 <div className="max-h-[400px] overflow-y-auto">
                   {loading ? (
-                    <div className="flex flex-col items-center justify-center py-10 gap-3">
-                      <div className="w-6 h-6 border-2 border-st-accent border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-st-text-muted">Loading notifications...</p>
+                    <div className="p-4 space-y-3">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="flex gap-3 animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
+                          <div className="w-8 h-8 rounded-lg skeleton-shimmer shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="h-3 w-3/4 skeleton-shimmer rounded" />
+                            <div className="h-2.5 w-1/2 skeleton-shimmer rounded" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : error ? (
                     <div className="flex flex-col items-center justify-center py-10 gap-2 px-6 text-center">
