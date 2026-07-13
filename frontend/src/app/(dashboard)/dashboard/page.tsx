@@ -44,17 +44,17 @@ export default function DashboardPage() {
         const start = new Date().toISOString();
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-        const [tasksRes, calRes, notesRes, sessionsRes] = await Promise.all([
-          api.get<{ data: { id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[] }>('/tasks'),
-          api.get<{ data: { id?: string; title: string; eventType: string; startTime: string; endTime?: string }[] }>(`/calendar?start=${start}&end=${end}`),
-          api.get<{ data: { length: number }[] }>('/notes'),
+        const [taskItems, calItems, notesItems, sessionsData] = await Promise.all([
+          api.get<{ id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[]>('/tasks'),
+          api.get<{ id?: string; title: string; eventType: string; startTime: string; endTime?: string }[]>(`/calendar?start=${start}&end=${end}`),
+          api.get<{ length: number }[]>('/notes'),
           api.get<{ sessions?: { duration: number }[]; data?: { duration: number }[] }>('/tracking/sessions')
         ]);
 
-        if (tasksRes?.data) setTasks(tasksRes.data);
-        if (calRes?.data) setEvents(calRes.data);
-        if (notesRes?.data) setNotesCount(notesRes.data.length);
-        const sessionList = sessionsRes?.sessions || sessionsRes?.data || [];
+        if (Array.isArray(taskItems)) setTasks(taskItems);
+        if (Array.isArray(calItems)) setEvents(calItems);
+        if (Array.isArray(notesItems)) setNotesCount(notesItems.length);
+        const sessionList = sessionsData?.sessions || sessionsData?.data || [];
         if (Array.isArray(sessionList) && sessionList.length > 0) {
           const totalSecs = (sessionList as { duration: number }[]).reduce((acc: number, s: { duration: number }) => acc + (s.duration || 0), 0);
           setTotalStudyHours(+(totalSecs / 3600).toFixed(1));

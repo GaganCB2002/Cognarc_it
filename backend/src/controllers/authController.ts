@@ -776,24 +776,34 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const email = clerkUserData.email_addresses?.[0]?.email_address || clerkUserData.email || '';
+    const name = clerkUserData.first_name
+      ? `${clerkUserData.first_name} ${clerkUserData.last_name || ''}`.trim()
+      : clerkUserData.username || 'User';
+
     let user = await prisma.user.findUnique({ where: { clerkId } });
 
     if (!user) {
-      const email = clerkUserData.email_addresses?.[0]?.email_address || clerkUserData.email || '';
-      const name = clerkUserData.first_name
-        ? `${clerkUserData.first_name} ${clerkUserData.last_name || ''}`.trim()
-        : clerkUserData.username || 'User';
-
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: name || email.split('@')[0] || 'User',
-          clerkId,
-          role: 'STUDENT',
-          isApproved: true,
-          emailVerified: new Date().toISOString(),
-        },
-      });
+      // Check if a user with this email already exists (e.g., from local registration)
+      const existingByEmail = email ? await prisma.user.findUnique({ where: { email } }) : null;
+      if (existingByEmail) {
+        // Link the Clerk account to the existing user
+        user = await prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: { clerkId },
+        });
+      } else {
+        user = await prisma.user.create({
+          data: {
+            email,
+            name: name || email.split('@')[0] || 'User',
+            clerkId,
+            role: 'STUDENT',
+            isApproved: true,
+            emailVerified: new Date(),
+          },
+        });
+      }
     }
 
     const { accessToken, refreshToken } = generateToken(user.id);

@@ -20,7 +20,7 @@ export const getNotifications = async (req: Request, res: Response) => {
 
     const unreadCount = await prisma.notification.count({ where: { userId, isRead: false } });
 
-    res.json({ success: true, data: notifications, unreadCount });
+    res.json({ success: true, notifications, unreadCount });
   } catch (error) {
     console.error("getNotifications error:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });

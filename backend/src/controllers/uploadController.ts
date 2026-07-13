@@ -302,11 +302,9 @@ export const replaceFile = async (req: AuthRequest, res: Response) => {
     const doc = check.document!;
     const { originalname, mimetype, buffer, size } = req.file;
 
-    // Delete old file from storage
-    await deleteStorageFile(doc.storageKey);
-
-    // Save new file to storage
+    // Save new file to storage first, then delete old (prevent data loss on failure)
     const stored = await saveFile(userId, mimetype, originalname, buffer);
+    await deleteStorageFile(doc.storageKey);
 
     const fileMetadata = {
       downloadUrl: stored.metadata?.downloadUrl || stored.publicUrl,

@@ -7,7 +7,7 @@ export interface Notification {
   id: string;
   title: string;
   body: string;
-  type: "info" | "success" | "warning" | "error";
+  type: "REMINDER" | "ACHIEVEMENT" | "SYSTEM" | "MENTOR";
   isRead: boolean;
   actionUrl?: string | null;
   createdAt: string;
@@ -31,10 +31,10 @@ export function useNotifications() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data?: Notification[]; unreadCount?: number }>("/notifications?limit=50");
+      const res = await api.get<{ success: boolean; notifications?: Notification[]; unreadCount?: number }>("/notifications?limit=50");
       if (res.success) {
         setState({
-          notifications: res.data || [],
+          notifications: res.notifications || [],
           unreadCount: res.unreadCount || 0,
           loading: false,
           error: null,

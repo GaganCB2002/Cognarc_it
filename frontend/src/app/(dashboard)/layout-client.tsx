@@ -11,25 +11,25 @@ import { Bell, CheckCircle2, Info, AlertTriangle, X, ChevronRight, Clock } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const typeIcons = {
-  info: Info,
-  success: CheckCircle2,
-  warning: AlertTriangle,
-  error: AlertTriangle,
+const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  REMINDER: Bell,
+  ACHIEVEMENT: CheckCircle2,
+  SYSTEM: Info,
+  MENTOR: AlertTriangle,
 };
 
-const typeColors = {
-  info: "text-blue-400 bg-blue-500/10",
-  success: "text-emerald-400 bg-emerald-500/10",
-  warning: "text-amber-400 bg-amber-500/10",
-  error: "text-red-400 bg-red-500/10",
+const typeColors: Record<string, string> = {
+  REMINDER: "text-blue-400 bg-blue-500/10",
+  ACHIEVEMENT: "text-emerald-400 bg-emerald-500/10",
+  SYSTEM: "text-st-accent bg-st-accent/10",
+  MENTOR: "text-amber-400 bg-amber-500/10",
 };
 
-const typeBorderColors = {
-  info: "border-l-blue-500/30",
-  success: "border-l-emerald-500/30",
-  warning: "border-l-amber-500/30",
-  error: "border-l-red-500/30",
+const typeBorderColors: Record<string, string> = {
+  REMINDER: "border-l-blue-500/30",
+  ACHIEVEMENT: "border-l-emerald-500/30",
+  SYSTEM: "border-l-st-accent/30",
+  MENTOR: "border-l-amber-500/30",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -170,9 +170,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   ) : (
                     <div className="divide-y divide-st-border/10">
                       {notifications.map((notif) => {
-                        const Icon = typeIcons[notif.type] || Info;
-                        const colorClass = typeColors[notif.type] || typeColors.info;
-                        const borderClass = typeBorderColors[notif.type] || typeBorderColors.info;
+                        const Icon = typeIcons[notif.type] || Bell;
+                        const colorClass = typeColors[notif.type] || typeColors.REMINDER;
+                        const borderClass = typeBorderColors[notif.type] || typeBorderColors.REMINDER;
                         const isMenuOpen = menuNotifId === notif.id;
                         return (
                           <div
