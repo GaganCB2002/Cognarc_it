@@ -744,13 +744,19 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
 
     let decoded: any;
     try {
-      decoded = jwt.decode(clerkToken);
-    } catch {
-      res.status(401).json({ success: false, message: 'Invalid Clerk token format' });
+      const publicKey = process.env.CLERK_JWKS_PUBLIC_KEY?.replace(/\\n/g, '\n');
+      if (!publicKey) {
+        res.status(500).json({ success: false, message: 'Clerk JWKS public key not configured' });
+        return;
+      }
+      decoded = jwt.verify(clerkToken, publicKey, { algorithms: ['RS256'] });
+    } catch (error) {
+      console.error('Clerk JWT verification failed:', error);
+      res.status(401).json({ success: false, message: 'Invalid or expired Clerk token signature' });
       return;
     }
 
-    const clerkId = decoded.sub;
+    const clerkId = decoded?.sub;
     if (!clerkId) {
       res.status(401).json({ success: false, message: 'Invalid Clerk token' });
       return;

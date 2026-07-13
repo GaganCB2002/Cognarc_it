@@ -55,7 +55,7 @@ class ErrorBoundary extends React.Component<
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <ClerkProvider signInFallbackRedirectUrl="/student/dashboard" signUpFallbackRedirectUrl="/student/dashboard">
+      <ClerkProvider>
       <ThemeProvider>
         <AuthProvider>
           <SessionProvider>

@@ -1,12 +1,26 @@
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
-export default function middleware(_req: NextRequest) {
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/login(.*)',
+  '/register(.*)',
+  '/forgot-password(.*)',
+  '/reset-password(.*)',
+  '/api(.*)'
+]);
+
+export default clerkMiddleware((auth, request) => {
+  // Let the client-side layout handle protection for /student/dashboard etc.
+  // We just need the middleware to sync the session cookies.
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [
-    "/((?!.*\\..*|_next).*)",
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
   ],
 };
