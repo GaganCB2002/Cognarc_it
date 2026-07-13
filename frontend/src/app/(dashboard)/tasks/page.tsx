@@ -28,6 +28,8 @@ export default function TasksPage() {
   const [filter, setFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   
   const [confirmDelete, setConfirmDelete] = useState<Task | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -39,10 +41,11 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await api.get<{ data: Task[] }>('/tasks');
-      if (res && res.data) setTasks(res.data);
+      const res = await api.get<Task[]>('/tasks');
+      if (Array.isArray(res)) setTasks(res);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
+      toast.error("Failed to load tasks");
     } finally {
       setLoading(false);
     }
@@ -55,30 +58,34 @@ export default function TasksPage() {
   const handleCreateTask = async () => {
     if (!newTaskTitle) return;
     try {
-      const res = await api.post<{ data: Task }>('/tasks', {
+      const res = await api.post<Task>('/tasks', {
         title: newTaskTitle,
         description: newTaskDesc,
         priority: newTaskPriority,
         status: "TODO",
       });
-      setTasks(prev => [res.data, ...prev]);
+      setTasks(prev => [res, ...prev]);
       setIsModalOpen(false);
       setNewTaskTitle("");
       setNewTaskDesc("");
       setNewTaskPriority("MEDIUM");
+      toast.success("Task created");
     } catch (err) {
       console.error("Failed to create task", err);
+      toast.error("Failed to create task");
     }
   };
 
   const toggleTaskStatus = async (task: Task) => {
-    const newStatus = task.status === "DONE" ? "TODO" : "DONE";
+    const statusCycle: Record<string, "TODO" | "IN_PROGRESS" | "DONE"> = { "TODO": "IN_PROGRESS", "IN_PROGRESS": "DONE", "DONE": "TODO" };
+    const newStatus = statusCycle[task.status] || "TODO";
     try {
       // Optimistic update
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
       await api.put(`/tasks/${task.id}`, { status: newStatus });
     } catch (err) {
       console.error("Failed to update status", err);
+      toast.error("Failed to update task status");
       // Revert on fail
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
     }
@@ -101,7 +108,7 @@ export default function TasksPage() {
 
   const handleDuplicateTask = async (task: Task) => {
     try {
-      const res = await api.post<{ data: Task }>('/tasks', {
+      const res = await api.post<Task>('/tasks', {
         title: `${task.title} (Copy)`,
         description: task.description,
         priority: task.priority,
@@ -109,11 +116,39 @@ export default function TasksPage() {
         category: task.category,
         dueDate: task.dueDate,
       });
-      setTasks(prev => [res.data, ...prev]);
+      setTasks(prev => [res, ...prev]);
       toast.success("Task duplicated");
     } catch {
       toast.error("Failed to duplicate task");
     }
+  };
+
+  const handleEditTask = async () => {
+    if (!editingTask) return;
+    try {
+      const res = await api.put<Task>(`/tasks/${editingTask.id}`, {
+        title: newTaskTitle,
+        description: newTaskDesc,
+        priority: newTaskPriority,
+      });
+      setTasks(prev => prev.map(t => t.id === editingTask.id ? res : t));
+      setIsEditModalOpen(false);
+      setEditingTask(null);
+      setNewTaskTitle("");
+      setNewTaskDesc("");
+      setNewTaskPriority("MEDIUM");
+      toast.success("Task updated");
+    } catch {
+      toast.error("Failed to update task");
+    }
+  };
+
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setNewTaskTitle(task.title);
+    setNewTaskDesc(task.description);
+    setNewTaskPriority(task.priority);
+    setIsEditModalOpen(true);
   };
 
   const filtered = tasks.filter(t => {
@@ -160,7 +195,7 @@ export default function TasksPage() {
           {task.category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-st-bg-elevated text-st-text-muted">{task.category}</span>}
           <ActionMenu
             actions={[
-              { id: "edit", label: "Edit", icon: Edit3, onClick: () => {} },
+              { id: "edit", label: "Edit", icon: Edit3, onClick: () => openEditModal(task) },
               { id: "duplicate", label: "Duplicate", icon: Copy, onClick: () => handleDuplicateTask(task) },
               { id: "delete", label: "Delete", icon: Trash2, variant: "danger", divider: true, onClick: () => setConfirmDelete(task) },
             ]}
@@ -254,7 +289,7 @@ export default function TasksPage() {
                     <div className="col-span-1 flex items-center justify-end">
                       <ActionMenu
                         actions={[
-                          { id: "edit", label: "Edit", icon: Edit3, onClick: () => {} },
+                          { id: "edit", label: "Edit", icon: Edit3, onClick: () => openEditModal(task) },
                           { id: "duplicate", label: "Duplicate", icon: Copy, onClick: () => handleDuplicateTask(task) },
                           { id: "delete", label: "Delete", icon: Trash2, variant: "danger", divider: true, onClick: () => setConfirmDelete(task) },
                         ]}
@@ -311,6 +346,42 @@ export default function TasksPage() {
             <div className="flex justify-end gap-2 mt-4">
               <Button onClick={() => setIsModalOpen(false)} variant="outline">Cancel</Button>
               <Button onClick={handleCreateTask} variant="primary" disabled={!newTaskTitle}>Create Task</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {isEditModalOpen && editingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className="w-[400px] p-6 space-y-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-bold text-lg text-st-text-primary">Edit Task</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setEditingTask(null); setNewTaskTitle(""); setNewTaskDesc(""); setNewTaskPriority("MEDIUM"); }} className="text-st-text-muted hover:text-st-text-primary"><X className="w-5 h-5"/></button>
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Title</label>
+              <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} autoFocus
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Description</label>
+              <textarea value={newTaskDesc} onChange={e => setNewTaskDesc(e.target.value)}
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-st-text-secondary mb-1 block">Priority</label>
+              <select value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")}
+                className="w-full bg-st-bg-elevated border border-st-border rounded p-2 text-sm text-white focus:border-st-accent outline-none">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button onClick={() => { setIsEditModalOpen(false); setEditingTask(null); setNewTaskTitle(""); setNewTaskDesc(""); setNewTaskPriority("MEDIUM"); }} variant="outline">Cancel</Button>
+              <Button onClick={handleEditTask} variant="primary" disabled={!newTaskTitle}>Save Changes</Button>
             </div>
           </Card>
         </div>

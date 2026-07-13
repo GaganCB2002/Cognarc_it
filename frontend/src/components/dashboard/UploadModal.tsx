@@ -9,6 +9,7 @@ import {
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import api from "@/lib/api";
+import toast from "react-hot-toast";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -23,12 +24,20 @@ interface UploadQueueItem {
   speed: string;
   status: "pending" | "uploading" | "success" | "error" | "cancelled";
   errorMsg?: string;
+  previewUrl?: string;
 }
 
 export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalProps) {
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const allPreviewUrls = useRef<Set<string>>(new Set());
+
+  // Revoke all preview URLs on unmount
+  React.useEffect(() => {
+    const urls = allPreviewUrls.current;
+    return () => { urls.forEach(u => URL.revokeObjectURL(u)); };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -59,18 +68,40 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
   };
 
   const addFilesToQueue = (newFiles: File[]) => {
-    const items = newFiles.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      progress: 0,
-      speed: "0 KB/s",
-      status: "pending" as const,
-    }));
+    const maxSize = 100 * 1024 * 1024; // 100MB
+    const items = newFiles
+      .filter(file => {
+        if (file.size > maxSize) { toast.error(`${file.name} exceeds 100MB limit`); return false; }
+        return true;
+      })
+      .map(file => {
+        const url = URL.createObjectURL(file);
+        allPreviewUrls.current.add(url);
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+          progress: 0,
+          speed: "0 KB/s",
+          status: "pending" as const,
+          previewUrl: url,
+        };
+      });
     setQueue(prev => [...prev, ...items]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removeFile = (id: string) => {
-    setQueue(prev => prev.filter(f => f.id !== id));
+    setQueue(prev => {
+      const item = prev.find(f => f.id === id);
+      if (item?.previewUrl) { URL.revokeObjectURL(item.previewUrl); allPreviewUrls.current.delete(item.previewUrl); }
+      return prev.filter(f => f.id !== id);
+    });
+  };
+
+  const handleClose = () => {
+    allPreviewUrls.current.forEach(u => URL.revokeObjectURL(u));
+    allPreviewUrls.current.clear();
+    onClose();
   };
 
   const cancelUpload = (id: string) => {
@@ -127,13 +158,13 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
   };
 
   const renderPreview = (item: UploadQueueItem) => {
-    const { file } = item;
-    const url = URL.createObjectURL(file);
+    const { file, previewUrl } = item;
+    if (!previewUrl) return null;
 
     if (file.type.startsWith("image/")) {
       return (
         <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-st-bg-elevated flex items-center justify-center">
-          <Image src={url} alt={file.name} fill unoptimized className="object-cover" />
+          <Image src={previewUrl} alt={file.name} fill unoptimized className="object-cover" />
         </div>
       );
     }
@@ -171,7 +202,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
             <h2 className="text-lg font-semibold text-st-text-primary tracking-tight">Upload Files</h2>
             <p className="text-xs text-st-text-muted mt-0.5">Files are organized automatically in storage</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-st-bg-elevated transition-colors">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-st-bg-elevated transition-colors">
             <X className="w-4 h-4 text-st-text-muted hover:text-st-text-primary transition-colors" />
           </button>
         </div>
@@ -195,6 +226,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
               ref={fileInputRef}
               onChange={handleFileInput}
               multiple
+              accept="image/*,video/*,application/pdf,application/zip,application/vnd.openxmlformats-officedocument.*,application/msword,application/vnd.ms-excel,text/*"
               className="hidden"
             />
             <div className={`p-3 rounded-full transition-colors ${dragActive ? 'bg-st-accent/10 text-st-accent' : 'bg-st-bg-elevated text-st-text-muted'}`}>
@@ -304,7 +336,7 @@ export function UploadModal({ isOpen, onClose, onUploadSuccess }: UploadModalPro
 
         {/* Footer */}
         <div className="p-4 border-t border-st-border/60 bg-st-bg-card/30 flex justify-end gap-3">
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={handleClose}>
             Close
           </Button>
           <Button 

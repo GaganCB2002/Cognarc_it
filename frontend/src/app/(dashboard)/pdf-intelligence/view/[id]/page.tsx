@@ -235,8 +235,8 @@ export default function PDFViewerPage() {
 
   const fetchNotes = async () => {
     try {
-      const res = await api.get<{ data: Note[] }>("/notes");
-      if (res && res.data) setNotes(res.data);
+      const res = await api.get<Note[]>("/notes");
+      if (Array.isArray(res)) setNotes(res);
     } catch { /* ignore */ }
   };
 

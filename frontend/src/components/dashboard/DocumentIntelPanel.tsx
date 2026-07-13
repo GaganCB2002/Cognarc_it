@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { BrainCircuit, BookOpen, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 
-export function DocumentIntelPanel() {
+export function DocumentIntelPanel({ documentText }: { documentText?: string }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<{ summary?: string; keyTopics?: string[]; quiz?: { id: string; question: string; options: string[] }[] } | null>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
     try {
-      const summaryRes = await api.post<{ summary?: string; keyTopics?: string[] }>("/ai/summary", { text: "mock text from pdf" });
-      const quizRes = await api.post<{ questions?: { question: string; options: string[] }[] }>("/ai/quiz", { text: "mock text from pdf" });
+      const text = documentText || "mock text from pdf";
+      const summaryRes = await api.post<{ summary?: string; keyTopics?: string[] }>("/ai/summary", { text });
+      const quizRes = await api.post<{ questions?: { question: string; options: string[] }[] }>("/ai/quiz", { text });
       
       setData({
         summary: summaryRes.summary,

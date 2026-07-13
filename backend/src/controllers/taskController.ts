@@ -73,13 +73,13 @@ export async function createTask(req: Request, res: Response): Promise<void> {
     const { title, description, priority, status, dueDate, category, checklist } = req.body;
     if (!title) { res.status(400).json({ success: false, message: 'Title is required' }); return; }
 
-    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'BACKLOG', 'CANCELLED'];
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE'];
     if (priority && !validPriorities.includes(priority)) {
-      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+      res.status(400).json({ success: false, message: 'Invalid priority value' }); return;
     }
     if (status && !validStatuses.includes(status)) {
-      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+      res.status(400).json({ success: false, message: 'Invalid status value' }); return;
     }
 
     const task = await prisma.task.create({
@@ -114,13 +114,13 @@ export async function updateTask(req: Request, res: Response): Promise<void> {
 
     const { title, description, priority, status, dueDate, category, checklist } = req.body;
 
-    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE', 'BACKLOG', 'CANCELLED'];
+    const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const validStatuses = ['TODO', 'IN_PROGRESS', 'DONE'];
     if (priority && !validPriorities.includes(priority)) {
-      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+      res.status(400).json({ success: false, message: 'Invalid priority value' }); return;
     }
     if (status && !validStatuses.includes(status)) {
-      res.status(400).json({ success: false, message: 'Invalid priority/status value' }); return;
+      res.status(400).json({ success: false, message: 'Invalid status value' }); return;
     }
 
     const updateData: Record<string, any> = {};

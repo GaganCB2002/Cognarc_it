@@ -318,11 +318,7 @@ export default function KnowledgeVaultPage() {
     if (!confirmDelete) return;
     const file = confirmDelete;
     try {
-      if (file.resourceId) {
-        await api.delete(`/resources/${file.resourceId}`);
-      } else {
-        await api.delete(`/upload/${file.id}`);
-      }
+      await api.delete(`/upload/${file.id}`);
       setFiles((prev) => prev.filter((f) => f.id !== file.id));
       toast.success("Deleted successfully");
     } catch (err: unknown) {
