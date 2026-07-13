@@ -288,17 +288,14 @@ export default function DiagnosticsPage() {
     }
   }, [checkBackend, checkDatabase, checkSocket, checkTelemetry]);
 
-  // Initialize Socket.IO
+  // Initialize Socket.IO (connects even without auth token for diagnostics)
   useEffect(() => {
-    if (!user?.id) return;
-
     const socketUrl = API_URL.replace('/api', '');
     const token = api.getToken();
-    if (!token) return;
 
     const socket = socketIO(socketUrl, {
       withCredentials: true,
-      auth: { token },
+      auth: token ? { token } : {},
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,

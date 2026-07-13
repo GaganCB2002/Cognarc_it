@@ -24,12 +24,12 @@ function extractToken(req: Request): string | null {
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   const token = extractToken(req);
   if (!token) {
-    return res.status(401).json({ message: 'Authentication required' });
+    return res.status(401).json({ success: false, message: 'Authentication required' });
   }
 
   const decoded = verifyAccessToken(token);
   if (!decoded) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
 
   req.user = { userId: decoded.userId };
@@ -55,12 +55,12 @@ export const refreshTokenMiddleware = (req: Request, res: Response, next: NextFu
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return res.status(400).json({ message: 'Refresh token is required' });
+      return res.status(400).json({ success: false, message: 'Refresh token is required' });
     }
 
     const decoded = verifyRefreshToken(refreshToken);
     if (!decoded) {
-      return res.status(401).json({ message: 'Invalid or expired refresh token' });
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
     }
 
     const newAccessToken = generateAccessToken(decoded.userId);
@@ -68,6 +68,6 @@ export const refreshTokenMiddleware = (req: Request, res: Response, next: NextFu
     res.locals.newAccessToken = newAccessToken;
     next();
   } catch {
-    return res.status(401).json({ message: 'Invalid refresh token' });
+    return res.status(401).json({ success: false, message: 'Invalid refresh token' });
   }
 };

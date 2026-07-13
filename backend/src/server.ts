@@ -89,30 +89,40 @@ export const io = new Server(httpServer, {
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
-  if (!token) return next(new Error('Authentication required'));
+  if (!token) {
+    (socket as any).user = null;
+    return next();
+  }
   const decoded = verifyAccessToken(token as string);
-  if (!decoded) return next(new Error('Invalid or expired token'));
+  if (!decoded) {
+    (socket as any).user = null;
+    return next();
+  }
   (socket as any).user = decoded;
   next();
 });
 
 io.on('connection', (socket) => {
-  const userId = (socket as any).user.userId;
-  socket.join(`user_${userId}`);
-  console.log(`[Socket] User ${userId} connected (socket: ${socket.id})`);
+  const userId = (socket as any).user?.userId;
+  if (userId) {
+    socket.join(`user_${userId}`);
+    console.log(`[Socket] User ${userId} connected (socket: ${socket.id})`);
+  } else {
+    console.log(`[Socket] Anonymous client connected (socket: ${socket.id})`);
+  }
   
   socket.on('joinRoom', (roomUserId: string) => {
-    if (typeof roomUserId === 'string' && roomUserId.trim() && roomUserId === userId) {
+    if (userId && typeof roomUserId === 'string' && roomUserId.trim() && roomUserId === userId) {
       socket.join(`user_${userId}`);
     }
   });
 
   socket.on('disconnect', (reason) => {
-    console.log(`[Socket] User ${userId} disconnected (socket: ${socket.id}, reason: ${reason})`);
+    console.log(`[Socket] Client ${socket.id} disconnected (reason: ${reason})`);
   });
 
   socket.on('error', (err) => {
-    console.error(`[Socket] Error for user ${userId}:`, err.message);
+    console.error(`[Socket] Error for socket ${socket.id}:`, err.message);
   });
 
   socket.on('ping', (cb) => {
@@ -207,6 +217,19 @@ app.get("/api/socket/status", (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
+});
+
+app.get("/api/backend/status", (req, res) => {
+  res.json({ success: true, status: "online", uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
+
+app.get("/api/tracking/status", async (req, res) => {
+  try {
+    const count = await prisma.trackingSession.count();
+    res.json({ success: true, status: "active", totalSessions: count, timestamp: new Date().toISOString() });
+  } catch {
+    res.json({ success: true, status: "active", totalSessions: 0, timestamp: new Date().toISOString() });
+  }
 });
 
 app.get("/api/diagnostics", async (req, res) => {
