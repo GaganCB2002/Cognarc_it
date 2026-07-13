@@ -64,16 +64,16 @@ export function Navbar() {
           <ThemeToggle />
           {!isAuthenticated ? (
             <>
-              <SignInButton>
+              <Link href="/login">
                 <Button variant="ghost" size="sm" className="text-sm">
                   Sign In
                 </Button>
-              </SignInButton>
-              <SignUpButton>
+              </Link>
+              <Link href="/register">
                 <Button size="sm" className="text-sm bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium">
                   Get Started
                 </Button>
-              </SignUpButton>
+              </Link>
             </>
           ) : (
             <Link href="/student/dashboard">
@@ -132,12 +132,12 @@ export function Navbar() {
               <div className="flex flex-col gap-2 pt-1">
                 {!isAuthenticated ? (
                   <>
-                    <SignInButton>
+                    <Link href="/login" onClick={() => setMobileOpen(false)}>
                       <Button variant="ghost" className="w-full text-sm">Sign In</Button>
-                    </SignInButton>
-                    <SignUpButton>
+                    </Link>
+                    <Link href="/register" onClick={() => setMobileOpen(false)}>
                       <Button className="w-full bg-st-accent text-black border-0 text-sm">Get Started</Button>
-                    </SignUpButton>
+                    </Link>
                   </>
                 ) : (
                   <Link href="/student/dashboard" onClick={() => setMobileOpen(false)}>
