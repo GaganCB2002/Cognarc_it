@@ -8,7 +8,7 @@ export default function RegisterPage() {
       <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-st-accent/[0.015] blur-[60px] rounded-full pointer-events-none" />
       <div className="w-full max-w-sm">
         <div className="flex justify-center">
-          <SignUp signInUrl="/login" fallbackRedirectUrl="/student/dashboard" />
+          <SignUp routing="path" path="/register" signInUrl="/login" fallbackRedirectUrl="/student/dashboard" />
         </div>
       </div>
     </div>
