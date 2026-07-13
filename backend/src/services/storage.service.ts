@@ -120,6 +120,11 @@ async function deleteFromSupabase(storageKey: string): Promise<void> {
   }
 }
 
+async function existsOnLocal(storageKey: string): Promise<boolean> {
+  const fullPath = path.join(config.localBasePath, storageKey);
+  return fsSync.existsSync(fullPath);
+}
+
 async function saveToS3(storageKey: string, buffer: Buffer): Promise<void> {
   throw new Error("S3 storage not configured. Set STORAGE_PROVIDER=LOCAL or configure S3 credentials.");
 }

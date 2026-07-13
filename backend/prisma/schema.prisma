@@ -503,6 +503,7 @@ enum StorageProvider {
   CLOUDINARY
   GITHUB
   GOOGLE_DRIVE
+  SUPABASE
 }
 
 enum DocumentStatus {
