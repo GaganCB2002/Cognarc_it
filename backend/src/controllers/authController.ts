@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { verifyToken } from '@clerk/clerk-sdk-node';
 import { prisma } from '../lib/prisma';
 import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
@@ -744,12 +745,7 @@ export async function clerkExchange(req: Request, res: Response): Promise<void> 
 
     let decoded: any;
     try {
-      const publicKey = process.env.CLERK_JWKS_PUBLIC_KEY?.replace(/\\n/g, '\n');
-      if (!publicKey) {
-        res.status(500).json({ success: false, message: 'Clerk JWKS public key not configured' });
-        return;
-      }
-      decoded = jwt.verify(clerkToken, publicKey, { algorithms: ['RS256'] });
+      decoded = await verifyToken(clerkToken, { secretKey } as any);
     } catch (error) {
       console.error('Clerk JWT verification failed:', error);
       res.status(401).json({ success: false, message: 'Invalid or expired Clerk token signature' });

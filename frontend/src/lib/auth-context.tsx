@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth as useClerkAuth } from "@clerk/nextjs";
+import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs";
 import api from "@/lib/api";
 
 interface User {
@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userKey, setUserKey] = useState(0);
   const { isSignedIn, getToken: getClerkToken } = useClerkAuth();
+  const { signOut } = useClerk();
   const router = useRouter();
   const exchangedRef = useRef(false);
 
@@ -138,6 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearAuthState();
         api.setToken(null);
         setIsLoading(false);
+        try { await signOut(); } catch (err) {}
       }
     };
 
