@@ -12,12 +12,12 @@ import {
 export async function createCalendarEvent(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { title, description, eventType, color, startTime, endTime, isAllDay, isRecurring, recurrenceType, recurrenceRule, recurrenceEnd, timezone, location, tags, metadata } = req.body;
 
     if (!title || !eventType || !startTime) {
-      res.status(400).json({ message: 'title, eventType, and startTime are required' });
+      res.status(400).json({ success: false, message: 'title, eventType, and startTime are required' });
       return;
     }
 
@@ -56,10 +56,10 @@ export async function createCalendarEvent(req: Request, res: Response): Promise<
 export async function updateCalendarEvent(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const eventId = req.params.eventId as string;
-    if (!eventId) { res.status(400).json({ message: 'Event ID is required' }); return; }
+    if (!eventId) { res.status(400).json({ success: false, message: 'Event ID is required' }); return; }
 
     const event = await updateEvent(eventId, userId, req.body);
     res.json({ success: true, data: event });
@@ -77,13 +77,13 @@ export async function updateCalendarEvent(req: Request, res: Response): Promise<
 export async function deleteCalendarEvent(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const eventId = req.params.eventId as string;
-    if (!eventId) { res.status(400).json({ message: 'Event ID is required' }); return; }
+    if (!eventId) { res.status(400).json({ success: false, message: 'Event ID is required' }); return; }
 
     await deleteEvent(eventId, userId);
-    res.json({ success: true, message: 'Event deleted' });
+    res.json({ success: true, data: { message: 'Event deleted' } });
   } catch (error: any) {
     console.error('deleteCalendarEvent error:', error);
     if (error.message === 'Event not found') {
@@ -98,13 +98,13 @@ export async function deleteCalendarEvent(req: Request, res: Response): Promise<
 export async function getCalendarEvent(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const eventId = req.params.eventId as string;
-    if (!eventId) { res.status(400).json({ message: 'Event ID is required' }); return; }
+    if (!eventId) { res.status(400).json({ success: false, message: 'Event ID is required' }); return; }
 
     const event = await getEvent(eventId, userId);
-    if (!event) { res.status(404).json({ message: 'Event not found' }); return; }
+    if (!event) { res.status(404).json({ success: false, message: 'Event not found' }); return; }
 
     res.json({ success: true, data: event });
   } catch (error) {
@@ -117,11 +117,11 @@ export async function getCalendarEvent(req: Request, res: Response): Promise<voi
 export async function listCalendarEvents(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { start, end, eventType, tags } = req.query;
     if (!start || !end) {
-      res.status(400).json({ message: 'start and end query params are required' });
+      res.status(400).json({ success: false, message: 'start and end query params are required' });
       return;
     }
 
@@ -158,10 +158,10 @@ export async function listCalendarEvents(req: Request, res: Response): Promise<v
 export async function searchCalendarEvents(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { q, eventType } = req.query;
-    if (!q) { res.status(400).json({ message: 'Search query (q) is required' }); return; }
+    if (!q) { res.status(400).json({ success: false, message: 'Search query (q) is required' }); return; }
 
     const events = await searchEvents(userId, q as string, { eventType: eventType as string });
     res.json({ success: true, data: events });
@@ -175,11 +175,11 @@ export async function searchCalendarEvents(req: Request, res: Response): Promise
 export async function getCalendarStats(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { from, to } = req.query;
     if (!from || !to) {
-      res.status(400).json({ message: 'from and to query params are required' });
+      res.status(400).json({ success: false, message: 'from and to query params are required' });
       return;
     }
 

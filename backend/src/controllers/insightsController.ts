@@ -8,7 +8,7 @@ import {
 export async function getInsights(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const insights = await generateProductivityInsights(userId);
     res.json({ success: true, data: insights });
@@ -22,7 +22,7 @@ export async function getInsights(req: Request, res: Response): Promise<void> {
 export async function getLearningRoadmap(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const roadmap = await generateLearningRoadmap(userId);
     res.json({ success: true, data: roadmap });
@@ -36,7 +36,7 @@ export async function getLearningRoadmap(req: Request, res: Response): Promise<v
 export async function getInterviewQuestions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const questions = await generateInterviewQuestions(userId);
     res.json({ success: true, data: questions });

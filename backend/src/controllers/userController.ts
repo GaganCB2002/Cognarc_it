@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 
 async function requireAdmin(userId: string | undefined, res: Response): Promise<boolean> {
   if (!userId) {
-    res.status(403).json({ message: 'Access denied. Admin only.' });
+    res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
     return false;
   }
   const user = await prisma.user.findUnique({
@@ -11,7 +11,7 @@ async function requireAdmin(userId: string | undefined, res: Response): Promise<
     select: { role: true },
   });
   if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
-    res.status(403).json({ message: 'Access denied. Admin only.' });
+    res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
     return false;
   }
   return true;
@@ -37,18 +37,21 @@ export async function getUsers(req: Request, res: Response): Promise<void> {
     const users = rawUsers.map(({ password, ...rest }) => rest);
 
     res.status(200).json({
-      users,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+      success: true,
+      data: {
+        users,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (error) {
     console.error('GetUsers error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -65,16 +68,16 @@ export async function getUserById(req: Request, res: Response): Promise<void> {
     });
 
     if (!rawUser) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     const { password, ...user } = rawUser;
-    res.status(200).json({ user });
+    res.status(200).json({ success: true, data: { user } });
   } catch (error) {
     console.error('GetUserById error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -87,17 +90,17 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
 
     await prisma.user.delete({ where: { id } });
 
-    res.status(200).json({ message: 'User deleted successfully' });
+    res.status(200).json({ success: true, data: { message: 'User deleted successfully' } });
   } catch (error) {
     console.error('DeleteUser error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -105,7 +108,7 @@ export async function getUserStats(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
     if (!userId) {
-      res.status(401).json({ message: 'Authentication required' });
+      res.status(401).json({ success: false, message: 'Authentication required' });
       return;
     }
 
@@ -116,17 +119,20 @@ export async function getUserStats(req: Request, res: Response): Promise<void> {
     ]);
 
     res.status(200).json({
-      stats: {
-        studySessionsCount,
-        currentStreak: learningStreak?.currentStreak ?? 0,
-        longestStreak: learningStreak?.longestStreak ?? 0,
-        tasksCompleted,
+      success: true,
+      data: {
+        stats: {
+          studySessionsCount,
+          currentStreak: learningStreak?.currentStreak ?? 0,
+          longestStreak: learningStreak?.longestStreak ?? 0,
+          tasksCompleted,
+        },
       },
     });
   } catch (error) {
     console.error('GetUserStats error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -151,18 +157,21 @@ export async function getPendingUsers(req: Request, res: Response): Promise<void
     const users = rawUsers.map(({ password, ...rest }) => rest);
 
     res.status(200).json({
-      users,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+      success: true,
+      data: {
+        users,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     });
   } catch (error) {
     console.error('GetPendingUsers error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -177,11 +186,11 @@ export async function approveUser(req: Request, res: Response): Promise<void> {
       data: { isApproved: true },
     });
 
-    res.status(200).json({ message: 'User approved successfully' });
+    res.status(200).json({ success: true, data: { message: 'User approved successfully' } });
   } catch (error) {
     console.error('ApproveUser error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -195,11 +204,11 @@ export async function rejectUser(req: Request, res: Response): Promise<void> {
       where: { id },
     });
 
-    res.status(200).json({ message: 'User rejected and deleted successfully' });
+    res.status(200).json({ success: true, data: { message: 'User rejected and deleted successfully' } });
   } catch (error) {
     console.error('RejectUser error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }
 
@@ -217,26 +226,28 @@ export async function getAdminDashboardStats(req: Request, res: Response): Promi
       prisma.trackingSession.count(),
     ]);
 
-    // Role breakdown
     const roleBreakdown = await prisma.user.groupBy({
       by: ['role'],
       _count: { role: true },
     });
 
     res.status(200).json({
-      stats: {
-        totalUsers,
-        pendingUsers,
-        approvedUsers,
-        totalTasks,
-        totalNotes,
-        totalSessions,
-        roleBreakdown: roleBreakdown.map(r => ({ role: r.role, count: r._count.role })),
+      success: true,
+      data: {
+        stats: {
+          totalUsers,
+          pendingUsers,
+          approvedUsers,
+          totalTasks,
+          totalNotes,
+          totalSessions,
+          roleBreakdown: roleBreakdown.map(r => ({ role: r.role, count: r._count.role })),
+        },
       },
     });
   } catch (error) {
     console.error('GetAdminDashboardStats error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ message: msg });
+    res.status(500).json({ success: false, message: msg });
   }
 }

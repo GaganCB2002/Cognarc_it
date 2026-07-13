@@ -47,7 +47,7 @@ export default function DashboardPage() {
         const [taskItems, calItems, notesItems, sessionsData] = await Promise.all([
           api.get<{ id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[]>('/tasks'),
           api.get<{ id?: string; title: string; eventType: string; startTime: string; endTime?: string }[]>(`/calendar?start=${start}&end=${end}`),
-          api.get<{ length: number }[]>('/notes'),
+          api.get<unknown[]>('/notes'),
           api.get<{ sessions?: { duration: number }[]; data?: { duration: number }[] }>('/tracking/sessions')
         ]);
 

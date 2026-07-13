@@ -21,7 +21,7 @@ import {
 export async function startSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { deviceId, deviceName, projectName } = req.body;
     const session = await startTrackingSession({ userId, deviceId, deviceName, projectName });
@@ -41,10 +41,10 @@ export async function startSession(req: Request, res: Response): Promise<void> {
 export async function pauseSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const session = await pauseTrackingSession(sessionId, userId);
     await lifelog.tracking(userId, "SESSION_PAUSE", `Session paused: ${sessionId.substring(0, 8)}...`, { sessionId });
@@ -62,10 +62,10 @@ export async function pauseSession(req: Request, res: Response): Promise<void> {
 export async function resumeSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const session = await resumeTrackingSession(sessionId, userId);
     await lifelog.tracking(userId, "SESSION_RESUME", `Session resumed: ${sessionId.substring(0, 8)}...`, { sessionId });
@@ -83,9 +83,9 @@ export async function resumeSession(req: Request, res: Response): Promise<void> 
 export async function stopSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const session = await stopTrackingSession(sessionId, userId);
 
@@ -128,10 +128,10 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
 export async function downloadSessionPdf(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const pdfPath = path.join(__dirname, '..', '..', 'uploads', `report-${sessionId}.pdf`);
     
@@ -165,12 +165,12 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
 export async function logActivity(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
     const { eventType, category, module, entityId, entityType, label, duration, metadata } = req.body;
     if (!sessionId || !eventType) {
-      res.status(400).json({ message: 'sessionId and eventType are required' });
+      res.status(400).json({ success: false, message: 'sessionId and eventType are required' });
       return;
     }
 
@@ -197,11 +197,11 @@ export async function logActivity(req: Request, res: Response): Promise<void> {
 export async function batchLogActivities(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { events } = req.body;
     if (!Array.isArray(events) || events.length === 0) {
-      res.status(400).json({ message: 'events array is required' });
+      res.status(400).json({ success: false, message: 'events array is required' });
       return;
     }
 
@@ -209,7 +209,7 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
 
     const sessionIds = [...new Set(eventsArr.map((e) => e.trackingSessionId).filter((id): id is string => typeof id === 'string' && id.trim() !== ''))];
     if (sessionIds.length === 0) {
-      res.status(400).json({ message: 'No valid trackingSessionId found in events' });
+      res.status(400).json({ success: false, message: 'No valid trackingSessionId found in events' });
       return;
     }
     const validSessions = await prisma.trackingSession.findMany({
@@ -219,7 +219,7 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
     const validSessionIds = new Set(validSessions.map((s) => s.id));
     const invalid = sessionIds.find((sid) => !validSessionIds.has(sid));
     if (invalid) {
-      res.status(403).json({ message: `Session ${invalid} not found or does not belong to user` });
+      res.status(403).json({ success: false, message: `Session ${invalid} not found or does not belong to user` });
       return;
     }
 
@@ -259,7 +259,7 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
 export async function getCurrentSession(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const session = await getActiveSession(userId);
     res.json({ success: true, data: session });
@@ -273,7 +273,7 @@ export async function getCurrentSession(req: Request, res: Response): Promise<vo
 export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 50), 200);
     const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
@@ -292,13 +292,13 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
 export async function getSessionById(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const session = await prisma.trackingSession.findFirst({ where: { id: sessionId, userId } });
-    if (!session) { res.status(404).json({ message: 'Session not found' }); return; }
+    if (!session) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
     res.json({ success: true, data: session });
   } catch (error) {
@@ -311,10 +311,10 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
 export async function getSessionStats(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const stats = await getAggregatedSessionStats(sessionId, userId);
     res.json({ success: true, data: stats });
@@ -331,10 +331,10 @@ export async function getSessionStats(req: Request, res: Response): Promise<void
 export async function getSessionActivitiesHandler(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const category = req.query.category as string;
     const activities = await getSessionActivities(sessionId, userId, { category });
@@ -349,7 +349,7 @@ export async function getSessionActivitiesHandler(req: Request, res: Response): 
 export async function getLiveTelemetry(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const activeSession = await prisma.trackingSession.findFirst({
       where: { userId, status: { in: ["ACTIVE", "PAUSED"] } },
@@ -408,7 +408,7 @@ export async function getLiveTelemetry(req: Request, res: Response): Promise<voi
 export async function getDashboardData(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const activeSession = await getActiveSession(userId);
     

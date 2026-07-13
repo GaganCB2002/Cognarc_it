@@ -14,10 +14,10 @@ import { queueService } from '../services/queue.service';
 export async function createSessionReport(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sessionId = req.params.sessionId as string;
-    if (!sessionId) { res.status(400).json({ message: 'Session ID is required' }); return; }
+    if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
     const report = await generateSessionReport(sessionId, userId);
     res.status(201).json({ success: true, data: report });
@@ -35,17 +35,17 @@ export async function createSessionReport(req: Request, res: Response): Promise<
 export async function createPeriodicReport(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { type, from, to } = req.body;
     if (!type || !from || !to) {
-      res.status(400).json({ message: 'type, from, and to are required' });
+      res.status(400).json({ success: false, message: 'type, from, and to are required' });
       return;
     }
 
     const validTypes = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'];
     if (!validTypes.includes(type)) {
-      res.status(400).json({ message: `type must be one of: ${validTypes.join(', ')}` });
+      res.status(400).json({ success: false, message: `type must be one of: ${validTypes.join(', ')}` });
       return;
     }
 
@@ -61,7 +61,7 @@ export async function createPeriodicReport(req: Request, res: Response): Promise
 export async function listReports(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
@@ -79,13 +79,13 @@ export async function listReports(req: Request, res: Response): Promise<void> {
 export async function getReportById(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const reportId = req.params.reportId as string;
-    if (!reportId) { res.status(400).json({ message: 'Report ID is required' }); return; }
+    if (!reportId) { res.status(400).json({ success: false, message: 'Report ID is required' }); return; }
 
     const report = await getReport(reportId, userId);
-    if (!report) { res.status(404).json({ message: 'Report not found' }); return; }
+    if (!report) { res.status(404).json({ success: false, message: 'Report not found' }); return; }
 
     res.json({ success: true, data: report });
   } catch (error) {
@@ -98,10 +98,10 @@ export async function getReportById(req: Request, res: Response): Promise<void> 
 export async function downloadPeriodicPdf(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const reportId = req.params.reportId as string;
-    if (!reportId) { res.status(400).json({ message: 'Report ID is required' }); return; }
+    if (!reportId) { res.status(400).json({ success: false, message: 'Report ID is required' }); return; }
 
     const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
     if (!fs.existsSync(uploadsDir)) {
@@ -141,7 +141,7 @@ export async function downloadPeriodicPdf(req: Request, res: Response): Promise<
 export async function getDailySummary(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     let date = req.query.date ? new Date(req.query.date as string) : new Date();
     date.setHours(0, 0, 0, 0);
@@ -166,12 +166,12 @@ export async function getDailySummary(req: Request, res: Response): Promise<void
 export async function triggerDailySummary(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const date = new Date();
     queueService.enqueue("AI_GENERATE_DAILY_SUMMARY", { userId, date });
 
-    res.json({ success: true, message: 'Daily summary generation started' });
+    res.json({ success: true, data: { message: 'Daily summary generation started' } });
   } catch (error) {
     console.error('triggerDailySummary error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;

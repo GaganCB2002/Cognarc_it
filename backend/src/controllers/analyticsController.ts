@@ -7,7 +7,7 @@ import { getSessionHistory } from '../services/tracking.service';
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const [legacyStats, insights, recentSessions] = await Promise.all([
       getAggregatedStats(userId),
@@ -33,7 +33,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
 export async function getWeeklyTrends(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -69,7 +69,7 @@ export async function getWeeklyTrends(req: Request, res: Response): Promise<void
 export async function getCategoryBreakdown(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -98,7 +98,7 @@ export async function getCategoryBreakdown(req: Request, res: Response): Promise
 export async function getProductivityTrend(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const reports = await prisma.report.findMany({
       where: { userId },

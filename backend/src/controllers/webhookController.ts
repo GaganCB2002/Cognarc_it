@@ -111,6 +111,6 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Webhook handler error:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    res.status(500).json({ success: false, message: 'Webhook processing failed' });
   }
 };

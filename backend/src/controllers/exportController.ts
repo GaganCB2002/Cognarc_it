@@ -4,24 +4,24 @@ import { exportData } from '../services/export.service';
 export async function handleExport(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.userId as string;
-    if (!userId) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const { format, entityType, from, to } = req.query;
 
     if (!format || !entityType) {
-      res.status(400).json({ message: 'format and entityType are required' });
+      res.status(400).json({ success: false, message: 'format and entityType are required' });
       return;
     }
 
     const validFormats = ['CSV', 'JSON', 'EXCEL'];
     if (!validFormats.includes(format as string)) {
-      res.status(400).json({ message: `format must be one of: ${validFormats.join(', ')}` });
+      res.status(400).json({ success: false, message: `format must be one of: ${validFormats.join(', ')}` });
       return;
     }
 
     const validEntityTypes = ['activity', 'sessions', 'calendar'];
     if (!validEntityTypes.includes(entityType as string)) {
-      res.status(400).json({ message: `entityType must be one of: ${validEntityTypes.join(', ')}` });
+      res.status(400).json({ success: false, message: `entityType must be one of: ${validEntityTypes.join(', ')}` });
       return;
     }
 
