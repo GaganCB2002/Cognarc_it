@@ -29,6 +29,18 @@ const nextConfig: NextConfig = {
       ],
     },
   ],
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.BACKEND_URL || 'https://cognarc-it-1.onrender.com'}/api/:path*`,
+      },
+      {
+        source: '/health',
+        destination: `${process.env.BACKEND_URL || 'https://cognarc-it-1.onrender.com'}/health`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

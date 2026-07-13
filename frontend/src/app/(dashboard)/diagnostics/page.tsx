@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { api, API_URL } from "@/lib/api";
+import { api, API_URL, getBackendOrigin } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { useAuth } from "@/lib/auth-context";
 import { io as socketIO, Socket } from "socket.io-client";
@@ -288,7 +288,7 @@ export default function DiagnosticsPage() {
 
   // Initialize Socket.IO (connects even without auth token for diagnostics)
   useEffect(() => {
-    const socketUrl = API_URL.replace('/api', '');
+    const socketUrl = getBackendOrigin();
     const token = api.getToken();
 
     const socket = socketIO(socketUrl, {

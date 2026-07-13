@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { api } from "@/lib/api";
+import { api, getBackendOrigin } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -136,7 +136,7 @@ export default function TrackingDashboard() {
 
     let socket: ReturnType<typeof socketIO> | null = null;
     if (user?.id && (session?.status === "ACTIVE" || session?.status === "PAUSED")) {
-      const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || "https://cognarc-it-1.onrender.com";
+      const socketUrl = getBackendOrigin();
       const token = api.getToken();
       socket = socketIO(socketUrl, {
         withCredentials: true,

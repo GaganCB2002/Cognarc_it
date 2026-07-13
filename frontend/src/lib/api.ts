@@ -1,4 +1,11 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
+
+/** Backend origin (without /api path) — used for Socket.IO and direct fetches */
+export function getBackendOrigin(): string {
+  const envOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN;
+  if (envOrigin) return envOrigin;
+  return "https://cognarc-it-1.onrender.com";
+}
 
 interface RefreshTokenResponse {
   token: string;
