@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowRight } from "lucide-react";
@@ -37,18 +38,18 @@ export function CTA() {
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
             {!isAuthenticated ? (
               <>
-                <Link href="/register">
+                <SignUpButton>
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                     <Button size="lg" className="text-base px-10 bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium shadow-lg shadow-st-accent/20">
                       Start Free <ArrowRight size={16} className="ml-2" />
                     </Button>
                   </motion.div>
-                </Link>
-                <Link href="/login">
+                </SignUpButton>
+                <SignInButton>
                   <Button variant="outline" size="lg" className="text-base px-10">
                     Sign In
                   </Button>
-                </Link>
+                </SignInButton>
               </>
             ) : (
               <Link href="/student/dashboard">

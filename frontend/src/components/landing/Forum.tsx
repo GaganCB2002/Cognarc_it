@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignUpButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { MessageSquare, Users, Layers, ArrowRight } from "lucide-react";
@@ -68,13 +69,13 @@ export function Forum() {
           className="mt-12 text-center"
         >
           {!isAuthenticated ? (
-            <Link href="/register">
+            <SignUpButton>
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Button size="lg" className="px-8 bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium shadow-lg shadow-st-accent/20">
                   Join the Community <ArrowRight size={16} className="ml-2" />
                 </Button>
               </motion.div>
-            </Link>
+            </SignUpButton>
           ) : (
             <Link href="/student/dashboard">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

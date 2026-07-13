@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/lib/auth-context";
 import { ArrowRight, Sparkles, BookOpen, BarChart3, MessageSquare, CheckCircle } from "lucide-react";
@@ -98,13 +99,13 @@ export function Hero() {
           >
             {!isAuthenticated ? (
               <>
-                <Link href="/register">
+                <SignUpButton>
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                     <Button size="lg" className="text-base px-8 bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium shadow-lg shadow-st-accent/20">
                       Start Your Journey <ArrowRight size={16} className="ml-2" />
                     </Button>
                   </motion.div>
-                </Link>
+                </SignUpButton>
                 <Link href="#curriculum">
                   <Button variant="outline" size="lg" className="text-base px-8">
                     Explore Curriculum

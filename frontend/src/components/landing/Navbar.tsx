@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/Button";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useAuth } from "@/lib/auth-context";
@@ -63,16 +64,16 @@ export function Navbar() {
           <ThemeToggle />
           {!isAuthenticated ? (
             <>
-              <Link href="/login">
+              <SignInButton>
                 <Button variant="ghost" size="sm" className="text-sm">
                   Sign In
                 </Button>
-              </Link>
-              <Link href="/register">
+              </SignInButton>
+              <SignUpButton>
                 <Button size="sm" className="text-sm bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium">
                   Get Started
                 </Button>
-              </Link>
+              </SignUpButton>
             </>
           ) : (
             <Link href="/student/dashboard">
@@ -131,12 +132,12 @@ export function Navbar() {
               <div className="flex flex-col gap-2 pt-1">
                 {!isAuthenticated ? (
                   <>
-                    <Link href="/login" onClick={() => setMobileOpen(false)}>
+                    <SignInButton>
                       <Button variant="ghost" className="w-full text-sm">Sign In</Button>
-                    </Link>
-                    <Link href="/register" onClick={() => setMobileOpen(false)}>
+                    </SignInButton>
+                    <SignUpButton>
                       <Button className="w-full bg-st-accent text-black border-0 text-sm">Get Started</Button>
-                    </Link>
+                    </SignUpButton>
                   </>
                 ) : (
                   <Link href="/student/dashboard" onClick={() => setMobileOpen(false)}>
