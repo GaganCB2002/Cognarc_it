@@ -25,10 +25,8 @@ export default function TrendsPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: TelemetryStats }>("/telemetry/stats");
-        if (response.success) {
-          setStats(response.data);
-        }
+        const data = await api.get<TelemetryStats>("/telemetry/stats");
+        if (data) setStats(data);
       } catch (error) {
         console.error("Failed to fetch telemetry stats", error);
       } finally {

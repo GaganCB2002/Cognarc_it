@@ -102,6 +102,8 @@ export const clerkWebhookHandler = async (req: Request, res: Response) => {
         }
       } catch (error) {
         console.error('Error deleting user:', error);
+        res.status(500).json({ success: false, message: 'Error deleting user' });
+        return;
       }
     }
 

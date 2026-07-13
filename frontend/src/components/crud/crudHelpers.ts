@@ -1,6 +1,6 @@
 import { toast } from "react-hot-toast";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+const BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export async function downloadFile(fileId: string, filename: string) {
   if (typeof window === "undefined") return;

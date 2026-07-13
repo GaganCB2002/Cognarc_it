@@ -37,24 +37,18 @@ export default function ReportsPage() {
     { key: "YEARLY", label: "This Year" },
   ];
 
-  const reportData = {
-    tasksCompleted: 8, tasksPending: 5, productivityScore: 92, focusScore: 87,
-    breakDuration: 0.8, learningStreak: 14, projectsWorked: 3, pdfsStudied: 1
-  };
-
   const metrics = [
-    { icon: Clock, label: "Study Hours", value: `6.5h`, color: "text-emerald-400" },
-    { icon: Code, label: "Coding Hours", value: `4.2h`, color: "text-purple-400" },
-    { icon: BookOpen, label: "Reading Hours", value: `1.8h`, color: "text-blue-400" },
-    { icon: Brain, label: "AI Usage", value: `45 msgs`, color: "text-st-accent" },
-    { icon: Target, label: "Tasks Done", value: `${reportData.tasksCompleted}`, color: "text-emerald-400" },
-    { icon: Target, label: "Tasks Pending", value: `${reportData.tasksPending}`, color: "text-st-warning" },
-    { icon: Zap, label: "Productivity", value: `${reportData.productivityScore}%`, color: "text-st-accent" },
-    { icon: TrendingUp, label: "Focus Score", value: `${reportData.focusScore}/100`, color: "text-blue-400" },
-    { icon: Coffee, label: "Break Time", value: `${reportData.breakDuration}h`, color: "text-st-text-muted" },
-    { icon: FileText, label: "PDFs Studied", value: `${reportData.pdfsStudied}`, color: "text-red-400" },
-    { icon: Calendar, label: "Streak", value: `${reportData.learningStreak} days`, color: "text-orange-400" },
-    { icon: BarChart3, label: "Projects", value: `${reportData.projectsWorked}`, color: "text-cyan-400" },
+    { icon: Clock, label: "Study Hours", value: `${(sessions.reduce((a, s) => a + s.duration, 0) / 3600).toFixed(1)}h`, color: "text-emerald-400" },
+    { icon: Code, label: "Coding Hours", value: `---`, color: "text-purple-400" },
+    { icon: BookOpen, label: "Reading Hours", value: `---`, color: "text-blue-400" },
+    { icon: Brain, label: "AI Usage", value: `---`, color: "text-st-accent" },
+    { icon: Target, label: "Sessions Completed", value: `${sessions.length}`, color: "text-emerald-400" },
+    { icon: Zap, label: "Productivity", value: `---`, color: "text-st-accent" },
+    { icon: TrendingUp, label: "Focus Score", value: `---`, color: "text-blue-400" },
+    { icon: Coffee, label: "Break Time", value: `---`, color: "text-st-text-muted" },
+    { icon: FileText, label: "PDFs Studied", value: `---`, color: "text-red-400" },
+    { icon: Calendar, label: "Streak", value: `---`, color: "text-orange-400" },
+    { icon: BarChart3, label: "Projects", value: `${new Set(sessions.map(s => s.projectName).filter(Boolean)).size}`, color: "text-cyan-400" },
   ];
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -92,7 +86,7 @@ export default function ReportsPage() {
       });
 
       if (res && res.id) {
-        const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/reports/${res.id}/pdf`;
+        const downloadUrl = `/api/reports/${res.id}/pdf`;
         window.open(downloadUrl, '_blank');
       }
     } catch (err) {
@@ -104,7 +98,7 @@ export default function ReportsPage() {
   };
 
   const handleDownload = (sessId: string) => {
-    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://cognarc-it-1.onrender.com/api'}/tracking/sessions/${sessId}/pdf`;
+    const downloadUrl = `/api/tracking/sessions/${sessId}/pdf`;
     window.open(downloadUrl, '_blank');
   };
 

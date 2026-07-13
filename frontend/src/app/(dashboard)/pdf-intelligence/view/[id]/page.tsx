@@ -15,6 +15,7 @@ import {
   FileX
 } from "lucide-react";
 
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import { highlightPlugin, RenderHighlightTargetProps, RenderHighlightsProps, HighlightArea } from '@react-pdf-viewer/highlight';
@@ -100,6 +101,7 @@ export default function PDFViewerPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { noteTitleRef.current = noteTitle; }, [noteTitle]);
 
@@ -240,7 +242,6 @@ export default function PDFViewerPage() {
   };
 
   const handleDeleteFile = async () => {
-    if (!confirm("Delete this file permanently? This cannot be undone.")) return;
     try {
       await api.delete(`/upload/${id}`);
       router.push("/pdf-intelligence");
@@ -342,7 +343,8 @@ export default function PDFViewerPage() {
   };
 
   const removeHighlight = (hlId: string) => setHighlights((prev) => prev.filter((h) => h.id !== hlId));
-  const removeAllHighlights = () => { if (highlights.length > 0 && confirm("Remove all highlights?")) setHighlights([]); };
+  const [confirmClearHighlights, setConfirmClearHighlights] = useState(false);
+  const removeAllHighlights = () => { if (highlights.length > 0) setConfirmClearHighlights(true); };
 
   const exportHighlightSummary = () => {
     if (highlights.length === 0) return;
@@ -630,7 +632,7 @@ export default function PDFViewerPage() {
               <rect x="6" y="14" width="12" height="8" />
             </svg>
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleDeleteFile} title="Delete file">
+          <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)} title="Delete file">
             <Trash2 className="w-4 h-4 text-st-danger" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setFullscreen(!fullscreen)}>
@@ -850,6 +852,25 @@ export default function PDFViewerPage() {
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDeleteFile}
+        title="Delete File"
+        message="Are you sure you want to delete this file permanently? This cannot be undone."
+        itemName={doc?.title}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmClearHighlights}
+        onClose={() => setConfirmClearHighlights(false)}
+        onConfirm={() => { setHighlights([]); setConfirmClearHighlights(false); }}
+        title="Remove Highlights"
+        message="Remove all highlights from this document?"
+        confirmLabel="Remove All"
+        variant="warning"
+      />
     </div>
   );
 }

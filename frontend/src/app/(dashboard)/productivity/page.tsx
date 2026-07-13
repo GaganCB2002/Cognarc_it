@@ -39,10 +39,10 @@ export default function ProductivityPage() {
     const fetchData = async () => {
       try {
         const [statsRes, insightsRes] = await Promise.all([
-          api.get<{ success: boolean; data: AggregatedStats }>("/telemetry/stats"),
+          api.get<AggregatedStats>("/telemetry/stats"),
           api.get<{ totalSessions: number; totalHours: number; avgSessionMinutes: number; bestSession: { id: string; durationMinutes: number; date: string } | null; avgProductivity: number; strongTopics: string[]; weakTopics: string[]; allTopics: string[]; recommendations: string[]; trend: string }>("/insights/productivity"),
         ]);
-        if (statsRes?.success && statsRes?.data) setStats(statsRes.data);
+        if (statsRes) setStats(statsRes);
         if (insightsRes) setInsights(insightsRes);
       } catch (err) {
         console.error("Productivity data fetch error:", err);

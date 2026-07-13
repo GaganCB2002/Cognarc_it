@@ -439,7 +439,7 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
 
     // Also delete linked Resource if exists
     if (doc.resourceId) {
-      await prisma.resource.delete({ where: { id: doc.resourceId } }).catch(() => {});
+      await prisma.resource.delete({ where: { id: doc.resourceId } }).catch(err => console.error('Failed to delete linked resource:', err));
     }
 
     res.status(200).json({ success: true, data: { message: "File deleted successfully" } });

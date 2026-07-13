@@ -74,7 +74,7 @@ async function readFromLocal(storageKey: string): Promise<Buffer> {
 
 async function deleteFromLocal(storageKey: string): Promise<void> {
   const fullPath = path.join(config.localBasePath, storageKey);
-  await fs.unlink(fullPath).catch(() => {});
+  await fs.unlink(fullPath).catch(err => console.error('Failed to delete local file:', fullPath, err));
 }
 
 async function existsOnLocal(storageKey: string): Promise<boolean> {
@@ -185,6 +185,6 @@ export async function renameFile(storageKey: string, newName: string): Promise<v
   } else if (config.provider === "LOCAL") {
     const oldPath = getLocalPath(storageKey);
     const newPath = path.join(path.dirname(oldPath), newName);
-    await fs.rename(oldPath, newPath).catch(err => console.error('Rename failed:', err));
+    await fs.rename(oldPath, newPath).catch(err => console.error('Rename failed:', oldPath, '->', newPath, err));
   }
 }

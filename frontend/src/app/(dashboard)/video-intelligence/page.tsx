@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import api from "@/lib/api";
 import { VideoViewer } from "@/components/dashboard/VideoViewer";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import Image from "next/image";
 import {
   Video, Upload, Play, HelpCircle, Sparkles,
@@ -98,6 +99,7 @@ export default function VideoIntelligencePage() {
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [addingUrl, setAddingUrl] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<VideoItem | null>(null);
   const [activeTab, setActiveTab] = useState<"summary" | "notes" | "quiz">("summary");
   const [videoViewer, setVideoViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
 
@@ -191,15 +193,26 @@ export default function VideoIntelligencePage() {
 
   const handleDelete = async (item: VideoItem, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this video?")) return;
+    setConfirmDelete(item);
+  };
+
+  const confirmDeleteVideo = async () => {
+    const item = confirmDelete;
+    if (!item) return;
+    setConfirmDelete(null);
     try {
       if (item.resourceId) {
         await api.delete(`/resources/${item.resourceId}`);
       } else {
         await api.delete(`/upload/${item.id}`);
       }
-      setVideos((prev) => prev.filter((v) => v.id !== item.id));
-      if (selectedVideo?.id === item.id) setSelectedVideo(videos.filter((v) => v.id !== item.id)[0] || null);
+      setVideos((prev) => {
+        const filtered = prev.filter((v) => v.id !== item.id);
+        if (selectedVideo?.id === item.id) {
+          setSelectedVideo(filtered[0] || null);
+        }
+        return filtered;
+      });
     } catch { /* ignore */ }
   };
 
@@ -457,6 +470,15 @@ export default function VideoIntelligencePage() {
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={confirmDeleteVideo}
+        title="Delete Video"
+        message="Are you sure you want to delete this video? This action cannot be undone."
+        itemName={confirmDelete?.title}
+      />
     </div>
   );
 }

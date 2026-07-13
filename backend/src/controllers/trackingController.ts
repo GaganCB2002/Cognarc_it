@@ -153,6 +153,7 @@ export async function downloadSessionPdf(req: Request, res: Response): Promise<v
     pdfStream.on('error', (err) => {
       console.error('[downloadSessionPdf:stream]', { sessionId: req.params.sessionId, error: err.message });
       if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming PDF' });
+      else res.end();
     });
     pdfStream.pipe(res);
   } catch (error) {

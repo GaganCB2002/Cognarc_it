@@ -129,6 +129,7 @@ export async function downloadPeriodicPdf(req: Request, res: Response): Promise<
     readStream.on('error', (err) => {
       console.error('PDF stream error:', err);
       if (!res.headersSent) res.status(500).json({ success: false, message: 'Error streaming PDF' });
+      else res.end();
     });
     readStream.pipe(res);
   } catch (error) {

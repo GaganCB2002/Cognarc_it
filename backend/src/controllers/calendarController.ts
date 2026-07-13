@@ -21,7 +21,7 @@ export async function createCalendarEvent(req: Request, res: Response): Promise<
       return;
     }
 
-    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER'];
+    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER', 'LEARNING', 'CODING', 'TASK', 'REVISION', 'GOAL'];
     if (!validEventTypes.includes(eventType)) {
       res.status(400).json({ success: false, message: 'Invalid event type' });
       return;
@@ -132,7 +132,7 @@ export async function listCalendarEvents(req: Request, res: Response): Promise<v
       return;
     }
 
-    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER'];
+    const validEventTypes = ['STUDY', 'WORK', 'MEETING', 'PERSONAL', 'BREAK', 'OTHER', 'LEARNING', 'CODING', 'TASK', 'REVISION', 'GOAL'];
     if (eventType && !validEventTypes.includes(eventType as string)) {
       res.status(400).json({ success: false, message: 'Invalid event type' });
       return;

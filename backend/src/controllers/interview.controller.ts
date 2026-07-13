@@ -1113,13 +1113,7 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const [, aiRecommendations] = await Promise.all([
-      prisma.interviewRecommendation.findMany({
-        where: { userId, isCompleted: false },
-        orderBy: { priority: "desc" },
-      }),
-      interviewService.generateRecommendations(userId),
-    ]);
+    const aiRecommendations = await interviewService.generateRecommendations(userId);
 
     const recs = (aiRecommendations as any).recommendations || [];
     for (const rec of recs) {
