@@ -92,15 +92,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isAuthenticated) {
     return null;
   }
-    return (
-      <div className="flex h-screen bg-gradient-to-b from-st-bg-primary via-st-bg-primary to-st-bg-secondary items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-st-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-st-text-muted">Authenticating session...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen bg-gradient-to-b from-st-bg-primary via-st-bg-primary to-st-bg-secondary overflow-hidden">
