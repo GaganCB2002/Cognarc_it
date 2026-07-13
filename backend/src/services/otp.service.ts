@@ -32,7 +32,7 @@ export function generateOTP(userId: string): { otp: string; key: string } {
     return { otp: existing[1].otp, key: existing[0] };
   }
 
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const otp = String(crypto.randomInt(100000, 999999));
   const key = crypto.randomUUID();
   otpStore.set(key, {
     otp,

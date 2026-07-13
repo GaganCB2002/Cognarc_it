@@ -243,7 +243,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Role Breakdown */}
-      {stats && stats.roleBreakdown.length > 0 && (
+      {stats && stats.roleBreakdown?.length > 0 && (
         <Card className="p-6">
           <h3 className="text-sm font-semibold text-st-text-primary mb-4 flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-st-accent" /> User Role Breakdown

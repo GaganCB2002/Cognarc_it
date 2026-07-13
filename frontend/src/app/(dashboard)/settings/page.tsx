@@ -352,7 +352,7 @@ export default function SettingsPage() {
   const updateSettingField = (category: keyof AppSettings, field: string, value: boolean | string) => {
     const newSettings = { 
       ...settings, 
-      [category]: { ...(settings[category] as Record<string, boolean | string>), [field]: value } 
+      [category]: { ...((settings[category] ?? {}) as Record<string, boolean | string>), [field]: value } 
     };
     setSettings(newSettings);
     // Auto-save on toggle

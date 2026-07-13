@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma";
+import ExcelJS from "exceljs";
+import { Buffer } from "buffer";
 
 function escapeCsv(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
@@ -104,7 +106,14 @@ export const exportData = async (
     mimeType = "application/json";
     ext = "json";
   } else {
-    content = toJson(data);
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(entityType);
+    if (data.length > 0) {
+      sheet.columns = Object.keys(data[0]).map((k) => ({ header: k, key: k }));
+      data.forEach((row) => sheet.addRow(row));
+    }
+    const workbookBuf = (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+    content = workbookBuf.toString("base64");
     mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     ext = "xlsx";
   }

@@ -23,7 +23,16 @@ export const getAggregatedStats = async (userId: string) => {
   const deepHours = (totalDeepSeconds / 3600).toFixed(1);
 
   // 2. Session Intensity
-  const sessionIntensity = totalDeepSeconds > 0 ? "High (89%)" : "None (0%)";
+  const completedSessions = await prisma.trackingSession.findMany({
+    where: { userId, status: 'COMPLETED', endTime: { not: null } },
+    select: { startTime: true, endTime: true, totalPauseMs: true }
+  });
+  const totalSessionSeconds = completedSessions.reduce((acc, s) => {
+    if (!s.endTime) return acc;
+    return acc + Math.round((s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs) / 1000);
+  }, 0);
+  const intensityPct = totalSessionSeconds > 0 ? Math.round((totalDeepSeconds / totalSessionSeconds) * 100) : 0;
+  const sessionIntensity = totalDeepSeconds > 0 ? `High (${intensityPct}%)` : "None (0%)";
 
   // 3. Top Sessions
   const topDesktop = await prisma.desktopTelemetry.groupBy({

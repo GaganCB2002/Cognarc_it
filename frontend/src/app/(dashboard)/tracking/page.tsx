@@ -471,7 +471,7 @@ export default function TrackingDashboard() {
             <h3 className="text-lg font-bold text-st-text-primary mb-4 flex items-center gap-2">
               <Monitor className="w-5 h-5 text-st-accent" /> Desktop Usage
             </h3>
-            {data.desktopApps.length > 0 ? (
+            {data.desktopApps?.length > 0 ? (
               <div className="space-y-3">
                 {data.desktopApps.map((app, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-st-bg-elevated rounded-lg">
@@ -502,7 +502,7 @@ export default function TrackingDashboard() {
             <h3 className="text-lg font-bold text-st-text-primary mb-4 flex items-center gap-2">
               <Globe className="w-5 h-5 text-blue-400" /> Browser Usage
             </h3>
-            {data.browserDomains.length > 0 ? (
+            {data.browserDomains?.length > 0 ? (
               <div className="space-y-3">
                 {data.browserDomains.map((domain, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-st-bg-elevated rounded-lg">
@@ -531,7 +531,7 @@ export default function TrackingDashboard() {
       )}
 
       {/* Activity Timeline */}
-      {data && data.recentActivities.length > 0 && (
+      {data && data.recentActivities?.length > 0 && (
         <Card className="p-6">
           <h3 className="text-lg font-bold text-st-text-primary mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-st-accent" /> Recent Activity

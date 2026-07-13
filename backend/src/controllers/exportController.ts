@@ -37,7 +37,11 @@ export async function handleExport(req: Request, res: Response): Promise<void> {
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-    res.send(result.content);
+    if (result.mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+      res.send(Buffer.from(result.content, "base64"));
+    } else {
+      res.send(result.content);
+    }
   } catch (error) {
     console.error('handleExport error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;

@@ -54,6 +54,14 @@ export default function CalendarPage() {
   const [date, setDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const generateId = (): string => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -147,7 +155,7 @@ export default function CalendarPage() {
   const handleCreateEvent = async (newEventData: { title: string; type: string; start: string | Date; end?: string | Date; notes?: string; color?: string }) => {
     try {
       const color = getEventColor(newEventData.type);
-      const tempEvent: CalendarEventItem = { ...newEventData, id: crypto.randomUUID(), color, start: new Date(newEventData.start), end: newEventData.end ? new Date(newEventData.end) : new Date(newEventData.start) };
+      const tempEvent: CalendarEventItem = { ...newEventData, id: generateId(), color, start: new Date(newEventData.start), end: newEventData.end ? new Date(newEventData.end) : new Date(newEventData.start) };
 
       setEvents((prev) => [...prev, tempEvent]);
 
