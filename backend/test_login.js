@@ -1,4 +1,4 @@
-process.env.DATABASE_URL='postgresql://postgres:password@localhost:5432/studytrack?schema=public';
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
