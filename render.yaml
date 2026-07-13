@@ -2,8 +2,9 @@ services:
   - type: web
     name: studytrack-api
     runtime: node
-    buildCommand: cd backend && npm install && npm run build && npx prisma db push --accept-data-loss
-    startCommand: cd backend && node dist/server.js
+    rootDir: backend
+    buildCommand: npm install && npm run build && npx prisma db push --accept-data-loss
+    startCommand: node dist/server.js
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -42,8 +43,9 @@ services:
   - type: web
     name: studytrack-web
     runtime: node
-    buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && npm start
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://cognarc-it-1.onrender.com/api
