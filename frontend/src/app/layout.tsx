@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
@@ -30,6 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    <ClerkProvider>
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} h-full antialiased`}
@@ -45,5 +47,6 @@ export default function RootLayout({
           <Providers>{children}</Providers>
       </body>
     </html>
+    </ClerkProvider>
   );
 }
