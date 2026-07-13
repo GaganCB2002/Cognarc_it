@@ -8,7 +8,7 @@ export default function LoginPage() {
       <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-st-accent/[0.015] blur-[60px] rounded-full pointer-events-none" />
       <div className="w-full max-w-sm">
         <div className="flex justify-center">
-          <SignIn routing="path" path="/login" signUpUrl="/register" fallbackRedirectUrl="/student/dashboard" />
+          <SignIn fallbackRedirectUrl="/student/dashboard" />
         </div>
       </div>
     </div>
