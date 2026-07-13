@@ -51,7 +51,11 @@ class ApiClient {
     };
 
     if (this.accessToken) {
-      headers["Authorization"] = `Bearer ${this.accessToken}`;
+      // Skip auth for health/diagnostics endpoints
+      const isPublicEndpoint = endpoint === '/health' || endpoint.startsWith('/database/') || endpoint.startsWith('/socket/') || endpoint.startsWith('/backend/') || endpoint.startsWith('/tracking/status');
+      if (!isPublicEndpoint) {
+        headers["Authorization"] = `Bearer ${this.accessToken}`;
+      }
     }
 
     if (options.body instanceof FormData) {

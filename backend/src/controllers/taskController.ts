@@ -21,7 +21,7 @@ export async function getTasks(req: Request, res: Response): Promise<void> {
       prisma.task.count({ where }),
     ]);
 
-    res.json({ success: true, data: tasks, total, page: parseInt(page as string), limit: take });
+    res.json({ success: true, data: { tasks, total, page: parseInt(page as string), limit: take } });
   } catch (error) {
     console.error('getTasks error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;

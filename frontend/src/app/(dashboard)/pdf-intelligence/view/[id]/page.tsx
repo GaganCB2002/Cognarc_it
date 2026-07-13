@@ -177,7 +177,6 @@ export default function PDFViewerPage() {
 
     const endpoints = [
       `${apiBase}/upload/${id}/download`,
-      `${apiBase}/upload/${id}/file`,
       `${apiBase}/upload/${id}`,
     ];
 

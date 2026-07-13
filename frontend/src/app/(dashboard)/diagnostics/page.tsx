@@ -185,7 +185,6 @@ export default function DiagnosticsPage() {
     try {
       const res = await fetch(`${API_URL}/database/status`, {
         signal: AbortSignal.timeout(5000),
-        headers: { Authorization: `Bearer ${api.getToken()}` },
       });
       const data = await res.json();
       setDatabase({
@@ -198,7 +197,7 @@ export default function DiagnosticsPage() {
     } catch (err) {
       setDatabase(prev => ({
         ...prev,
-        status: "disconnected",
+        status: err instanceof Error && err.name === "TimeoutError" ? "disconnected" : "disconnected",
         lastSync: new Date(),
         responseTime: null,
         error: err instanceof Error ? err.message : "Connection failed",
@@ -207,24 +206,23 @@ export default function DiagnosticsPage() {
   }, []);
 
   const checkSocket = useCallback(() => {
-    if (!user?.id) return;
-    if (socketInstance?.connected) {
-      const start = Date.now();
-      socketInstance.emit("ping", () => {
-        setSocketLatency(Date.now() - start);
-      });
-      setSocket({
-        status: "connected",
-        lastSync: new Date(),
-        responseTime: socketLatency,
-        error: null,
-        details: { "Socket ID": socketInstance.id || "—" },
-      });
-    }
-  }, [user?.id, socketInstance, socketLatency]);
+    if (!socketInstance?.connected) return;
+    const start = Date.now();
+    socketInstance.emit("ping", () => {
+      const latency = Date.now() - start;
+      setSocketLatency(latency);
+    });
+    setSocket({
+      status: "connected",
+      lastSync: new Date(),
+      responseTime: socketLatency,
+      error: null,
+      details: { "Socket ID": socketInstance.id || "—" },
+    });
+  }, [socketInstance, socketLatency]);
 
   const checkTelemetry = useCallback(async () => {
-    if (!user?.id) return;
+    if (!api.getToken()) return;
     try {
       const res = await api.get<{
         liveTab?: { timestamp: string };
@@ -295,12 +293,13 @@ export default function DiagnosticsPage() {
 
     const socket = socketIO(socketUrl, {
       withCredentials: true,
+      transports: ["websocket", "polling"],
       auth: token ? { token } : {},
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
-      timeout: 10000,
+      timeout: 15000,
     });
 
     socket.on("connect", () => {
@@ -343,7 +342,7 @@ export default function DiagnosticsPage() {
       setSocketInstance(null);
       setSocket(initialService);
     };
-  }, [user?.id]);
+  }, []);
 
   // Polling interval
   useEffect(() => {

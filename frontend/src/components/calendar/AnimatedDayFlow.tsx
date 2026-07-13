@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { X, Clock, PlayCircle, BookOpen, MonitorPlay, CheckSquare, Target, Pencil, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 
 type FlowEvent = {
   id: string;
@@ -25,7 +26,8 @@ interface AnimatedDayFlowProps {
 }
 
 export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelete }: AnimatedDayFlowProps) {
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Sort events chronologically
   const sortedEvents = [...events].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
@@ -183,7 +185,7 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
                                         </button>
                                       )}
                                       {onDelete && (
-                                        <button onClick={(e) => { e.stopPropagation(); if (confirm('Delete this event?')) onDelete(event.id); }}
+                                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(event.id); }}
                                           className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-st-danger/10 rounded text-st-danger border border-st-danger/20 hover:bg-st-danger/20 transition-colors">
                                           <Trash2 className="w-3 h-3" /> Delete
                                         </button>
@@ -204,6 +206,19 @@ export function AnimatedDayFlow({ isOpen, onClose, date, events, onEdit, onDelet
           </motion.div>
         </>
       )}
+
+      <ConfirmDialog
+        isOpen={deleteConfirmId !== null}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={() => {
+          if (deleteConfirmId && onDelete) onDelete(deleteConfirmId);
+          setDeleteConfirmId(null);
+        }}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+      />
     </AnimatePresence>
   );
 }

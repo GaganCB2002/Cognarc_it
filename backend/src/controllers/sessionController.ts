@@ -22,7 +22,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
       prisma.studySession.count({ where }),
     ]);
 
-    res.json({ success: true, data: sessions, total, page: parseInt(page as string), limit: take });
+    res.json({ success: true, data: { sessions, total, page: parseInt(page as string), limit: take } });
   } catch (error) {
     console.error('getSessions error:', error);
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;

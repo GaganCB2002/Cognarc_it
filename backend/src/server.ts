@@ -63,15 +63,15 @@ function isOriginAllowed(origin: string | undefined, callback: (err: Error | nul
   if (!origin) return callback(null, true);
   if (allowedOrigins.includes(origin)) return callback(null, true);
   if (allowedOrigins.includes('*')) return callback(null, true);
-  // Allow all local development origins (localhost, 127.0.0.1, and local private network IPs) in development
-  if (!isProduction) {
-    const isLocal = origin.startsWith('http://localhost') || 
-                    origin.startsWith('http://127.0.0.1') || 
-                    origin.startsWith('http://10.') || 
-                    origin.startsWith('http://192.168.') || 
-                    origin.startsWith('http://172.');
-    if (isLocal) return callback(null, true);
-  }
+  // Allow all Vercel deployments (*.vercel.app and *.now.sh)
+  if (origin.match(/^https:\/\/[a-zA-Z0-9_-]+\.(vercel\.app|now\.sh)$/)) return callback(null, true);
+  // Allow all local development origins in any environment
+  const isLocal = origin.startsWith('http://localhost') || 
+                  origin.startsWith('http://127.0.0.1') || 
+                  origin.startsWith('http://10.') || 
+                  origin.startsWith('http://192.168.') || 
+                  origin.startsWith('http://172.');
+  if (isLocal) return callback(null, true);
   
   callback(new Error('Not allowed by CORS'));
 }
@@ -81,10 +81,13 @@ export const io = new Server(httpServer, {
     origin: isOriginAllowed,
     credentials: true,
   },
-  // Require auth token on connection
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
   },
+  pingInterval: 25000,
+  pingTimeout: 20000,
 });
 
 io.use((socket, next) => {
@@ -136,7 +139,7 @@ const authLimiter = rateLimit({
   max: isProduction ? 20 : 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many attempts. Please try again after 15 minutes.' },
+  message: { success: false, message: 'Too many attempts. Please try again after 15 minutes.' },
   skipSuccessfulRequests: false,
 });
 
@@ -145,7 +148,7 @@ const apiLimiter = rateLimit({
   max: isProduction ? 300 : 600,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many requests. Please slow down.' },
+  message: { success: false, message: 'Too many requests. Please slow down.' },
   skip: (req) => req.path.startsWith('/api/upload/') || req.path === '/api/upload',
 });
 

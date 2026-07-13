@@ -888,6 +888,32 @@ export const deleteNote = async (req: AuthRequest, res: Response) => {
   }
 };
 
+export const updateInterviewNote = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const id = req.params.id as string;
+    const existing = await prisma.interviewNote.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ success: false, message: "Note not found" });
+    if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const { title, content, type, tags, pinned } = req.body;
+    const data: any = {};
+    if (title !== undefined) data.title = title;
+    if (content !== undefined) data.content = content;
+    if (type !== undefined) data.type = type;
+    if (tags !== undefined) data.tags = tags;
+    if (pinned !== undefined) data.isPinned = pinned;
+
+    const updated = await prisma.interviewNote.update({ where: { id }, data });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error("Update note error:", error);
+    res.status(500).json({ success: false, message: "Failed to update note" });
+  }
+};
+
 // ─── Bookmarks ───────────────────────────────────────────────────────────────
 
 export const toggleBookmark = async (req: AuthRequest, res: Response) => {
@@ -1220,6 +1246,19 @@ export const deleteInterviewConversation = async (req: AuthRequest, res: Respons
   } catch (error) {
     console.error("Delete conversation error:", error);
     res.status(500).json({ success: false, message: "Failed to delete conversation" });
+  }
+};
+
+export const deleteAllConversations = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    await prisma.aIInterviewConversation.deleteMany({ where: { userId } });
+    res.json({ success: true, message: "All conversations deleted" });
+  } catch (error) {
+    console.error("Delete all conversations error:", error);
+    res.status(500).json({ success: false, message: "Failed to delete conversations" });
   }
 };
 

@@ -27,6 +27,7 @@ import {
   listNotes,
   saveNote,
   deleteNote,
+  updateInterviewNote,
   toggleBookmark,
   listBookmarks,
   saveItem,
@@ -39,6 +40,7 @@ import {
   listInterviewConversations as listConversations,
   getInterviewConversation as getConversation,
   deleteInterviewConversation as deleteConversation,
+  deleteAllConversations,
   pinConversation,
   exportConversation,
 } from "../controllers/interview.controller";
@@ -85,6 +87,7 @@ router.post("/diagram", authenticate, generateFlowDiagram);
 router.post("/notes/generate", authenticate, generateNotes);
 router.get("/notes", authenticate, listNotes);
 router.post("/notes", authenticate, saveNote);
+router.patch("/notes/:id", authenticate, updateInterviewNote);
 router.delete("/notes/:id", authenticate, deleteNote);
 
 // Bookmarks
@@ -107,6 +110,7 @@ router.get("/progress", authenticate, getProgress);
 // Conversations
 router.get("/conversations", authenticate, listConversations);
 router.get("/conversations/:id", authenticate, getConversation);
+router.delete("/conversations", authenticate, deleteAllConversations);
 router.delete("/conversations/:id", authenticate, deleteConversation);
 router.post("/conversations/:id/pin", authenticate, pinConversation);
 router.get("/conversations/:id/export", authenticate, exportConversation);

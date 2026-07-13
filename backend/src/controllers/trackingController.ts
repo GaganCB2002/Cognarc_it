@@ -281,7 +281,7 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     const to = req.query.to ? new Date(req.query.to as string) : undefined;
 
     const result = await getSessionHistory(userId, { limit, offset, from, to });
-    res.json({ success: true, ...result });
+    res.json({ success: true, data: result });
   } catch (error) {
     console.error('[getSessions]', { userId: req.user?.userId, error: (error as Error).message });
     const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;

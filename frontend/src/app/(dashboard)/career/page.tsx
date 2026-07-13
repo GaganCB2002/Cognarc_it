@@ -220,7 +220,7 @@ function CareerBotWidget() {
     setMessages(prev => [...prev, userMsg]);
     setSending(true);
     try {
-      const res = await api.post<{ reply: string }>("/ai/agent-chat", {
+      const res = await api.post<{ reply: string }>("/ai/career-chat", {
         messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
       });
       setMessages(prev => [...prev, { role: "assistant", content: res.reply }]);

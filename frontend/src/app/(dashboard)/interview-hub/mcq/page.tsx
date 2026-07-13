@@ -104,13 +104,6 @@ export default function MCQPage() {
     };
     setRetakeScheduled(schedule);
     localStorage.setItem("mcqRetakeSchedule", JSON.stringify(schedule));
-    try {
-      await api.post("/interview/schedule-retake", {
-        date: schedule.date,
-        category: schedule.category,
-        difficulty: schedule.difficulty,
-      }).catch(() => {});
-    } catch {}
     // Add to retake history
     const newEntry = {
       date: new Date().toISOString(),
