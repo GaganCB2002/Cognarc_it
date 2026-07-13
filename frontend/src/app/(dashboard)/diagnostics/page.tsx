@@ -55,7 +55,7 @@ export default function DiagnosticsPage() {
                 });
               }
             }
-          } catch (telemetryError) {
+          } catch {
             // Ignore telemetry fetch errors (e.g. 401 when not fully authed) to keep dbStatus accurate
           }
         }
