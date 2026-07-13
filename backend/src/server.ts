@@ -114,6 +114,10 @@ io.on('connection', (socket) => {
   socket.on('error', (err) => {
     console.error(`[Socket] Error for user ${userId}:`, err.message);
   });
+
+  socket.on('ping', (cb) => {
+    if (typeof cb === 'function') cb();
+  });
 });
 
 // Rate limiters
@@ -169,10 +173,55 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 app.get("/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({ status: "ok", db: "connected", timestamp: new Date() });
+    res.status(200).json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
   } catch (error) {
-    res.status(503).json({ status: "error", db: "disconnected", timestamp: new Date() });
+    res.status(503).json({ success: false, status: "error", db: "disconnected", timestamp: new Date().toISOString() });
   }
+});
+
+app.get("/api/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ success: false, status: "error", db: "disconnected" });
+  }
+});
+
+app.get("/api/database/status", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ success: true, status: "connected", provider: "postgresql", timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ success: false, status: "disconnected" });
+  }
+});
+
+app.get("/api/socket/status", (req, res) => {
+  const engine = io?.engine;
+  const clientsCount = engine ? engine.clientsCount : 0;
+  res.json({
+    success: true,
+    status: "running",
+    clients: clientsCount,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/api/diagnostics", async (req, res) => {
+  let dbConnected = false;
+  try { await prisma.$queryRaw`SELECT 1`; dbConnected = true; } catch {}
+  const engine = io?.engine;
+  res.json({
+    success: true,
+    data: {
+      backend: { status: "ok", version: "1.0.0", uptime: process.uptime(), timestamp: new Date().toISOString() },
+      database: { status: dbConnected ? "connected" : "disconnected", provider: "postgresql" },
+      socket: { status: "running", clients: engine ? engine.clientsCount : 0 },
+      tracking: { status: "active", sessions: 0 },
+    },
+  });
 });
 
 app.use("/api/auth", authRoutes);
@@ -218,7 +267,7 @@ app.get("/api/lifelog/dates", authenticate, async (req, res) => {
 });
 
 app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
+  res.status(404).json({ success: false, message: "Route not found" });
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -233,7 +282,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   if (!isProduction) {
     console.error("[UnhandledError:stack]", err.stack);
   }
-  res.status(errorPayload.statusCode).json({ message: isProduction ? "Internal server error" : err.message });
+  res.status(errorPayload.statusCode).json({ success: false, message: isProduction ? "Internal server error" : err.message });
 });
 
 httpServer.listen(PORT, () => {
