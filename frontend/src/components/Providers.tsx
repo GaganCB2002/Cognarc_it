@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Toaster } from "react-hot-toast";
+import { ClerkProvider } from "@clerk/nextjs";
 import { AuthProvider } from "@/lib/auth-context";
 import { SessionProvider } from "@/contexts/SessionContext";
 import { ThemeProvider } from "@/lib/theme-context";
@@ -54,6 +55,7 @@ class ErrorBoundary extends React.Component<
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
+      <ClerkProvider>
       <ThemeProvider>
         <AuthProvider>
           <SessionProvider>
@@ -79,6 +81,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </SessionProvider>
         </AuthProvider>
       </ThemeProvider>
+      </ClerkProvider>
     </ErrorBoundary>
   );
 }

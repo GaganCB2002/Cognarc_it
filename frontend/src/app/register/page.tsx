@@ -1,4 +1,4 @@
-import { RegisterForm } from "@/components/auth/RegisterForm";
+import { SignUp } from "@clerk/nextjs";
 
 export default function RegisterPage() {
   return (
@@ -7,12 +7,8 @@ export default function RegisterPage() {
       <div className="absolute top-1/4 right-1/4 w-[400px] h-[400px] bg-st-accent/[0.02] blur-[80px] rounded-full pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-st-accent/[0.015] blur-[60px] rounded-full pointer-events-none" />
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-st-text-primary">Create Account</h1>
-          <p className="text-st-text-secondary text-sm mt-1">Start your personalized learning path</p>
-        </div>
-        <div className="bg-gradient-to-b from-st-bg-card to-st-bg-primary border border-st-border/80 shadow-2xl shadow-black/30 rounded-xl p-6">
-          <RegisterForm />
+        <div className="flex justify-center">
+          <SignUp signInUrl="/login" fallbackRedirectUrl="/student/dashboard" />
         </div>
       </div>
     </div>

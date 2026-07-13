@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import api from "@/lib/api";
 
 interface User {
@@ -85,7 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userKey, setUserKey] = useState(0);
+  const { isSignedIn, getToken: getClerkToken } = useClerkAuth();
   const router = useRouter();
+  const exchangedRef = useRef(false);
 
   const isAuthenticated = !!token;
 
@@ -105,34 +108,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api.setToken(null);
     });
 
-    const savedToken = localStorage.getItem("accessToken");
-    const savedRefreshToken = localStorage.getItem("refreshToken");
-    if (savedToken) {
-      api.setToken(savedToken, savedRefreshToken);
-      setToken(savedToken);
-      const savedUser = readStoredUser();
-      if (savedUser) setUser(savedUser);
+    const exchangeClerkSession = async () => {
+      if (exchangedRef.current) return;
+      exchangedRef.current = true;
 
-      void api.get<{ user: User }>("/auth/me").then((res) => {
+      try {
+        let clerkToken = await getClerkToken();
+        let retries = 0;
+        while (!clerkToken && retries < 10) {
+          await new Promise(r => setTimeout(r, 200));
+          clerkToken = await getClerkToken();
+          retries++;
+        }
+        if (!clerkToken) {
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+
+        const res = await api.post<LoginResponse>("/auth/clerk", { token: clerkToken });
         if (cancelled) return;
+        api.setToken(res.token, res.refreshToken || null);
+        setToken(res.token);
         setUser(res.user);
         writeStoredUser(res.user);
+        setUserKey(k => k + 1);
         setIsLoading(false);
-      }).catch(() => {
+      } catch (e) {
         if (cancelled) return;
         clearAuthState();
         api.setToken(null);
         setIsLoading(false);
-      });
-      return;
-    }
+      }
+    };
 
-    setIsLoading(false);
+    const init = async () => {
+      if (isSignedIn) {
+        await exchangeClerkSession();
+      } else {
+        const savedToken = localStorage.getItem("accessToken");
+        if (savedToken) {
+          api.setToken(savedToken);
+          setToken(savedToken);
+          const savedUser = readStoredUser();
+          if (savedUser) setUser(savedUser);
+
+          try {
+            const res = await api.get<{ user: User }>("/auth/me");
+            if (cancelled) return;
+            setUser(res.user);
+            writeStoredUser(res.user);
+          } catch {
+            if (cancelled) return;
+            clearAuthState();
+            api.setToken(null);
+          }
+        }
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    init();
 
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [isSignedIn, getClerkToken]);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -143,29 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => {
-    clearAllLocalData();
-    let res: LoginResponse;
-    if (isFace) {
-      res = await api.post<LoginResponse>("/auth/face-login", { email, faceImage: code, captchaKey, captchaAnswer });
-    } else if (isOtp) {
-      res = await api.post<LoginResponse>("/auth/verify-otp", { email, otp: code, captchaKey, captchaAnswer });
-    } else {
-      res = await api.post<LoginResponse>("/auth/login", { email, password: code, captchaKey, captchaAnswer });
-    }
-    api.setToken(res.token, res.refreshToken || null);
-    setToken(res.token);
-    setUser(res.user);
-    writeStoredUser(res.user);
-    setUserKey(k => k + 1);
-    const role = res.user.role ? res.user.role.toLowerCase().replace(/_/g, '-') : 'student';
-    const dashboardPath = `/${role}/dashboard`;
-    router.push(dashboardPath);
+  const login = useCallback(async (_email: string, _code: string, _captchaKey: string, _captchaAnswer: string, _isOtp?: boolean, _isFace?: boolean) => {
+    router.push("/login");
   }, [router]);
 
-  const register = useCallback(async (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => {
-    await api.post<RegisterResponse>("/auth/register", { name, email, password, captchaKey, captchaAnswer });
-    router.push("/login?registered=true");
+  const register = useCallback(async (_name: string, _email: string, _password: string, _captchaKey: string, _captchaAnswer: string) => {
+    router.push("/register");
   }, [router]);
 
   const logout = useCallback(async () => {

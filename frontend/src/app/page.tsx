@@ -12,6 +12,7 @@ import {
   Menu, X, Star, ChevronRight, Database, HardDrive
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 const curriculumModules = [
   { id: 1, name: "Foundations", topics: 12, progress: 100, color: "#4F6BED", description: "Computer science fundamentals, data structures, and algorithmic thinking." },
@@ -129,7 +130,8 @@ export default function Home() {
             <Link href="#features" className="text-sm font-medium text-st-text-secondary hover:text-st-text-primary transition-colors">Features</Link>
           </nav>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3">
+            <ThemeToggle />
             {!isAuthenticated && (
               <>
                 <Link href="/login">
@@ -165,7 +167,10 @@ export default function Home() {
               <Link href="#forum" className="text-st-text-secondary hover:text-st-text-primary py-2" onClick={() => setMobileMenuOpen(false)}>Forum</Link>
               <Link href="#features" className="text-st-text-secondary hover:text-st-text-primary py-2" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             </nav>
-            <div className="flex flex-col gap-3 pt-2 border-t border-st-border">
+            <div className="flex items-center gap-2 pt-2 border-t border-st-border">
+              <ThemeToggle />
+            </div>
+            <div className="flex flex-col gap-3 pt-2">
               {!isAuthenticated && (
                 <>
                   <Link href="/login">
@@ -217,8 +222,8 @@ export default function Home() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
               )}
             </button>
-            <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-st-bg-primary/30 to-st-bg-primary pointer-events-none" />
+            <div className="absolute inset-0 bg-st-bg-primary/50 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-st-bg-primary/20 to-st-bg-primary pointer-events-none" />
           </div>
 
           <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-st-accent/10 blur-[150px] rounded-full pointer-events-none z-0" />

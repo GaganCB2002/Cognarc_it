@@ -730,13 +730,12 @@ export async function requestCaptcha(req: Request, res: Response): Promise<void>
 
 export async function clerkExchange(req: Request, res: Response): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const { token: clerkToken } = req.body;
+    if (!clerkToken) {
       res.status(401).json({ success: false, message: 'Clerk session token required' });
       return;
     }
 
-    const clerkToken = authHeader.split(' ')[1];
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
       res.status(500).json({ success: false, message: 'Clerk secret key not configured' });
