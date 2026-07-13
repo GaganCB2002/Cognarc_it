@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { GlobalSearch } from "@/components/ui/GlobalSearch";
 import { HeaderSessionPanel } from "@/components/dashboard/HeaderSessionPanel";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth-context";
 import {
   Bell,
   Upload,
@@ -44,7 +44,7 @@ export function Header({
   children
 }: HeaderProps) {
   const pathname = usePathname();
-  const { user, isLoaded } = useUser();
+  const { user } = useAuth();
   
   const paths = pathname.split("/").filter(Boolean);
   const breadcrumbs = paths.map((p) => p.charAt(0).toUpperCase() + p.slice(1));
@@ -55,7 +55,7 @@ export function Header({
   if (hour < 12) greeting = "Good Morning";
   else if (hour < 18) greeting = "Good Afternoon";
 
-  const firstName = isLoaded && user ? user.firstName : "Gagan";
+  const firstName = user?.name?.split(" ")[0] || "Gagan";
 
   const shortcuts = [
     { name: "YouTube", icon: SiYoutube, color: "hover:text-[#FF0000]", url: "https://youtube.com" },
@@ -158,16 +158,12 @@ export function Header({
         </div>
 
         <div className="pl-2 border-l border-st-border">
-          {isLoaded ? (
-            <UserButton 
-              appearance={{
-                elements: {
-                  avatarBox: "w-9 h-9 border border-st-border shadow-sm rounded-lg"
-                }
-              }}
-            />
+          {user?.avatar ? (
+            <img src={user.avatar} alt="" className="w-9 h-9 rounded-lg border border-st-border shadow-sm object-cover" />
           ) : (
-            <div className="w-9 h-9 rounded-lg bg-st-bg-elevated border border-st-border animate-pulse" />
+            <div className="w-9 h-9 rounded-lg bg-st-accent/20 border border-st-border flex items-center justify-center text-sm font-semibold text-st-accent">
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
           )}
         </div>
 

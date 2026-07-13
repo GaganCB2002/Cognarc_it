@@ -30,7 +30,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/auth-context";
-import { useClerk } from "@clerk/nextjs";
 import { useSidebarStore } from "@/store/sidebarStore";
 import { cn } from "@/lib/utils";
 
@@ -77,17 +76,15 @@ function useMediaQuery(query: string) {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { isCollapsed, isMobileOpen, toggle, setMobileOpen } = useSidebarStore();
-  const { signOut } = useClerk();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
     try {
-      await signOut();
-      window.location.href = "/";
+      await logout();
     } catch {
       window.location.href = "/";
     }

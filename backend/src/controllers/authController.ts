@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
-import jwt from 'jsonwebtoken';
 import { generateToken } from '../utils/helpers';
 import { getActiveSession, stopTrackingSession } from '../services/tracking.service';
 import { generateResetToken, verifyResetToken, markResetTokenUsed } from '../services/otp.service';
@@ -728,108 +727,6 @@ export async function requestCaptcha(req: Request, res: Response): Promise<void>
   }
 }
 
-export async function clerkExchange(req: Request, res: Response): Promise<void> {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ success: false, message: 'Clerk session token required' });
-      return;
-    }
-
-    const clerkToken = authHeader.split(' ')[1];
-
-    // Decode the Clerk JWT to extract the user ID (sub claim) without verifying signature.
-    // Verification is done by calling Clerk's REST API with the secret key.
-    let decoded: any;
-    try {
-      decoded = jwt.decode(clerkToken);
-    } catch {
-      res.status(401).json({ success: false, message: 'Invalid Clerk token format' });
-      return;
-    }
-
-    const clerkId = decoded.sub;
-    if (!clerkId) {
-      res.status(401).json({ success: false, message: 'Invalid Clerk token' });
-      return;
-    }
-
-    // Verify the user exists in Clerk by calling Clerk's API directly
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) {
-      res.status(500).json({ success: false, message: 'Clerk secret key not configured' });
-      return;
-    }
-
-    let clerkUserData: any;
-    try {
-      const clerkRes = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
-        headers: { Authorization: `Bearer ${secretKey}` },
-      });
-      if (!clerkRes.ok) {
-        res.status(401).json({ success: false, message: 'Invalid or expired Clerk session' });
-        return;
-      }
-      clerkUserData = await clerkRes.json();
-    } catch {
-      res.status(401).json({ success: false, message: 'Invalid or expired Clerk session' });
-      return;
-    }
-
-    const email = clerkUserData.email_addresses?.[0]?.email_address || clerkUserData.email || '';
-    const name = clerkUserData.first_name
-      ? `${clerkUserData.first_name} ${clerkUserData.last_name || ''}`.trim()
-      : clerkUserData.username || 'User';
-
-    let user = await prisma.user.findUnique({ where: { clerkId } });
-
-    if (!user) {
-      // Check if a user with this email already exists (e.g., from local registration)
-      const existingByEmail = email ? await prisma.user.findUnique({ where: { email } }) : null;
-      if (existingByEmail) {
-        // Link the Clerk account to the existing user
-        user = await prisma.user.update({
-          where: { id: existingByEmail.id },
-          data: { clerkId },
-        });
-      } else {
-        user = await prisma.user.create({
-          data: {
-            email,
-            name: name || email.split('@')[0] || 'User',
-            clerkId,
-            role: 'STUDENT',
-            isApproved: true,
-            emailVerified: new Date(),
-          },
-        });
-      }
-    }
-
-    const { accessToken, refreshToken } = generateToken(user.id);
-
-    res.json({
-      success: true,
-      data: {
-        message: 'Authenticated via Clerk',
-        token: accessToken,
-        refreshToken,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          avatar: user.avatar,
-          role: user.role,
-          emailVerified: user.emailVerified,
-        },
-      },
-    });
-  } catch (error) {
-    console.error('Clerk exchange error:', error);
-    const msg = process.env.NODE_ENV === 'production' ? 'Internal server error' : (error as Error).message;
-    res.status(500).json({ success: false, message: msg });
-  }
-}
 
 export async function logout(req: Request, res: Response): Promise<void> {
   try {

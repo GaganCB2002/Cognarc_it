@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
-import { useAuth as useCustomAuth } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { Header } from "@/components/ui/Header";
 import { useNotifications } from "@/lib/useNotifications";
@@ -33,8 +32,7 @@ const typeBorderColors: Record<string, string> = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded } = useAuth();
-  const { isLoading: customAuthLoading, userKey, isAuthenticated: isCustomAuthenticated } = useCustomAuth();
+  const { isLoading, isAuthenticated, userKey } = useAuth();
   const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -54,10 +52,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [menuNotifId, setMenuNotifId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn && !isCustomAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace("/");
     }
-  }, [isSignedIn, isLoaded, isCustomAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -80,7 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMenuNotifId(null);
   }, [deleteNotification]);
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex h-screen bg-gradient-to-b from-st-bg-primary via-st-bg-primary to-st-bg-secondary items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -91,11 +89,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  if (!isSignedIn && !isCustomAuthenticated) {
+  if (!isAuthenticated) {
     return null;
   }
-
-  if (customAuthLoading) {
     return (
       <div className="flex h-screen bg-gradient-to-b from-st-bg-primary via-st-bg-primary to-st-bg-secondary items-center justify-center">
         <div className="flex flex-col items-center gap-3">

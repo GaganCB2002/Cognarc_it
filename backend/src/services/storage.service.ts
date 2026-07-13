@@ -4,12 +4,14 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import * as githubStorage from "./githubStorage.service";
 import * as googleDriveStorage from "./googleDrive.service";
+import { supabaseAdmin } from "../lib/supabase";
 
-export type StorageProvider = "LOCAL" | "S3" | "GITHUB" | "GOOGLE_DRIVE";
+export type StorageProvider = "LOCAL" | "S3" | "GITHUB" | "GOOGLE_DRIVE" | "SUPABASE";
 
 interface StorageConfig {
   provider: StorageProvider;
   localBasePath: string;
+  supabaseBucket: string;
   s3Bucket?: string;
   s3Region?: string;
   s3AccessKey?: string;
@@ -28,6 +30,7 @@ export interface StoredFile {
 const config: StorageConfig = {
   provider: (process.env.STORAGE_PROVIDER as StorageProvider) || "LOCAL",
   localBasePath: process.env.LOCAL_STORAGE_PATH || path.join(process.cwd(), "uploads"),
+  supabaseBucket: process.env.SUPABASE_STORAGE_BUCKET || "studytrack-uploads",
   s3Bucket: process.env.S3_BUCKET,
   s3Region: process.env.S3_REGION,
   s3AccessKey: process.env.S3_ACCESS_KEY,
@@ -36,8 +39,6 @@ const config: StorageConfig = {
 };
 
 function getUserFolder(userId: string): string {
-  // Organize by user: uploads/users/{userId}/{type}/
-  // The userId is partitioned to avoid too many files in one directory
   const partition = userId.substring(0, 2);
   return path.join("users", partition, userId).replace(/\\/g, "/");
 }
@@ -59,11 +60,9 @@ export function generateStorageKey(userId: string, mimeType: string, originalNam
 async function saveToLocal(storageKey: string, buffer: Buffer): Promise<void> {
   const fullPath = path.join(config.localBasePath, storageKey);
   const dir = path.dirname(fullPath);
-
   if (!fsSync.existsSync(dir)) {
     fsSync.mkdirSync(dir, { recursive: true });
   }
-
   await fs.writeFile(fullPath, buffer);
 }
 
@@ -77,13 +76,51 @@ async function deleteFromLocal(storageKey: string): Promise<void> {
   await fs.unlink(fullPath).catch(err => console.error('Failed to delete local file:', fullPath, err));
 }
 
-async function existsOnLocal(storageKey: string): Promise<boolean> {
-  const fullPath = path.join(config.localBasePath, storageKey);
-  return fsSync.existsSync(fullPath);
+async function saveToSupabase(storageKey: string, buffer: Buffer, mimeType: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(config.supabaseBucket)
+    .upload(storageKey, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('[SUPABASE STORAGE] Upload failed:', error.message);
+    return null;
+  }
+
+  const { data: urlData } = supabaseAdmin.storage
+    .from(config.supabaseBucket)
+    .getPublicUrl(storageKey);
+
+  return urlData?.publicUrl || null;
+}
+
+async function getFromSupabase(storageKey: string): Promise<Buffer | null> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(config.supabaseBucket)
+    .download(storageKey);
+
+  if (error || !data) {
+    console.error('[SUPABASE STORAGE] Download failed:', error?.message);
+    return null;
+  }
+
+  const arrayBuffer = await data.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+async function deleteFromSupabase(storageKey: string): Promise<void> {
+  const { error } = await supabaseAdmin.storage
+    .from(config.supabaseBucket)
+    .remove([storageKey]);
+
+  if (error) {
+    console.error('[SUPABASE STORAGE] Delete failed:', error.message);
+  }
 }
 
 async function saveToS3(storageKey: string, buffer: Buffer): Promise<void> {
-  // S3 integration placeholder - implement with @aws-sdk/client-s3
   throw new Error("S3 storage not configured. Set STORAGE_PROVIDER=LOCAL or configure S3 credentials.");
 }
 
@@ -114,7 +151,9 @@ export async function saveFile(
   const storageKey = generateStorageKey(userId, mimeType, originalName);
   let publicUrl: string | null = null;
 
-  if (config.provider === "S3") {
+  if (config.provider === "SUPABASE") {
+    publicUrl = await saveToSupabase(storageKey, buffer, mimeType);
+  } else if (config.provider === "S3") {
     await saveToS3(storageKey, buffer);
     if (config.publicBaseUrl) {
       publicUrl = `${config.publicBaseUrl.replace(/\/$/, "")}/${storageKey}`;
@@ -126,8 +165,8 @@ export async function saveFile(
   }
 
   return {
-    storageKey,
-    provider: config.provider === "GOOGLE_DRIVE" ? "LOCAL" : config.provider,
+    storageKey: publicUrl ? storageKey : storageKey,
+    provider: config.provider,
     publicUrl,
     size: buffer.length,
   };
@@ -137,6 +176,9 @@ export async function getFile(storageKey: string): Promise<Buffer | null> {
   try {
     if (config.provider === "GOOGLE_DRIVE") {
       return await googleDriveStorage.getFile(storageKey);
+    }
+    if (config.provider === "SUPABASE") {
+      return await getFromSupabase(storageKey);
     }
     if (config.provider === "S3") {
       throw new Error("S3 read not implemented");
@@ -153,6 +195,8 @@ export async function getFile(storageKey: string): Promise<Buffer | null> {
 export async function deleteFile(storageKey: string): Promise<void> {
   if (config.provider === "GOOGLE_DRIVE") {
     await googleDriveStorage.deleteFile(storageKey);
+  } else if (config.provider === "SUPABASE") {
+    await deleteFromSupabase(storageKey);
   } else if (config.provider === "S3") {
     // S3 delete placeholder
   } else if (config.provider === "GITHUB") {
@@ -165,6 +209,12 @@ export async function deleteFile(storageKey: string): Promise<void> {
 export async function fileExists(storageKey: string): Promise<boolean> {
   if (config.provider === "GOOGLE_DRIVE") {
     return googleDriveStorage.fileExists(storageKey);
+  }
+  if (config.provider === "SUPABASE") {
+    const { data } = await supabaseAdmin.storage
+      .from(config.supabaseBucket)
+      .list("", { search: storageKey });
+    return (data?.length ?? 0) > 0;
   }
   if (config.provider === "S3") {
     return false;

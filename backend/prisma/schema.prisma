@@ -19,7 +19,6 @@ model User {
   faceData     String?
   provider     AuthProvider @default(LOCAL)
   providerId    String?
-  clerkId       String?   @unique
   refreshToken  String?
   settings      Json?
   createdAt     DateTime  @default(now())

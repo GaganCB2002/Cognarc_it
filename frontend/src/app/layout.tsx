@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import Script from "next/script";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
@@ -43,9 +42,7 @@ export default function RootLayout({
         <Script id="sw-cleanup" strategy="afterInteractive">
           {`if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(r){for(let i=0;i<r.length;i++){r[i].unregister()}})}`}
         </Script>
-        <ClerkProvider>
           <Providers>{children}</Providers>
-        </ClerkProvider>
       </body>
     </html>
   );

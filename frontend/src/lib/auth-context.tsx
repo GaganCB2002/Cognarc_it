@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth as useClerkAuth } from "@clerk/nextjs";
-import api, { API_URL } from "@/lib/api";
+import api from "@/lib/api";
 
 interface User {
   id: string;
@@ -59,16 +58,6 @@ function clearAllLocalData() {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-  try {
-    const toRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith("sb-") || key.startsWith("clerk-") || key.startsWith("user_"))) {
-        toRemove.push(key);
-      }
-    }
-    toRemove.forEach(k => localStorage.removeItem(k));
-  } catch {}
 }
 
 function readStoredUser(): User | null {
@@ -97,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userKey, setUserKey] = useState(0);
   const router = useRouter();
-  const { isSignedIn: clerkSignedIn, isLoaded: clerkLoaded, getToken: getClerkToken } = useClerkAuth();
 
   const isAuthenticated = !!token;
 
@@ -105,15 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     const clearAuthState = () => {
-      setToken(prev => {
-        if (prev !== null) {
-          setUser(null);
-          writeStoredUser(null);
-          clearAllLocalData();
-          setUserKey(k => k + 1);
-        }
-        return null;
-      });
+      setToken(null);
+      setUser(null);
+      writeStoredUser(null);
+      clearAllLocalData();
+      setUserKey(k => k + 1);
     };
 
     api.setOnUnauthorized(() => {
@@ -124,116 +108,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const savedToken = localStorage.getItem("accessToken");
     const savedRefreshToken = localStorage.getItem("refreshToken");
     if (savedToken) {
-      const savedUser = readStoredUser();
       api.setToken(savedToken, savedRefreshToken);
       setToken(savedToken);
-      if (savedUser) {
-        setUser(savedUser);
-      }
+      const savedUser = readStoredUser();
+      if (savedUser) setUser(savedUser);
+
       void api.get<{ user: User }>("/auth/me").then((res) => {
         if (cancelled) return;
         setUser(res.user);
         writeStoredUser(res.user);
         setIsLoading(false);
-      }).catch((err) => {
+      }).catch(() => {
         if (cancelled) return;
-        if (err.message?.includes('Authentication required') || err.message?.includes('Invalid token') || err.message?.includes('401')) {
-          clearAuthState();
-          api.setToken(null);
-          if (!clerkSignedIn) {
-            setIsLoading(false);
-          }
-        } else {
-          setIsLoading(false);
-        }
+        clearAuthState();
+        api.setToken(null);
+        setIsLoading(false);
       });
       return;
     }
 
-    // No saved token — wait for Clerk to determine if exchange is needed
-    if (!clerkLoaded) {
-      return; // Clerk hasn't initialized yet, keep isLoading=true
-    }
-
-    if (!clerkSignedIn) {
-      setIsLoading(false); // No auth mechanism available
-    }
-    // If Clerk is signed in, exchange effect handles it (keep isLoading=true)
+    setIsLoading(false);
 
     return () => {
       cancelled = true;
     };
-  }, [router, clerkLoaded, clerkSignedIn]);
-
-  // Clear custom auth when Clerk signs out
-  useEffect(() => {
-    if (!clerkLoaded) return;
-    if (!clerkSignedIn && token) {
-      const clearAuthState = () => {
-        setToken(null);
-        setUser(null);
-        writeStoredUser(null);
-      };
-      clearAuthState();
-      api.setToken(null);
-    }
-  }, [clerkSignedIn, clerkLoaded, token]);
-
-  // On mount, verify saved token is still valid via /auth/me (handled above).
-  // Token expiry and cleanup are managed by the api client's onUnauthorized callback.
-
-  useEffect(() => {
-    if (token || !clerkSignedIn) return;
-
-    let cancelled = false;
-    let retryCount = 0;
-
-    const tryExchange = async () => {
-      try {
-        const clerkSessionToken = await getClerkToken();
-        if (!clerkSessionToken || cancelled) {
-          if (!cancelled) setIsLoading(false);
-          return;
-        }
-
-        const res = await fetch(`${API_URL}/auth/clerk`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${clerkSessionToken}`,
-          },
-          signal: AbortSignal.timeout(8000),
-        });
-
-        if (!res.ok || cancelled) {
-          throw new Error('Exchange failed');
-        }
-
-        const json = await res.json();
-        if (cancelled) return;
-
-        const data = json.data || json;
-
-        api.setToken(data.token, data.refreshToken || null);
-        setToken(data.token);
-        setUser(data.user);
-        writeStoredUser(data.user);
-        if (!cancelled) setIsLoading(false);
-      } catch {
-        if (!cancelled) {
-          retryCount++;
-          if (retryCount < 5) {
-             setTimeout(tryExchange, 2000 * retryCount);
-          } else {
-             setIsLoading(false);
-          }
-        }
-      }
-    };
-
-    tryExchange();
-    return () => { cancelled = true; };
-  }, [token, clerkSignedIn, getClerkToken]);
+  }, [router]);
 
   const refreshUser = useCallback(async () => {
     try {

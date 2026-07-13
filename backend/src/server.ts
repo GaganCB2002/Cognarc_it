@@ -30,7 +30,6 @@ import exportRoutes from "./routes/export.routes";
 import insightsRoutes from "./routes/insights.routes";
 import interviewRoutes from "./routes/interview.routes";
 import notificationRoutes from "./routes/notifications.routes";
-import webhookRoutes from "./routes/webhooks";
 import { lifelogMiddleware } from "./middleware/lifelog";
 import { authenticate } from "./middleware/auth";
 import { lifelog } from "./services/lifelog.service";
@@ -163,9 +162,6 @@ app.use(cors({
 }));
 app.use(compression());
 app.use(cookieParser());
-
-// Webhooks must be parsed as raw body for Svix signature verification
-app.use("/api/webhooks", webhookRoutes);
 
 // Upload routes must be BEFORE body parsers (express.urlencoded consumes multipart streams in v5)
 app.use("/api/upload", uploadRoutes);

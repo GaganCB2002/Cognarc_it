@@ -1,36 +1,27 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const protectedPaths = [
-  "/dashboard",
-  "/admin",
-  "/student",
-  "/hr",
-  "/manager",
-  "/employee",
-  "/trainer",
-  "/super-admin",
-  "/settings",
-  "/profile",
-  "/tracking",
-  "/tasks",
-  "/notes",
-  "/calendar",
-  "/reports",
-  "/analytics",
-  "/chat",
-  "/career",
-  "/curriculum",
-  "/trends",
-  "/pdf-intelligence",
-  "/video-intelligence",
-  "/knowledge-vault",
-];
+export default function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-export default clerkMiddleware(async (auth, req) => {
-  if (protectedPaths.some(p => req.nextUrl.pathname.startsWith(p))) {
-    await auth.protect();
+  const publicPaths = [
+    "/",
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+    "/api",
+    "/_next",
+    "/favicon.ico",
+  ];
+
+  const isPublic = publicPaths.some(p => pathname === p || pathname.startsWith(p + "/"));
+  if (isPublic) {
+    return NextResponse.next();
   }
-});
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [

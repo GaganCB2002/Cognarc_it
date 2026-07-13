@@ -11,7 +11,7 @@ import {
   Image, Upload, Zap, Shield, Layers, GitBranch, Trophy,
   Menu, X, Star, ChevronRight, Database, HardDrive
 } from "lucide-react";
-import { useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth-context";
 
 const curriculumModules = [
   { id: 1, name: "Foundations", topics: 12, progress: 100, color: "#4F6BED", description: "Computer science fundamentals, data structures, and algorithmic thinking." },
@@ -40,7 +40,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [munraActive, setMunraActive] = useState<boolean | null>(null);
   const containerRef = useRef(null);
-  const { isSignedIn } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // Global scroll progress
   const { scrollYProgress } = useScroll();
@@ -130,24 +130,23 @@ export default function Home() {
           </nav>
 
           <div className="hidden md:flex items-center gap-4">
-            {!isSignedIn && (
+            {!isAuthenticated && (
               <>
-                <SignInButton mode="modal">
+                <Link href="/login">
                   <Button variant="ghost" className="text-sm">Sign In</Button>
-                </SignInButton>
-                <SignUpButton mode="modal">
+                </Link>
+                <Link href="/register">
                   <Button className="text-sm bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0">
                     Get Started Free
                   </Button>
-                </SignUpButton>
+                </Link>
               </>
             )}
-            {isSignedIn && (
+            {isAuthenticated && (
               <>
                 <Link href="/dashboard">
                   <Button variant="ghost" className="text-sm">Go to Dashboard</Button>
                 </Link>
-                <UserButton />
               </>
             )}
           </div>
@@ -167,22 +166,21 @@ export default function Home() {
               <Link href="#features" className="text-st-text-secondary hover:text-st-text-primary py-2" onClick={() => setMobileMenuOpen(false)}>Features</Link>
             </nav>
             <div className="flex flex-col gap-3 pt-2 border-t border-st-border">
-              {!isSignedIn && (
+              {!isAuthenticated && (
                 <>
-                  <SignInButton mode="modal">
+                  <Link href="/login">
                     <Button variant="ghost" className="w-full">Sign In</Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal">
+                  </Link>
+                  <Link href="/register">
                     <Button className="w-full bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0">Get Started Free</Button>
-                  </SignUpButton>
+                  </Link>
                 </>
               )}
-              {isSignedIn && (
+              {isAuthenticated && (
                 <>
                   <Link href="/dashboard">
                     <Button variant="ghost" className="w-full">Go to Dashboard</Button>
                   </Link>
-                  <UserButton />
                 </>
               )}
             </div>
@@ -248,16 +246,16 @@ export default function Home() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-                  {!isSignedIn && (
-                    <SignUpButton mode="modal">
+                  {!isAuthenticated && (
+                    <Link href="/register" >
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button size="lg" className="text-base px-8 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-xl shadow-st-accent/20">
                           Start Your Journey <ArrowRight size={18} className="ml-2" />
                         </Button>
                       </motion.div>
-                    </SignUpButton>
+                    </Link>
                   )}
-                  {isSignedIn && (
+                  {isAuthenticated && (
                     <Link href="/dashboard">
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button size="lg" className="text-base px-8 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-xl shadow-st-accent/20">
@@ -657,14 +655,14 @@ export default function Home() {
             </div>
 
             <div className="mt-12 text-center">
-              {!isSignedIn && (
-                <SignUpButton mode="modal">
+              {!isAuthenticated && (
+                <Link href="/register" >
                   <Button size="lg" className="bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 shadow-xl shadow-st-accent/20">
                     Join the Community <ArrowRight size={18} className="ml-2" />
                   </Button>
-                </SignUpButton>
+                </Link>
               )}
-              {isSignedIn && (
+              {isAuthenticated && (
                 <Link href="/dashboard">
                   <Button size="lg" className="bg-gradient-to-r from-st-accent to-st-accent-hover text-white border-0 shadow-xl shadow-st-accent/20">
                     Go to Dashboard <ArrowRight size={18} className="ml-2" />
@@ -853,25 +851,25 @@ export default function Home() {
               Join thousands of engineers who have accelerated their careers through systematic, structured mastery. Start your journey today.
             </p>
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
-              {!isSignedIn && (
+              {!isAuthenticated && (
                 <>
-                  <SignUpButton mode="modal">
+                  <Link href="/register" >
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button size="lg" className="text-base px-10 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-2xl shadow-st-accent/20">
                         Start Free <ArrowRight size={18} className="ml-2" />
                       </Button>
                     </motion.div>
-                  </SignUpButton>
-                  <SignInButton mode="modal">
+                  </Link>
+                  <Link href="/login" >
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button variant="outline" size="lg" className="text-base px-10">
                         Sign In
                       </Button>
                     </motion.div>
-                  </SignInButton>
+                  </Link>
                 </>
               )}
-              {isSignedIn && (
+              {isAuthenticated && (
                 <Link href="/dashboard">
                   <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button size="lg" className="text-base px-10 bg-gradient-to-r from-st-accent to-st-accent-hover hover:from-st-accent-hover hover:to-st-accent text-white border-0 shadow-2xl shadow-st-accent/20">
