@@ -189,6 +189,68 @@ app.get("/api/database/status", async (req, res) => {
   }
 });
 
+// Network diagnostic: test connectivity to the database host
+app.get("/api/debug/network", async (req, res) => {
+  const rawUrl = process.env.DATABASE_URL || "";
+  const url = new URL(rawUrl.replace("?sslmode=require", ""));
+  const hostname = url.hostname;
+  const port = parseInt(url.port, 10) || 5432;
+  const results: Record<string, unknown> = { hostname, port };
+
+  // Test DNS resolution
+  const dns = require("dns");
+  try {
+    const addresses = await new Promise<Array<{ address: string; family: number }>>((resolve, reject) => {
+      dns.lookup(hostname, { all: true }, (err: Error | null, addrs: Array<{ address: string; family: number }>) => {
+        if (err) reject(err); else resolve(addrs);
+      });
+    });
+    results.dnsLookup = addresses;
+  } catch (err) {
+    results.dnsLookupError = (err as Error).message;
+  }
+
+  try {
+    const addresses = await new Promise<string[]>((resolve, reject) => {
+      dns.resolve4(hostname, (err: Error | null, addrs: string[]) => {
+        if (err) reject(err); else resolve(addrs);
+      });
+    });
+    results.dnsResolve4 = addresses;
+  } catch (err) {
+    results.dnsResolve4Error = (err as Error).message;
+  }
+
+  try {
+    const addresses = await new Promise<string[]>((resolve, reject) => {
+      dns.resolve6(hostname, (err: Error | null, addrs: string[]) => {
+        if (err) reject(err); else resolve(addrs);
+      });
+    });
+    results.dnsResolve6 = addresses;
+  } catch (err) {
+    results.dnsResolve6Error = (err as Error).message;
+  }
+
+  // Test socket connectivity
+  const net = require("net");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const socket = new net.Socket();
+      socket.setTimeout(5000);
+      socket.on("connect", () => { socket.destroy(); resolve(); });
+      socket.on("error", (err: Error) => { socket.destroy(); reject(err); });
+      socket.on("timeout", () => { socket.destroy(); reject(new Error("Connection timed out")); });
+      socket.connect(port, hostname);
+    });
+    results.socketConnect = "success";
+  } catch (err) {
+    results.socketConnectError = (err as Error).message;
+  }
+
+  res.json({ success: true, data: results });
+});
+
 app.get("/api/socket/status", (req, res) => {
   const engine = io?.engine;
   const clientsCount = engine ? engine.clientsCount : 0;
