@@ -6,7 +6,7 @@
 (function autoInit() {
   try {
     chrome.runtime.sendMessage({ type: "PAGE_LOADED", url: location.href, host: location.host }, () => {});
-  } catch (_e) {
+  } catch {
     // Extension context may not be ready yet
   }
   // Signal to the page that this extension is installed

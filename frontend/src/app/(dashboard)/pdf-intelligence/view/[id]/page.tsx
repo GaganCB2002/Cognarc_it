@@ -154,8 +154,6 @@ export default function PDFViewerPage() {
     } catch { return null; }
   }, [id, docText]);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
-
   const fetchDocBinary = useCallback(async (): Promise<Blob | null> => {
     const token = api.getToken();
     const headers = { Authorization: `Bearer ${token}` };
@@ -189,7 +187,7 @@ export default function PDFViewerPage() {
       } catch { /* try next */ }
     }
     return null;
-  }, [id, API_URL]);
+  }, [id]);
 
   const fetchDoc = useCallback(async () => {
     try {
