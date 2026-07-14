@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { usePathname } from "next/navigation";
+import React, { useState, useRef, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Image from "next/image";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -17,7 +17,10 @@ import {
   Calendar,
   Sparkles,
   ChevronRight,
-  Bot
+  Bot,
+  User,
+  Settings,
+  LogOut,
 } from "lucide-react";
 import { 
   SiYoutube, 
@@ -45,7 +48,20 @@ export function Header({
   children
 }: HeaderProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   
   const paths = pathname.split("/").filter(Boolean);
   const breadcrumbs = paths.map((p) => p.charAt(0).toUpperCase() + p.slice(1));
@@ -158,12 +174,52 @@ export function Header({
           </div>
         </div>
 
-        <div className="pl-2 border-l border-st-border">
-          {user?.avatar ? (
-            <Image src={user.avatar} alt="" width={36} height={36} className="w-9 h-9 rounded-lg border border-st-border shadow-sm object-cover" />
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-st-accent/20 border border-st-border flex items-center justify-center text-sm font-semibold text-st-accent">
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+        <div className="pl-2 border-l border-st-border relative" ref={profileRef}>
+          <button
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+            aria-label="Profile menu"
+          >
+            {user?.avatar ? (
+              <Image src={user.avatar} alt="" width={36} height={36} className="w-9 h-9 rounded-lg border border-st-border shadow-sm object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-st-accent/20 border border-st-border flex items-center justify-center text-sm font-semibold text-st-accent">
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+            )}
+          </button>
+
+          {showProfileMenu && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-st-bg-card border border-st-border rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-st-border">
+                <p className="text-sm font-semibold text-st-text-primary truncate">{user?.name || "User"}</p>
+                <p className="text-xs text-st-text-muted truncate">{user?.email || ""}</p>
+              </div>
+              <div className="py-1">
+                <button
+                  onClick={() => { setShowProfileMenu(false); router.push("/profile"); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-st-text-secondary hover:text-st-text-primary hover:bg-st-accent-soft transition-colors"
+                >
+                  <User className="w-4 h-4" />
+                  View Profile
+                </button>
+                <button
+                  onClick={() => { setShowProfileMenu(false); router.push("/settings"); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-st-text-secondary hover:text-st-text-primary hover:bg-st-accent-soft transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </button>
+              </div>
+              <div className="border-t border-st-border py-1">
+                <button
+                  onClick={() => { setShowProfileMenu(false); logout(); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-st-danger hover:bg-st-danger/5 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
             </div>
           )}
         </div>
