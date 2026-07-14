@@ -7,7 +7,7 @@
     "start": "node dist/server.js",
     "dev": "ts-node-dev -r dotenv/config --respawn --transpile-only src/server.ts",
     "build": "npx tsc",
-    "postinstall": "npx prisma generate && npx tsc",
+    "postinstall": "npx tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,7 +18,6 @@
     "@clerk/clerk-sdk-node": "^4.13.23",
     "@google/genai": "^2.10.0",
     "@octokit/rest": "^22.0.1",
-    "@prisma/client": "^7.8.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.2",
     "@types/pdfkit": "^0.17.6",
@@ -47,7 +46,6 @@
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.19.1",
     "pg": "^8.22.0",
-    "prisma": "^7.8.0",
     "socket.io": "^4.8.3",
     "uuid": "^14.0.1"
   },
