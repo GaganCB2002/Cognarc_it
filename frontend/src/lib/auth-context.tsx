@@ -194,7 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.post("/auth/logout");
+      await signOut();
     } catch {
     }
     api.setToken(null);
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAllLocalData();
     setUserKey(k => k + 1);
     window.location.replace("/");
-  }, []);
+  }, [signOut]);
 
   return (
     <AuthContext.Provider value={{

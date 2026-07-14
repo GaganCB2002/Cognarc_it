@@ -132,7 +132,7 @@ export function Sidebar() {
       style={{ willChange: "width" }}
       className={cn(
         "flex flex-col shrink-0 h-full transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] z-30",
-        "glass-dash-sidebar",
+        "bg-st-bg-sidebar border-r border-st-border",
         isCollapsed ? "w-[68px]" : "w-64"
       )}
     >

@@ -9,8 +9,9 @@ const pool = new Pool({
   },
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
+  connectionTimeoutMillis: 15000,
+  family: 4,
+} as any);
 
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
