@@ -159,9 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(res.user);
             writeStoredUser(res.user);
           } catch {
-            if (cancelled) return;
-            clearAuthState();
-            api.setToken(null);
+            // Silently keep saved session data — only clear on explicit logout
           }
         }
         if (!cancelled) setIsLoading(false);
