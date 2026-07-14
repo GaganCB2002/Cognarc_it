@@ -2,7 +2,7 @@ import { Pool } from "pg";
 // Removed IPv4 forced resolution since Supabase deprecates IPv4 for direct connections
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL?.replace("?sslmode=require", ""),
+  connectionString: process.env.DATABASE_URL?.replace("?sslmode=require", "?sslmode=no-verify"),
   ssl: {
     rejectUnauthorized: false,
   },
