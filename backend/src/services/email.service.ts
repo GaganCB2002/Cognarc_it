@@ -1,12 +1,11 @@
 import nodemailer from "nodemailer";
+import dns from "dns";
+import util from "util";
 
+const resolveMx = util.promisify(dns.resolveMx);
 const APP_NAME = process.env.APP_NAME || "StudyTrack";
 let transporter: nodemailer.Transporter | null = null;
 let etherealUrl: string | null = null;
-
-import dns from "dns";
-import util from "util";
-const resolveMx = util.promisify(dns.resolveMx);
 
 async function getDirectTransporter(toEmail: string): Promise<nodemailer.Transporter | null> {
   // If SMTP env vars exist, use them normally

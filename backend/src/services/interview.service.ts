@@ -1,4 +1,4 @@
-import { geminiService, ai } from "./gemini.service";
+import { ai } from "./gemini.service";
 import {
   INTERVIEW_QA_CONTEXT,
   INTERVIEW_MOCK_CONTEXT,

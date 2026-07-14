@@ -46,7 +46,9 @@ export function lifelogMiddleware(req: Request, res: Response, next: NextFunctio
         `${req.method} ${req.path}`,
         `${req.method} ${req.path} → ${res.statusCode} (${duration}ms)${isError ? " ⚠" : ""}`,
         data,
-      ).catch(() => {});
+      ).catch((err: Error) => {
+        console.error("[lifelog] Failed to write transaction:", err.message);
+      });
     }
 
     return originalJson(body);
@@ -67,7 +69,9 @@ export function lifelogMiddleware(req: Request, res: Response, next: NextFunctio
           statusCode: res.statusCode,
           durationMs: duration,
         },
-      ).catch(() => {});
+      ).catch((err: Error) => {
+        console.error("[lifelog] Failed to write send transaction:", err.message);
+      });
     }
 
     return originalSend(body);

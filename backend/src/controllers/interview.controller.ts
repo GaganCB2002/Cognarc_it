@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { interviewService } from "../services/interview.service";
-import { geminiService } from "../services/gemini.service";
 import { pool } from "../lib/prisma";
 import { lifelog } from "../services/lifelog.service";
 

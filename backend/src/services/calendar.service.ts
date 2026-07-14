@@ -47,10 +47,10 @@ export const createEvent = async (input: CreateCalendarEventInput) => {
       input.color || null, input.startTime, input.endTime || null,
       input.isAllDay || false, input.isRecurring || false,
       (input.recurrenceType as any) || null,
-      input.recurrenceRule ? structuredClone(input.recurrenceRule) as any : null,
+      input.recurrenceRule ? JSON.parse(JSON.stringify(input.recurrenceRule)) : null,
       input.recurrenceEnd || null, input.timezone || null,
       input.location || null, input.tags || [],
-      input.metadata ? structuredClone(input.metadata) as any : null,
+      input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : null,
     ]
   );
   return rows[0];

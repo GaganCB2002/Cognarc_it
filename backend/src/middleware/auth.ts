@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ClerkExpressRequireAuth, ClerkExpressWithAuth, StrictAuthProp, LooseAuthProp } from '@clerk/clerk-sdk-node';
+import { ClerkExpressRequireAuth, ClerkExpressWithAuth, LooseAuthProp } from '@clerk/clerk-sdk-node';
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken } from '../utils/helpers';
 
 declare global {

@@ -34,6 +34,7 @@ export async function initPool(): Promise<Pool> {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     ssl: { rejectUnauthorized: false },
+    family: 4,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 15000,

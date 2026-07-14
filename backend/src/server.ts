@@ -8,7 +8,7 @@ import compression from "compression";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
-import { Server } from "socket.io";
+import { initSocket } from "./lib/socket";
 import { initPool, pool } from "./lib/prisma";
 import { verifyAccessToken } from "./utils/helpers";
 
@@ -49,46 +49,15 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-export { pool };
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 const httpServer = createServer(app);
 
-// Parse allowed origins
-const rawFrontendUrls = (process.env.FRONTEND_URL || "https://cognarc-it.vercel.app");
-const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
+// Trust Render/Vercel proxy for accurate req.ip
+app.set('trust proxy', 1);
 
-function isOriginAllowed(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-  if (!origin) return callback(null, true);
-  if (allowedOrigins.includes(origin)) return callback(null, true);
-  if (allowedOrigins.includes('*')) return callback(null, true);
-  // Allow all Vercel deployments (*.vercel.app and *.now.sh)
-  if (origin.match(/^https:\/\/[a-zA-Z0-9_-]+\.(vercel\.app|now\.sh)$/)) return callback(null, true);
-  // Allow all local development origins in any environment
-  const isLocal = origin.startsWith('http://localhost') || 
-                  origin.startsWith('http://127.0.0.1') || 
-                  origin.startsWith('http://10.') || 
-                  origin.startsWith('http://192.168.') || 
-                  origin.startsWith('http://172.');
-  if (isLocal) return callback(null, true);
-  
-  callback(new Error('Not allowed by CORS'));
-}
-
-export const io = new Server(httpServer, {
-  cors: {
-    origin: isOriginAllowed,
-    credentials: true,
-  },
-  transports: ["websocket", "polling"],
-  allowEIO3: true,
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-  },
-  pingInterval: 25000,
-  pingTimeout: 20000,
-});
+// Initialize Socket.IO (extracted to lib/socket.ts to break circular dependency)
+const io = initSocket(httpServer);
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -158,7 +127,16 @@ app.use(helmet({
   contentSecurityPolicy: isProduction ? undefined : false,
 }));
 app.use(cors({
-  origin: isOriginAllowed,
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    if (!origin) return callback(null, true);
+    const allowed = (process.env.FRONTEND_URL || "https://cognarc-it.vercel.app").split(',').map(s => s.trim());
+    if (allowed.includes(origin) || allowed.includes('*')) return callback(null, true);
+    if (origin.match(/^https:\/\/[a-zA-Z0-9_-]+\.(vercel\.app|now\.sh)$/)) return callback(null, true);
+    if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') ||
+        origin.startsWith('http://10.') || origin.startsWith('http://192.168.') || origin.startsWith('http://172.'))
+      return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(compression());
@@ -269,27 +247,35 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api", loginRoutes);
 
 // Lifelog retrieval API
-app.get("/api/lifelog", authenticate, async (req, res) => {
-  const userId = req.user!.userId;
-  
-  const type = req.query.type as string | undefined;
-  const from = req.query.from as string | undefined;
-  const to = req.query.to as string | undefined;
-  const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 200), 1000);
-  const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
+app.get("/api/lifelog", authenticate, async (req, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    
+    const type = req.query.type as string | undefined;
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit as string) || 200), 1000);
+    const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
 
-  const result = await lifelog.getAllEntries(userId, { type, from, to, limit, offset });
-  res.json({ success: true, ...result });
+    const result = await lifelog.getAllEntries(userId, { type, from, to, limit, offset });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.get("/api/lifelog/dates", authenticate, async (req, res) => {
-  const userId = req.user!.userId;
-  
-  const [dates, totalSize] = await Promise.all([
-    lifelog.getAvailableDates(userId),
-    lifelog.getDatabaseSize(userId),
-  ]);
-  res.json({ success: true, dates, totalSizeBytes: totalSize });
+app.get("/api/lifelog/dates", authenticate, async (req, res, next) => {
+  try {
+    const userId = req.user!.userId;
+    
+    const [dates, totalSize] = await Promise.all([
+      lifelog.getAvailableDates(userId),
+      lifelog.getDatabaseSize(userId),
+    ]);
+    res.json({ success: true, dates, totalSizeBytes: totalSize });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use((req, res) => {

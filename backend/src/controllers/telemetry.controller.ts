@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { pool } from "../lib/prisma";
-import { io } from "../server";
+import { getIO } from "../lib/socket";
 import { getAggregatedStats } from "../services/analytics.service";
 
 // POST /api/telemetry/browser
@@ -37,7 +37,7 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
     const event = result.rows[0];
 
     try {
-      io.to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
+      getIO().to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
     } catch (socketErr) {
       console.error('Socket emit error:', socketErr);
     }
@@ -83,7 +83,7 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
     const event = result.rows[0];
 
     try {
-      io.to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });
+      getIO().to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });
     } catch (socketErr) {
       console.error('Socket emit error:', socketErr);
     }

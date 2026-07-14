@@ -225,13 +225,25 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
     const allCreated: Array<any> = [];
     for (let i = 0; i < eventsArr.length; i += BATCH_SIZE) {
       const batch = eventsArr.slice(i, i + BATCH_SIZE);
+      const values: any[] = [];
+      const placeholders: string[] = [];
+      let idx = 1;
       for (const ev of batch) {
-        const result = await pool.query(
-          'INSERT INTO "ActivityEvent" ("trackingSessionId", "userId", "eventType", "category", "module", "entityId", "entityType", "label", "duration", "metadata") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-          [ev.trackingSessionId, userId, ev.eventType, validateCategory(ev.category), ev.module || null, ev.entityId || null, ev.entityType || null, ev.label || null, Math.max(0, ev.duration || 0), ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null]
+        placeholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7}, $${idx + 8}, $${idx + 9})`);
+        values.push(
+          ev.trackingSessionId, userId, ev.eventType,
+          validateCategory(ev.category), ev.module || null,
+          ev.entityId || null, ev.entityType || null,
+          ev.label || null, Math.max(0, ev.duration || 0),
+          ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null
         );
-        allCreated.push(result.rows[0]);
+        idx += 10;
       }
+      const result = await pool.query(
+        `INSERT INTO "ActivityEvent" ("trackingSessionId", "userId", "eventType", "category", "module", "entityId", "entityType", "label", "duration", "metadata") VALUES ${placeholders.join(', ')} RETURNING *`,
+        values
+      );
+      allCreated.push(...result.rows);
     }
 
     res.status(201).json({ success: true, data: allCreated, count: allCreated.length });
