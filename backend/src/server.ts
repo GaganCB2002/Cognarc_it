@@ -301,9 +301,17 @@ async function main() {
   try {
     await initPool();
     console.log("[db] Database pool initialized successfully");
+
+    // Verify database connectivity at startup
+    try {
+      await pool.query("SELECT 1");
+      console.log("[db] Database connection verified: OK");
+    } catch (connErr) {
+      console.error("[db] WARNING: Initial database connection failed:", (connErr as Error).message);
+      console.error("[db] Health endpoint will return 503 until database is reachable");
+    }
   } catch (err) {
     console.error("[db] FATAL: Failed to initialize database pool:", (err as Error).message);
-    console.error("[db] Server will start but database-dependent features will fail");
   }
 
   httpServer.listen(PORT, () => {

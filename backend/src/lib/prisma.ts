@@ -3,28 +3,33 @@ import { resolve4 } from "dns/promises";
 
 let _pool: Pool | null = null;
 
-/**
- * Initialize the database pool with IPv4-forced connection.
- * Must be called once at server startup before any route handlers run.
- *
- * Resolves the DATABASE_URL hostname to an IPv4 address and uses it directly,
- * bypassing IPv6 entirely to avoid ENETUNREACH on Render.
- */
+async function resolveHostnameToIPv4(hostname: string, timeoutMs = 5000): Promise<string | null> {
+  try {
+    const result = await Promise.race([
+      resolve4(hostname),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("DNS resolution timed out")), timeoutMs)
+      ),
+    ]);
+    if (result.length > 0) {
+      console.log(`[db] Resolved ${hostname} -> ${result[0]}`);
+      return result[0];
+    }
+  } catch (err) {
+    console.warn(`[db] IPv4 resolution failed for ${hostname}: ${(err as Error).message}`);
+  }
+  return null;
+}
+
 export async function initPool(): Promise<Pool> {
   if (_pool) return _pool;
 
   const rawUrl = process.env.DATABASE_URL || "";
   const url = new URL(rawUrl.replace("?sslmode=require", ""));
 
-  // Resolve hostname to IPv4 — the critical fix for Render ENETUNREACH
-  try {
-    const addresses = await resolve4(url.hostname);
-    if (addresses.length > 0) {
-      console.log(`[db] Resolved ${url.hostname} -> ${addresses[0]}`);
-      url.hostname = addresses[0];
-    }
-  } catch (err) {
-    console.warn(`[db] IPv4 resolution failed for ${url.hostname}, falling back to hostname`);
+  const ipv4 = await resolveHostnameToIPv4(url.hostname);
+  if (ipv4) {
+    url.hostname = ipv4;
   }
 
   _pool = new Pool({
