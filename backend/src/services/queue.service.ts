@@ -157,11 +157,11 @@ class JobQueue {
     const trackingSessions = sessionsRes.rows;
 
     const activities = {
-      completedTasks: tasks.filter(t => t.status === "DONE").map(t => t.title),
-      newTasks: tasks.filter(t => t.status !== "DONE").map(t => t.title),
-      documentsUploaded: documents.map(d => d.originalName),
-      notesEdited: notes.map(n => n.title),
-      totalFocusTimeMs: trackingSessions.reduce((acc, s) => {
+      completedTasks: tasks.filter((t: any) => t.status === "DONE").map((t: any) => t.title),
+      newTasks: tasks.filter((t: any) => t.status !== "DONE").map((t: any) => t.title),
+      documentsUploaded: documents.map((d: any) => d.originalName),
+      notesEdited: notes.map((n: any) => n.title),
+      totalFocusTimeMs: trackingSessions.reduce((acc: number, s: any) => {
         if (s.endTime) return acc + (s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs);
         return acc;
       }, 0)

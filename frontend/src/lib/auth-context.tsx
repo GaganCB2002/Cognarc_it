@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth as useClerkAuth, useClerk, useUser } from "@clerk/nextjs";
 import api from "@/lib/api";
@@ -51,17 +51,6 @@ function clearAllLocalData() {
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
 }
 
-function readStoredUser(): User | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(AUTH_USER_STORAGE_KEY);
-    return raw ? JSON.parse(raw) as User : null;
-  } catch {
-    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-    return null;
-  }
-}
-
 function writeStoredUser(user: User | null) {
   if (typeof window === "undefined") return;
   if (user) {
@@ -81,14 +70,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   // Create our internal User object from Clerk's user object
-  const user: User | null = clerkUser ? {
+  const user: User | null = useMemo(() => clerkUser ? {
     id: clerkUser.id,
     email: clerkUser.primaryEmailAddress?.emailAddress || "",
     name: clerkUser.fullName || clerkUser.firstName || "User",
     avatar: clerkUser.imageUrl,
-    role: "STUDENT", // default role
+    role: "STUDENT",
     profile: {}
-  } : null;
+  } : null, [clerkUser]);
 
   const isAuthenticated = !!token;
 

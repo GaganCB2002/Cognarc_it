@@ -1,10 +1,6 @@
-import { Pool } from "pg";
-import { setDefaultResultOrder } from "dns";
+import pg from "pg";
 
-// Prefer IPv4 when resolving hostnames (fixes ENETUNREACH on Render)
-setDefaultResultOrder("ipv4first");
-
-const pool = new Pool({
+const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false,
@@ -14,7 +10,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
-pool.on("error", (err) => {
+pool.on("error", (err: Error) => {
   console.error("[db] Unexpected pool error:", err.message);
 });
 

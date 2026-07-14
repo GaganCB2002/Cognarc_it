@@ -404,7 +404,7 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
 
     // Also delete linked Resource if exists
     if (doc.resourceId) {
-      await pool.query('DELETE FROM "Resource" WHERE "id" = $1', [doc.resourceId]).catch(err => console.error('Failed to delete linked resource:', err));
+      await pool.query('DELETE FROM "Resource" WHERE "id" = $1', [doc.resourceId]).catch((err: Error) => console.error('Failed to delete linked resource:', err));
     }
 
     res.status(200).json({ success: true, data: { message: "File deleted successfully" } });

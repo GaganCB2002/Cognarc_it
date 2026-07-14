@@ -182,18 +182,20 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 // Health check with database verification
 app.get("/health", async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    await pool.query("SELECT 1");
     res.status(200).json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
-  } catch {
+  } catch (error) {
+    console.error("Health check DB Error:", error);
     res.status(503).json({ success: false, status: "error", db: "disconnected", timestamp: new Date().toISOString() });
   }
 });
 
 app.get("/api/health", async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    await pool.query("SELECT 1");
     res.json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
-  } catch {
+  } catch (error) {
+    console.error("API Health check DB Error:", error);
     res.status(503).json({ success: false, status: "error", db: "disconnected" });
   }
 });
