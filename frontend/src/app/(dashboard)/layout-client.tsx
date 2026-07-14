@@ -9,6 +9,7 @@ import { useNotifications } from "@/lib/useNotifications";
 import { Bell, CheckCircle2, Info, TriangleAlert, X, ChevronRight, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   REMINDER: Bell,
@@ -279,7 +280,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           transition={{ duration: 0.2 }}
           className="flex-1 overflow-y-auto px-6 py-6 relative z-10"
         >
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </motion.main>
       </main>
 
