@@ -9,7 +9,7 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { pool } from "./lib/prisma";
+import { initPool, pool } from "./lib/prisma";
 import { verifyAccessToken } from "./utils/helpers";
 
 import authRoutes from "./routes/auth";
@@ -311,9 +311,23 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(errorPayload.statusCode).json({ success: false, message: isProduction ? "Internal server error" : err.message });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT} (${isProduction ? 'production' : 'development'})`);
+async function main() {
+  try {
+    await initPool();
+    console.log("[db] Database pool initialized successfully");
+  } catch (err) {
+    console.error("[db] FATAL: Failed to initialize database pool:", (err as Error).message);
+    console.error("[db] Server will start but database-dependent features will fail");
+  }
 
+  httpServer.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT} (${isProduction ? 'production' : 'development'})`);
+  });
+}
+
+main().catch((err) => {
+  console.error("[server] Fatal startup error:", err);
+  process.exit(1);
 });
 
 // Graceful shutdown
@@ -322,8 +336,12 @@ async function gracefulShutdown(signal: string) {
   httpServer.close(() => {
     console.log('HTTP server closed');
   });
-  await pool.end();
-  console.log('Database connections closed');
+  try {
+    await pool.end();
+    console.log('Database connections closed');
+  } catch (err) {
+    console.error('Database pool close error:', (err as Error).message);
+  }
   process.exit(0);
 }
 
