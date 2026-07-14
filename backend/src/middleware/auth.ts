@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import { ClerkExpressRequireAuth, ClerkExpressWithAuth, StrictAuthProp, LooseAuthProp } from '@clerk/clerk-sdk-node';
 import { verifyAccessToken, verifyRefreshToken, generateAccessToken } from '../utils/helpers';
 
 declare global {
   namespace Express {
-    interface Request {
+    interface Request extends LooseAuthProp {
       user?: { userId: string };
     }
   }
@@ -22,33 +23,46 @@ function extractToken(req: Request): string | null {
 }
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
-  const token = extractToken(req);
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Authentication required' });
-  }
+  // First try using Clerk authentication
+  ClerkExpressRequireAuth()(req, res, (err: any) => {
+    // If Clerk successfully authenticated the user
+    if (!err && req.auth && req.auth.userId) {
+      req.user = { userId: req.auth.userId };
+      return next();
+    }
 
-  const decoded = verifyAccessToken(token);
-  if (!decoded) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
-  }
-
-  req.user = { userId: decoded.userId };
-  next();
-};
-
-export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
-  try {
+    // Fallback: Try custom JWT for backward compatibility or API keys
     const token = extractToken(req);
     if (token) {
       const decoded = verifyAccessToken(token);
       if (decoded) {
         req.user = { userId: decoded.userId };
+        return next();
       }
     }
-  } catch {
-    // Ignore invalid token for optional auth
-  }
-  next();
+
+    // If both fail, return 401
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  });
+};
+
+export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
+  ClerkExpressWithAuth()(req, res, (err: any) => {
+    // If Clerk authenticated
+    if (!err && req.auth && req.auth.userId) {
+      req.user = { userId: req.auth.userId };
+    } else {
+      // Fallback
+      const token = extractToken(req);
+      if (token) {
+        const decoded = verifyAccessToken(token);
+        if (decoded) {
+          req.user = { userId: decoded.userId };
+        }
+      }
+    }
+    next();
+  });
 };
 
 export const refreshTokenMiddleware = (req: Request, res: Response, next: NextFunction) => {

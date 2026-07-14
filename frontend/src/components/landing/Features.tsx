@@ -1,120 +1,141 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { motion } from "framer-motion";
-import {
-  BookOpen, Calendar, BarChart3, MessageSquare, FileText, Play,
-  Target, Users, Trophy, Upload, Database, Shield,
-  Image, GitBranch, ChevronRight
+import { 
+  BarChart3, Database, MessageSquare, Target, 
+  BookOpen, Calendar, Users, Trophy
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 
-const features = [
-  { icon: BookOpen, title: "Structured Curriculum", description: "Industry-vetted learning paths designed by senior engineers to take you from intermediate to expert." },
-  { icon: Calendar, title: "Smart Scheduling", description: "AI-powered study planner that adapts to your availability and learning pace." },
-  { icon: BarChart3, title: "Mastery Analytics", description: "Real-time progress tracking with detailed insights into your strengths and areas for improvement." },
-  { icon: MessageSquare, title: "Community Forum", description: "Collaborate with peers, get mentorship from experts, and participate in technical discussions." },
-  { icon: FileText, title: "Resource Library", description: "Store and organize all your learning materials — PDFs, videos, code snippets, and more." },
-  { icon: Play, title: "Video Sessions", description: "Recorded and live coding sessions with detailed annotations and timestamped notes." },
-  { icon: Target, title: "Goal Tracking", description: "Set weekly targets, track streaks, and maintain momentum with personalized reminders." },
-  { icon: Users, title: "Peer Review", description: "Code review workflows and collaborative learning exercises with fellow engineers." },
-  { icon: Trophy, title: "Gamification", description: "Earn achievements, maintain streaks, and compete on leaderboards to stay motivated." },
-  { icon: Upload, title: "File Management", description: "Upload, preview, and organize images, PDFs, videos, and code files in your personal library." },
-  { icon: Database, title: "Personalized Database", description: "Your own learning data store — all notes, resources, sessions, and tasks persisted securely." },
-  { icon: Shield, title: "Progress Security", description: "End-to-end encrypted backups of your learning progress and materials." },
-];
+gsap.registerPlugin(ScrollTrigger);
 
-const storageTypes = [
-  { icon: Image, label: "Images", desc: "Screenshots, diagrams" },
-  { icon: FileText, label: "PDFs", desc: "eBooks, papers, notes" },
-  { icon: Play, label: "Videos", desc: "Lectures, walkthroughs" },
-  { icon: GitBranch, label: "Code", desc: "Snippets, projects" },
+const featurePanels = [
+  {
+    id: "f1",
+    title: "Mastery Analytics",
+    desc: "Real-time progress tracking with detailed insights into your strengths and areas for improvement. Watch your skills grow week over week.",
+    icon: BarChart3,
+    color: "from-lp-accent-blue to-lp-accent-indigo",
+    mockup: "dashboard-mockup"
+  },
+  {
+    id: "f2",
+    title: "Knowledge Vault",
+    desc: "Store and organize all your learning materials — PDFs, videos, code snippets, and more. A personalized database just for you.",
+    icon: Database,
+    color: "from-lp-accent-sky to-lp-accent-indigo",
+    mockup: "vault-mockup"
+  },
+  {
+    id: "f3",
+    title: "AI-Powered Mentorship",
+    desc: "Get unblocked instantly with our integrated AI chat. Upload context, paste errors, and receive tailored guidance anytime.",
+    icon: MessageSquare,
+    color: "from-lp-accent-sage to-emerald-200",
+    mockup: "chat-mockup"
+  },
+  {
+    id: "f4",
+    title: "Goal Tracking",
+    desc: "Set weekly targets, track streaks, and maintain momentum with personalized reminders that adapt to your schedule.",
+    icon: Target,
+    color: "from-lp-accent-lavender to-purple-200",
+    mockup: "goals-mockup"
+  }
 ];
 
 export function Features() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollWrapperRef = useRef<HTMLDivElement>(null);
+  const panelsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !scrollWrapperRef.current || !panelsRef.current) return;
+
+    const panels = gsap.utils.toArray(".feature-panel") as HTMLElement[];
+    const totalWidth = panelsRef.current.scrollWidth - window.innerWidth;
+
+    const ctx = gsap.context(() => {
+      gsap.to(panels, {
+        x: () => -totalWidth,
+        ease: "none",
+        scrollTrigger: {
+          trigger: scrollWrapperRef.current,
+          pin: true,
+          scrub: 1,
+          end: () => `+=${totalWidth}`,
+          invalidateOnRefresh: true,
+        }
+      });
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section id="features" className="py-24 md:py-32 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-st-accent/[0.02] to-transparent pointer-events-none" />
-      <div className="max-w-7xl mx-auto px-6 relative">
+    <section id="features" className="relative bg-lp-bg-primary py-24" ref={containerRef}>
+      
+      <div className="max-w-7xl mx-auto px-6 mb-16 text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="max-w-2xl mx-auto text-center mb-16"
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
         >
-          <span className="text-xs font-semibold text-st-accent uppercase tracking-widest mb-4 block">Platform Features</span>
-          <h2 className="text-3xl md:text-5xl font-bold text-st-text-primary tracking-tight mb-4">
-            Everything You Need to{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-st-accent to-st-accent-hover">
-              Excel
-            </span>
+          <span className="text-xs font-semibold text-lp-accent-blue uppercase tracking-widest mb-4 block">Product Showcase</span>
+          <h2 className="text-4xl md:text-6xl font-semibold text-lp-text-primary tracking-tight mb-6">
+            Everything You Need to <span className="text-lp-accent-sage">Excel</span>
           </h2>
-          <p className="text-st-text-secondary text-lg">
-            A complete learning ecosystem with persistent data storage, file management, and real-time synchronization across all your devices.
+          <p className="text-lp-text-secondary text-lg md:text-xl max-w-2xl mx-auto font-light">
+            A complete learning ecosystem with persistent data storage, file management, and real-time synchronization.
           </p>
         </motion.div>
+      </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {features.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.4, delay: i * 0.03 }}
-              whileHover={{ y: -2 }}
-              className="group"
-            >
-              <div className="p-5 rounded-xl border border-st-border bg-st-bg-card hover:border-st-accent/20 transition-all duration-300 h-full">
-                <div className="w-9 h-9 rounded-lg bg-st-accent/10 flex items-center justify-center mb-3 group-hover:bg-st-accent/20 transition-colors">
-                  <f.icon size={18} className="text-st-accent" />
+      {/* Horizontal Scroll Section */}
+      <div ref={scrollWrapperRef} className="h-screen w-full flex items-center overflow-hidden bg-lp-bg-secondary rounded-3xl mx-4 sm:mx-8 shadow-inner border border-lp-border/50">
+        <div ref={panelsRef} className="flex gap-8 px-12 md:px-32 w-max items-center h-full">
+          {featurePanels.map((f, i) => (
+            <div key={f.id} className="feature-panel w-[85vw] md:w-[60vw] lg:w-[45vw] flex-shrink-0 flex flex-col gap-8">
+              
+              {/* Text Content */}
+              <div className="flex flex-col gap-4">
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center shadow-lg`}>
+                  <f.icon className="w-6 h-6 text-lp-bg-primary" />
                 </div>
-                <h3 className="font-semibold text-st-text-primary text-sm mb-1.5">{f.title}</h3>
-                <p className="text-xs text-st-text-secondary leading-relaxed">{f.description}</p>
+                <h3 className="text-3xl md:text-4xl font-semibold text-lp-text-primary tracking-tight">{f.title}</h3>
+                <p className="text-lg text-lp-text-secondary font-light max-w-md">{f.desc}</p>
               </div>
-            </motion.div>
+
+              {/* Mockup Window */}
+              <div className="w-full aspect-[4/3] rounded-2xl bg-lp-bg-card border border-lp-border shadow-2xl overflow-hidden relative flex flex-col">
+                <div className="h-10 bg-lp-bg-secondary border-b border-lp-border flex items-center px-4 gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-400" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                  <div className="w-3 h-3 rounded-full bg-green-400" />
+                </div>
+                <div className="flex-1 bg-lp-bg-primary relative overflow-hidden flex items-center justify-center">
+                  <div className={`absolute inset-0 opacity-20 bg-gradient-to-br ${f.color}`} />
+                  {/* Abstract Representation of the Feature */}
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                    className="w-1/2 h-1/2 bg-white rounded-xl shadow-lg border border-lp-border flex items-center justify-center relative z-10"
+                  >
+                    <f.icon className="w-16 h-16 text-lp-text-muted/30" />
+                  </motion.div>
+                </div>
+              </div>
+
+            </div>
           ))}
         </div>
-
-        {/* Persistent Storage Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-16"
-        >
-          <Card className="p-8 md:p-12 bg-gradient-to-br from-st-accent/[0.04] to-transparent border-st-accent/15 relative overflow-hidden">
-            <div className="flex flex-col md:flex-row items-center gap-10">
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex items-center gap-2 justify-center md:justify-start mb-4">
-                  <Database size={18} className="text-st-accent" />
-                  <span className="text-xs font-semibold text-st-accent uppercase tracking-wider">Secure Data Layer</span>
-                </div>
-                <h3 className="text-2xl md:text-3xl font-bold text-st-text-primary mb-4">Persistent Storage for Everything</h3>
-                <p className="text-st-text-secondary mb-8 leading-relaxed">
-                  All your learning data is securely stored and instantly accessible. Upload images, PDFs, videos, and code files — the platform manages your complete learning repository.
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {storageTypes.map((item) => (
-                    <div key={item.label} className="text-center p-4 rounded-xl bg-st-bg-card/60 border border-st-border/50 hover:border-st-accent/20 transition-colors">
-                      <item.icon size={20} className="text-st-accent mx-auto mb-2" />
-                      <p className="text-xs font-semibold text-st-text-primary">{item.label}</p>
-                      <p className="text-[10px] text-st-text-muted mt-0.5">{item.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="shrink-0">
-                <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl bg-gradient-to-br from-st-accent/20 to-st-accent-hover/10 border border-st-accent/20 flex items-center justify-center shadow-xl shadow-st-accent/5">
-                  <Database size={48} className="text-st-accent" />
-                </div>
-                <p className="text-xs text-st-text-muted text-center mt-3">Your data, always available</p>
-              </div>
-            </div>
-          </Card>
-        </motion.div>
       </div>
+
     </section>
   );
 }

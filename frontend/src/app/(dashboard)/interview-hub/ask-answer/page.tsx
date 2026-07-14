@@ -14,7 +14,7 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
+  TriangleAlert,
   Lightbulb,
   ArrowRight,
   BookOpen,
@@ -363,7 +363,7 @@ Topic: ${topic}`;
                   ))}
                   {evaluation.missingConcepts.map((m, i) => (
                     <li key={`mc-${i}`} className="flex items-start gap-2 text-xs text-st-text-secondary">
-                      <AlertTriangle className="w-3 h-3 text-rose-400 mt-0.5 shrink-0" />
+                      <TriangleAlert className="w-3 h-3 text-rose-400 mt-0.5 shrink-0" />
                       {m}
                     </li>
                   ))}

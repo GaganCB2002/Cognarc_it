@@ -188,7 +188,7 @@ export default function LifelogPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((entry) => {
-            const Icon = TYPE_ICONS[entry.type] || Database;
+            const Icon = (TYPE_ICONS[entry.type] || Database) as React.ComponentType<{ className?: string }>;
             const colorClass = TYPE_COLORS[entry.type] || TYPE_COLORS.SYSTEM;
             const isExpanded = expandedId === entry.id;
 

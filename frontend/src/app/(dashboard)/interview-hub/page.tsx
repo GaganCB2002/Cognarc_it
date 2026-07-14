@@ -211,7 +211,7 @@ export default function InterviewHubPage() {
               <Card className="p-0 overflow-hidden">
                 <div className="divide-y divide-st-border/80">
                   {recentActivity.map((activity) => {
-                    const Icon = activityIcons[activity.type] || HelpCircle;
+                    const Icon = (activityIcons[activity.type] || HelpCircle) as React.ComponentType<{ className?: string }>;
                     return (
                       <div key={activity.id} className="flex items-center gap-3 p-3.5 hover:bg-st-bg-elevated/50 transition-colors">
                         <div className="w-8 h-8 rounded-lg bg-st-accent/10 flex items-center justify-center shrink-0">

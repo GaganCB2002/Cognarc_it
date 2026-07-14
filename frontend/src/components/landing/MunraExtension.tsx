@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/Button";
 import { Zap } from "lucide-react";
 
 export function MunraExtension() {
@@ -19,62 +18,66 @@ export function MunraExtension() {
   }, []);
 
   return (
-    <section className="py-24 md:py-32 bg-st-bg-secondary/30 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-st-accent/[0.02] to-transparent pointer-events-none" />
-      <div className="max-w-7xl mx-auto px-6 relative">
+    <section className="py-24 md:py-32 bg-lp-bg-primary relative overflow-hidden">
+      {/* Decorative Gradients */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[600px] max-w-4xl bg-gradient-to-r from-lp-accent-blue/10 via-lp-accent-rose/10 to-lp-accent-lavender/10 blur-[120px] rounded-full pointer-events-none" />
+      
+      <div className="max-w-5xl mx-auto px-6 relative z-10">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-          className="flex flex-col lg:flex-row items-center gap-12"
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="bg-lp-bg-card border border-lp-border rounded-[2.5rem] p-8 md:p-16 shadow-2xl shadow-lp-border/50 relative overflow-hidden flex flex-col md:flex-row items-center gap-12"
         >
-          <div className="flex-1 text-center lg:text-left">
-            <span className="text-xs font-semibold text-st-accent uppercase tracking-widest mb-4 block">Browser Extension</span>
-            <h2 className="text-3xl md:text-5xl font-bold text-st-text-primary tracking-tight mb-4">
-              Supercharge with{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-st-accent to-st-accent-hover">
-                Munra
-              </span>
+          {/* Subtle Background pattern inside card */}
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%23000000\' fill-opacity=\'1\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'3\' cy=\'3\' r=\'3\'/%3E%3Ccircle cx=\'13\' cy=\'13\' r=\'3\'/%3E%3C/g%3E%3C/svg%3E")' }} />
+          
+          <div className="flex-1 text-center md:text-left relative z-10">
+            <span className="text-xs font-semibold text-lp-accent-rose uppercase tracking-widest mb-4 block">Browser Extension</span>
+            <h2 className="text-4xl md:text-5xl font-semibold text-lp-text-primary tracking-tight mb-6">
+              Supercharge with <br /> <span className="text-lp-accent-rose text-rose-700">Munra</span>
             </h2>
-            <p className="text-st-text-secondary text-lg mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed">
-              Automatically track your browsing activity, sync study sessions, and get real-time productivity insights — directly from your browser.
+            <p className="text-lp-text-secondary text-lg mb-8 font-light leading-relaxed">
+              Automatically track your browsing activity, sync study sessions, and get real-time productivity insights — seamlessly integrated.
             </p>
-            <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  size="lg"
-                  className="px-8 bg-st-accent text-black hover:bg-st-accent-hover border-0 font-medium shadow-lg shadow-st-accent/20"
-                  onClick={() => window.open("/munra-install", "_blank")}
-                >
-                  <Zap size={16} className="mr-2" />
-                  Install Munra
-                </Button>
-              </motion.div>
-              <div className="text-sm text-st-text-muted flex items-center gap-2">
+            
+            <div className="flex flex-col sm:flex-row items-center gap-5 justify-center md:justify-start">
+              <button
+                className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 text-sm font-medium text-lp-bg-primary bg-lp-text-primary rounded-full overflow-hidden hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xl shadow-lp-text-primary/10"
+                onClick={() => window.open("/munra-install", "_blank")}
+              >
+                <Zap size={16} className="relative z-10 text-lp-accent-blue group-hover:scale-110 transition-transform" />
+                <span className="relative z-10">Install Munra</span>
+              </button>
+              
+              <div className="text-sm font-medium text-lp-text-secondary flex items-center gap-2 bg-lp-bg-secondary px-4 py-2 rounded-full border border-lp-border">
                 <span className={`w-2 h-2 rounded-full inline-block ${
-                  munraActive === null ? "bg-st-border" : munraActive ? "bg-st-success" : "bg-st-warning"
+                  munraActive === null ? "bg-lp-text-muted" : munraActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
                 }`} />
                 <span>
                   {munraActive === null
                     ? "Checking extension..."
                     : munraActive
-                      ? "Munra extension is active"
-                      : "Munra extension not detected — click Install to add it"}
+                      ? "Munra is active"
+                      : "Not detected"}
                 </span>
               </div>
             </div>
           </div>
+          
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.9, rotate: -5 }}
+            whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="shrink-0"
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="shrink-0 relative z-10"
           >
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-gradient-to-br from-st-accent to-st-accent-hover flex items-center justify-center shadow-2xl shadow-st-accent/20 relative overflow-hidden">
-              <span className="text-white text-5xl md:text-6xl font-bold">M</span>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+            <div className="w-40 h-40 md:w-56 md:h-56 rounded-[2rem] bg-gradient-to-br from-lp-accent-rose to-lp-accent-blue flex items-center justify-center shadow-2xl shadow-lp-accent-rose/30 relative overflow-hidden group hover:scale-105 transition-transform duration-500">
+              <span className="text-white text-6xl md:text-8xl font-bold drop-shadow-lg group-hover:scale-110 transition-transform duration-500">M</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none" />
+              {/* Glass reflection */}
+              <div className="absolute -inset-1/2 bg-gradient-to-r from-transparent via-white/30 to-transparent -rotate-45 translate-x-[-150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out" />
             </div>
           </motion.div>
         </motion.div>

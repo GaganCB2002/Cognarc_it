@@ -99,7 +99,7 @@ export function ActionMenu({
             )}
           >
             {actions.map((action, i) => {
-              const Icon = action.icon;
+              const Icon = action.icon as React.ComponentType<{ className?: string; strokeWidth?: number }> | undefined;
               return (
                 <React.Fragment key={action.id}>
                   {action.divider && i > 0 && (

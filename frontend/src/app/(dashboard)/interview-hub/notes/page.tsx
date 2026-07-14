@@ -277,7 +277,7 @@ export default function NotesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {paginated.map((note, i) => {
-            const TypeIcon = typeIcons[note.type] || FileText;
+            const TypeIcon = (typeIcons[note.type] || FileText) as React.ComponentType<{ className?: string }>;
             return (
               <motion.div
                 key={note.id}

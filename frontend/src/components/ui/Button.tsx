@@ -39,7 +39,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             "bg-st-bg-elevated/80 text-st-text-primary border border-st-border hover:bg-st-bg-card hover:-translate-y-0.5 active:bg-st-bg-elevated shadow-sm": variant === "secondary",
             "border border-st-border bg-transparent text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/50 active:bg-st-bg-card": variant === "outline",
             "text-st-text-secondary hover:text-st-text-primary hover:bg-st-bg-elevated/50 active:bg-st-bg-card": variant === "ghost",
-            "bg-gradient-to-b from-st-danger to-red-500 text-white hover:from-red-500 hover:to-st-danger hover:-translate-y-0.5 shadow-lg shadow-st-danger/20 hover:shadow-st-danger/30 active:shadow-md active:translate-y-px": variant === "danger",
+            "bg-gradient-to-b from-st-danger to-st-danger/80 text-white hover:from-st-danger/90 hover:to-st-danger hover:-translate-y-0.5 shadow-lg shadow-st-danger/20 hover:shadow-st-danger/30 active:shadow-md active:translate-y-px": variant === "danger",
             "h-8 px-3 text-xs gap-1.5": size === "sm",
             "h-10 px-4 text-sm gap-2": size === "md",
             "h-12 px-6 text-base gap-2.5": size === "lg",

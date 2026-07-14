@@ -11,11 +11,13 @@ import { Features } from "@/components/landing/Features";
 import { MunraExtension } from "@/components/landing/MunraExtension";
 import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
+import { SmoothScroll } from "@/components/landing/SmoothScroll";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
+    <SmoothScroll>
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
       <main className="flex-1">
         <Hero />
         <Stats />
@@ -29,5 +31,6 @@ export default function Home() {
       </main>
       <Footer />
     </div>
+    </SmoothScroll>
   );
 }

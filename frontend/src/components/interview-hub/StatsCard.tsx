@@ -16,7 +16,8 @@ interface StatsCardProps {
   onClick?: () => void;
 }
 
-export function StatsCard({ icon: Icon, label, value, trend, color = "text-st-accent", bg = "bg-st-accent/10", className, onClick }: StatsCardProps) {
+export function StatsCard({ icon: _icon, label, value, trend, color = "text-st-accent", bg = "bg-st-accent/10", className, onClick }: StatsCardProps) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>;
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

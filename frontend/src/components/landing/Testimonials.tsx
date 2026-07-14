@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import { Star } from "lucide-react";
+import { gsap } from "gsap";
 
 interface Testimonial {
   name: string;
@@ -41,111 +42,94 @@ const testimonials: Testimonial[] = [
     content: "Finally, a learning platform built for engineers who actually build things. The knowledge vault with AI search is my favorite feature.",
     rating: 5,
   },
+  {
+    name: "Emily Wang",
+    role: "Staff Software Engineer",
+    company: "Linear",
+    content: "The attention to detail on this platform is unmatched. Tracking my progress feels effortless, and the integrated AI has saved me hundreds of hours.",
+    rating: 5,
+  }
 ];
 
 export function Testimonials() {
-  const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState(0);
-
-  const next = useCallback(() => {
-    setDirection(1);
-    setCurrent((i) => (i + 1) % testimonials.length);
-  }, []);
-
-  const prev = useCallback(() => {
-    setDirection(-1);
-    setCurrent((i) => (i - 1 + testimonials.length) % testimonials.length);
-  }, []);
-
+  const marqueeRef = useRef<HTMLDivElement>(null);
+  
   useEffect(() => {
-    const interval = setInterval(next, 5000);
-    return () => clearInterval(interval);
-  }, [next]);
+    if (!marqueeRef.current) return;
+    
+    // Simple GSAP infinite marquee
+    const marquee = marqueeRef.current;
+    
+    const tween = gsap.to(marquee, {
+      xPercent: -50,
+      repeat: -1,
+      duration: 30,
+      ease: "linear",
+    }).totalProgress(0.5);
 
-  const t = testimonials[current];
+    const handleMouseEnter = () => tween.timeScale(0.1);
+    const handleMouseLeave = () => tween.timeScale(1);
 
-  const variants = {
-    enter: (dir: number) => ({ x: dir > 0 ? 200 : -200, opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (dir: number) => ({ x: dir > 0 ? -200 : 200, opacity: 0 }),
-  };
+    marquee.addEventListener("mouseenter", handleMouseEnter);
+    marquee.addEventListener("mouseleave", handleMouseLeave);
+
+    return () => {
+      tween.kill();
+      marquee.removeEventListener("mouseenter", handleMouseEnter);
+      marquee.removeEventListener("mouseleave", handleMouseLeave);
+    };
+  }, []);
 
   return (
-    <section id="testimonials" className="py-24 md:py-32">
-      <div className="max-w-7xl mx-auto px-6">
+    <section id="testimonials" className="py-24 md:py-32 overflow-hidden bg-lp-bg-secondary relative">
+      {/* Soft gradients for the edges to fade out the marquee */}
+      <div className="absolute top-0 bottom-0 left-0 w-32 bg-gradient-to-r from-lp-bg-secondary to-transparent z-10 pointer-events-none" />
+      <div className="absolute top-0 bottom-0 right-0 w-32 bg-gradient-to-l from-lp-bg-secondary to-transparent z-10 pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto px-6 relative z-10 mb-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center"
         >
-          <span className="text-xs font-semibold text-st-accent uppercase tracking-widest mb-4 block">Testimonials</span>
-          <h2 className="text-3xl md:text-5xl font-bold text-st-text-primary tracking-tight mb-4">
-            Trusted by engineers at{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-st-accent to-st-accent-hover">
-              top companies
-            </span>
+          <span className="text-xs font-semibold text-lp-accent-blue uppercase tracking-widest mb-4 block">Testimonials</span>
+          <h2 className="text-4xl md:text-5xl font-semibold text-lp-text-primary tracking-tight mb-4">
+            Trusted by engineers at top companies
           </h2>
         </motion.div>
+      </div>
 
-        <div className="max-w-2xl mx-auto">
-          <div className="relative min-h-[240px] flex items-center justify-center">
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={current}
-                custom={direction}
-                variants={variants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.35, ease: "easeInOut" }}
-                className="text-center w-full"
-              >
-                <div className="flex justify-center gap-1 mb-6">
-                  {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} size={18} className="fill-st-accent text-st-accent" />
+      <div className="w-full relative flex">
+        <div ref={marqueeRef} className="flex gap-6 px-3 w-max">
+          {/* Double the array for seamless looping */}
+          {[...testimonials, ...testimonials].map((t, i) => (
+            <div 
+              key={i} 
+              className="w-[350px] md:w-[450px] p-8 rounded-3xl bg-lp-bg-card border border-lp-border/50 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300 group cursor-default"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex gap-1">
+                  {Array.from({ length: t.rating }).map((_, j) => (
+                    <Star key={j} size={16} className="fill-lp-accent-blue text-lp-accent-blue" />
                   ))}
                 </div>
-                <blockquote className="text-lg md:text-xl text-st-text-primary leading-relaxed mb-8 italic">
-                  &ldquo;{t.content}&rdquo;
-                </blockquote>
-                <div>
-                  <p className="font-semibold text-st-text-primary">{t.name}</p>
-                  <p className="text-sm text-st-text-muted">
-                    {t.role} at {t.company}
-                  </p>
+                <div className="w-10 h-10 rounded-full bg-lp-bg-secondary border border-lp-border flex items-center justify-center text-sm font-semibold text-lp-text-secondary group-hover:scale-110 transition-transform">
+                  {t.name.charAt(0)}
                 </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              onClick={prev}
-              className="w-10 h-10 rounded-full border border-st-border flex items-center justify-center text-st-text-secondary hover:text-st-text-primary hover:border-st-accent/30 transition-colors"
-              aria-label="Previous testimonial"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <div className="flex gap-2">
-              {testimonials.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setDirection(i > current ? 1 : -1); setCurrent(i); }}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${i === current ? "bg-st-accent w-6" : "bg-st-border"}`}
-                  aria-label={`Go to testimonial ${i + 1}`}
-                />
-              ))}
+              </div>
+              <blockquote className="text-lg text-lp-text-primary leading-relaxed mb-8">
+                "{t.content}"
+              </blockquote>
+              <div className="mt-auto">
+                <p className="font-semibold text-lp-text-primary">{t.name}</p>
+                <p className="text-sm text-lp-text-secondary">
+                  {t.role} <span className="mx-1 text-lp-border">•</span> {t.company}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={next}
-              className="w-10 h-10 rounded-full border border-st-border flex items-center justify-center text-st-text-secondary hover:text-st-text-primary hover:border-st-accent/30 transition-colors"
-              aria-label="Next testimonial"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
+          ))}
         </div>
       </div>
     </section>

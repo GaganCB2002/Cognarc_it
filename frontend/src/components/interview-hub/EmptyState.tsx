@@ -12,7 +12,8 @@ interface EmptyStateProps {
   onAction?: () => void;
 }
 
-export function EmptyState({ icon: Icon = Inbox, title, description, actionLabel, onAction }: EmptyStateProps) {
+export function EmptyState({ icon: _icon = Inbox, title, description, actionLabel, onAction }: EmptyStateProps) {
+  const Icon = _icon as React.ComponentType<{ className?: string }>;
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="w-16 h-16 rounded-2xl bg-st-bg-elevated flex items-center justify-center mb-4">

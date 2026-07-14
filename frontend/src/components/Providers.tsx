@@ -62,17 +62,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
             position="bottom-right"
             toastOptions={{
               style: {
-                background: "#181818",
-                color: "#EDEDED",
-                border: "1px solid #2A2A2A",
+                background: "var(--color-st-bg-card)",
+                color: "var(--color-st-text-primary)",
+                border: "1px solid var(--color-st-border)",
                 borderRadius: "12px",
                 fontSize: "13px",
+                boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
               },
               success: {
-                iconTheme: { primary: "#22C55E", secondary: "#181818" },
+                iconTheme: { primary: "var(--color-st-success)", secondary: "var(--color-st-bg-card)" },
               },
               error: {
-                iconTheme: { primary: "#EF4444", secondary: "#181818" },
+                iconTheme: { primary: "var(--color-st-danger)", secondary: "var(--color-st-bg-card)" },
               },
             }}
           />

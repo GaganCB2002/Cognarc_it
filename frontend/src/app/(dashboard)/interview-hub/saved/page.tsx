@@ -138,7 +138,7 @@ export default function SavedPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((item, i) => {
-            const TypeIcon = typeIcons[item.type] || Star;
+            const TypeIcon = (typeIcons[item.type] || Star) as React.ComponentType<{ className?: string }>;
             return (
               <motion.div
                 key={item.id}

@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { io as socketIO, Socket } from "socket.io-client";
 import {
   Activity, Server, Database, Globe, Monitor, ShieldCheck,
-  RefreshCw, AlertTriangle,
+  RefreshCw, TriangleAlert,
   Terminal
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
@@ -119,7 +119,7 @@ function ServiceCard({
         ))}
         {service.error && (
           <div className="mt-2 p-2 rounded-lg bg-st-danger/5 border border-st-danger/10 text-st-danger flex items-start gap-1.5">
-            <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+            <TriangleAlert className="w-3 h-3 mt-0.5 shrink-0" />
             <span className="text-[11px]">{service.error}</span>
           </div>
         )}

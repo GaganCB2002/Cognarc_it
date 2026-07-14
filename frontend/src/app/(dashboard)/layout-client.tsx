@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/components/ui/Sidebar";
 import { Header } from "@/components/ui/Header";
 import { useNotifications } from "@/lib/useNotifications";
-import { Bell, CheckCircle2, Info, AlertTriangle, X, ChevronRight, Clock } from "lucide-react";
+import { Bell, CheckCircle2, Info, TriangleAlert, X, ChevronRight, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   REMINDER: Bell,
   ACHIEVEMENT: CheckCircle2,
   SYSTEM: Info,
-  MENTOR: AlertTriangle,
+  MENTOR: TriangleAlert,
 };
 
 const typeColors: Record<string, string> = {
@@ -151,7 +151,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                   ) : error ? (
                     <div className="flex flex-col items-center justify-center py-10 gap-2 px-6 text-center">
-                      <AlertTriangle className="w-8 h-8 text-st-danger/50" />
+                      <TriangleAlert className="w-8 h-8 text-st-danger/50" />
                       <p className="text-xs text-st-text-muted">{error}</p>
                       <p className="text-[10px] text-st-text-muted/60">Pull to refresh or check your connection</p>
                     </div>

@@ -7,7 +7,7 @@ import { useTheme as useNextTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, setTheme } = useNextTheme();
+  const { theme, setTheme, resolvedTheme } = useNextTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             exit={{ rotate: 90, opacity: 0, scale: 0.5 }}
             transition={{ duration: 0.2 }}
           >
-            {theme === "dark" ? <Moon className="w-[18px] h-[18px]" /> : theme === "system" ? <Laptop className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
+            {resolvedTheme === "dark" ? <Moon className="w-[18px] h-[18px]" /> : <Sun className="w-[18px] h-[18px]" />}
           </motion.span>
         </AnimatePresence>
       </button>

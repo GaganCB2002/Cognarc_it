@@ -118,7 +118,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-1">
           {items.map((item, i) => {
-            const TypeIcon = typeIcons[item.type] || Clock;
+            const TypeIcon = (typeIcons[item.type] || Clock) as React.ComponentType<{ className?: string }>;
             return (
               <motion.div
                 key={item.id}

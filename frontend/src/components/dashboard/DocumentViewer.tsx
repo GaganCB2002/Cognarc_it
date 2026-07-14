@@ -44,7 +44,7 @@ export function DocumentViewer({ src, filename, mimeType, onClose }: DocumentVie
   const [textContent, setTextContent] = useState<string | null>(null);
   const [textLoading, setTextLoading] = useState(false);
 
-  const Icon = MIME_TO_ICON[mimeType] || FileArchive;
+  const Icon = (MIME_TO_ICON[mimeType] || FileArchive) as React.ComponentType<{ className?: string }>;
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   const canPreview = OFFICE_TYPES.includes(mimeType) || TEXT_BASED_TYPES.includes(mimeType) || mimeType === "application/pdf";
   const isTextBased = TEXT_BASED_TYPES.includes(mimeType);
