@@ -105,10 +105,10 @@ export default function DashboardPage() {
           <p className="text-sm text-st-text-secondary mt-0.5">Ready for today&apos;s deep work session?</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/reports" className="relative p-2.5 rounded-lg glass-dash-card hover:bg-st-bg-elevated transition-all duration-200">
+          <Link href="/reports" className="relative p-2.5 rounded-lg bg-st-bg-card border border-st-border hover:bg-st-bg-elevated transition-all duration-200">
             <Bell className="w-[18px] h-[18px] text-st-text-secondary" />
           </Link>
-          <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-st-accent/10 to-st-accent/5 rounded-lg border border-st-accent/15 glass-dash-card">
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-st-accent/10 to-st-accent/5 rounded-lg border border-st-accent/15">
             <Flame className="w-[18px] h-[18px] text-st-accent" />
             <span className="text-sm font-semibold text-st-text-primary">0 Day Streak</span>
           </div>

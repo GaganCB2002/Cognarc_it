@@ -27,43 +27,43 @@
   --color-st-info: #60A5FA;
   --color-st-info-bg: rgba(96, 165, 250, 0.1);
 
-  /* ── Modern Tech Backgrounds (Light Palette) ─────────────────────── */
-  --color-lp-bg-primary: #FFFFFF;
-  --color-lp-bg-secondary: #FAFAFA;
-  --color-lp-bg-tertiary: #F4F4F5;
+  /* ── Landing Page (lp-) - Professional Pastel Palette ────────────── */
+  --color-lp-bg-primary: #FAF8F5;
+  --color-lp-bg-secondary: #F5F3F0;
+  --color-lp-bg-tertiary: #F0EDE8;
   --color-lp-bg-card: #FFFFFF;
   --color-lp-bg-elevated: #FFFFFF;
-  --color-lp-border: #E4E4E7;
-  --color-lp-border-light: #F4F4F5;
-  --color-lp-accent-gold: #D97706;
-  --color-lp-accent-gold-light: #FDE68A;
-  --color-lp-accent-sage: #059669;
-  --color-lp-accent-sage-light: #A7F3D0;
-  --color-lp-accent-sky: #2563EB;
-  --color-lp-accent-sky-light: #BFDBFE;
-  --color-lp-accent-lavender: #7C3AED;
-  --color-lp-accent-lavender-light: #DDD6FE;
-  --color-lp-accent-peach: #DB2777;
-  --color-lp-accent-peach-light: #FBCFE8;
-  --color-lp-accent-indigo: #4F46E5;
-  --color-lp-accent-indigo-light: #E0E7FF;
-  --color-lp-accent: #2563EB;
-  --color-lp-accent-hover: #1D4ED8;
-  --color-lp-accent-secondary: #60A5FA;
-  --color-lp-accent-soft: rgba(37, 99, 235, 0.08);
-  --color-lp-accent-glow: rgba(37, 99, 235, 0.12);
-  --color-lp-text-primary: #18181B;
-  --color-lp-text-secondary: #52525B;
-  --color-lp-text-tertiary: #71717A;
-  --color-lp-text-muted: #A1A1AA;
-  --color-lp-success: #059669;
-  --color-lp-success-bg: rgba(5, 150, 105, 0.08);
-  --color-lp-warning: #D97706;
-  --color-lp-warning-bg: rgba(217, 119, 6, 0.08);
-  --color-lp-error: #DC2626;
-  --color-lp-error-bg: rgba(220, 38, 38, 0.08);
-  --color-lp-info: #2563EB;
-  --color-lp-info-bg: rgba(37, 99, 235, 0.08);
+  --color-lp-border: #E2DDD6;
+  --color-lp-border-light: #EDE9E3;
+  --color-lp-accent: #4F6EF7;
+  --color-lp-accent-hover: #3B5ADE;
+  --color-lp-accent-secondary: #7C9BFF;
+  --color-lp-accent-soft: rgba(79, 110, 247, 0.08);
+  --color-lp-accent-glow: rgba(79, 110, 247, 0.06);
+  --color-lp-accent-gold: #C4956A;
+  --color-lp-accent-gold-light: #F0DFCC;
+  --color-lp-accent-sage: #7CA89C;
+  --color-lp-accent-sage-light: #D5E6E0;
+  --color-lp-accent-sky: #7A9BCB;
+  --color-lp-accent-sky-light: #D6E3F2;
+  --color-lp-accent-lavender: #9B8EC4;
+  --color-lp-accent-lavender-light: #E1DAF0;
+  --color-lp-accent-peach: #D4A0A0;
+  --color-lp-accent-peach-light: #F0DCDC;
+  --color-lp-accent-indigo: #8883B8;
+  --color-lp-accent-indigo-light: #DDD9ED;
+  --color-lp-text-primary: #2C2C32;
+  --color-lp-text-secondary: #5C5C66;
+  --color-lp-text-tertiary: #80808A;
+  --color-lp-text-muted: #A8A8B2;
+  --color-lp-success: #7CA89C;
+  --color-lp-success-bg: rgba(124, 168, 156, 0.1);
+  --color-lp-warning: #C4956A;
+  --color-lp-warning-bg: rgba(196, 149, 106, 0.1);
+  --color-lp-error: #C47A7A;
+  --color-lp-error-bg: rgba(196, 122, 122, 0.1);
+  --color-lp-info: #7A9BCB;
+  --color-lp-info-bg: rgba(122, 155, 203, 0.1);
 }
 
 :root {
@@ -124,35 +124,7 @@ body {
   box-shadow: 0 1px 3px rgba(26, 26, 46, 0.03), 0 8px 24px rgba(26, 26, 46, 0.03);
 }
 
-/* ── Glass Effects (Dashboard - Dark Glossy) ─────────────────────── */
-.glass-dash {
-  background: rgba(22, 22, 40, 0.55);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border: 1px solid rgba(129, 140, 248, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 8px 32px rgba(0, 0, 0, 0.12);
-}
 
-.glass-dash-card {
-  background: rgba(22, 22, 40, 0.6);
-  backdrop-filter: blur(24px) saturate(1.4);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border: 1px solid rgba(129, 140, 248, 0.1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-dash-card:hover {
-  border-color: rgba(129, 140, 248, 0.2);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), 0 12px 40px rgba(0, 0, 0, 0.12), 0 0 40px rgba(129, 140, 248, 0.03);
-}
-
-.glass-dash-header {
-  background: rgba(12, 12, 20, 0.6);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  border-bottom: 1px solid rgba(129, 140, 248, 0.06);
-}
 
 .card-premium {
   background: #FFFFFF;
@@ -415,38 +387,35 @@ body {
   --color-lp-border: #3F3F46;
   --color-lp-border-light: #27272A;
 
-  --color-lp-accent-gold: #F59E0B;
-  --color-lp-accent-gold-light: #78350F;
-  --color-lp-accent-sage: #10B981;
-  --color-lp-accent-sage-light: #064E3B;
-  --color-lp-accent-sky: #3B82F6;
-  --color-lp-accent-sky-light: #1E3A8A;
-  --color-lp-accent-lavender: #8B5CF6;
-  --color-lp-accent-lavender-light: #4C1D95;
-  --color-lp-accent-peach: #EC4899;
-  --color-lp-accent-peach-light: #831843;
-  --color-lp-accent-indigo: #6366F1;
-  --color-lp-accent-indigo-light: #312E81;
-
-  --color-lp-accent: #6366F1;
-  --color-lp-accent-hover: #818CF8;
-  --color-lp-accent-secondary: #4F46E5;
-  --color-lp-accent-soft: rgba(99, 102, 241, 0.1);
-  --color-lp-accent-glow: rgba(99, 102, 241, 0.18);
-
-  --color-lp-text-primary: #FAFAFA;
-  --color-lp-text-secondary: #A1A1AA;
-  --color-lp-text-tertiary: #71717A;
-  --color-lp-text-muted: #52525B;
-
-  --color-lp-success: #10B981;
-  --color-lp-success-bg: rgba(16, 185, 129, 0.1);
-  --color-lp-warning: #F59E0B;
-  --color-lp-warning-bg: rgba(245, 158, 11, 0.1);
-  --color-lp-error: #EF4444;
-  --color-lp-error-bg: rgba(239, 68, 68, 0.1);
-  --color-lp-info: #3B82F6;
-  --color-lp-info-bg: rgba(59, 130, 246, 0.1);
+  --color-lp-accent-gold: #C4956A;
+  --color-lp-accent-gold-light: #3D2E20;
+  --color-lp-accent-sage: #7CA89C;
+  --color-lp-accent-sage-light: #1E332E;
+  --color-lp-accent-sky: #7A9BCB;
+  --color-lp-accent-sky-light: #1E2D3D;
+  --color-lp-accent-lavender: #9B8EC4;
+  --color-lp-accent-lavender-light: #2D2840;
+  --color-lp-accent-peach: #D4A0A0;
+  --color-lp-accent-peach-light: #3D2828;
+  --color-lp-accent-indigo: #8883B8;
+  --color-lp-accent-indigo-light: #28253D;
+  --color-lp-accent: #6B8AFF;
+  --color-lp-accent-hover: #8BA5FF;
+  --color-lp-accent-secondary: #5370DB;
+  --color-lp-accent-soft: rgba(107, 138, 255, 0.12);
+  --color-lp-accent-glow: rgba(107, 138, 255, 0.2);
+  --color-lp-text-primary: #F0EDE8;
+  --color-lp-text-secondary: #A8A4A0;
+  --color-lp-text-tertiary: #807C78;
+  --color-lp-text-muted: #5C5854;
+  --color-lp-success: #7CA89C;
+  --color-lp-success-bg: rgba(124, 168, 156, 0.12);
+  --color-lp-warning: #C4956A;
+  --color-lp-warning-bg: rgba(196, 149, 106, 0.12);
+  --color-lp-error: #C47A7A;
+  --color-lp-error-bg: rgba(196, 122, 122, 0.12);
+  --color-lp-info: #7A9BCB;
+  --color-lp-info-bg: rgba(122, 155, 203, 0.12);
 }
 
 .dark body {
