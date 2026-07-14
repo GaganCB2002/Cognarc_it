@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 import { queueService } from '../services/queue.service';
 export async function getNotes(req: Request, res: Response): Promise<void> {
   try {
@@ -10,20 +10,35 @@ export async function getNotes(req: Request, res: Response): Promise<void> {
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
     const take = parseInt(limit as string);
 
-    const where: any = { userId };
-    if (folder) where.folderId = folder;
-    if (search) where.title = { contains: search as string, mode: 'insensitive' };
-    if (tag) where.tags = { has: tag as string };
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
 
-    const [notes, total] = await Promise.all([
-      prisma.note.findMany({
-        where,
-        orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
-        skip,
-        take,
-      }),
-      prisma.note.count({ where }),
+    if (folder) {
+      conditions.push(`"folderId" = $${paramIdx}`);
+      params.push(folder);
+      paramIdx++;
+    }
+    if (search) {
+      conditions.push(`"title" ILIKE $${paramIdx}`);
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+    if (tag) {
+      conditions.push(`$${paramIdx} = ANY("tags")`);
+      params.push(tag);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    const [notesResult, countResult] = await Promise.all([
+      pool.query(`SELECT * FROM "Note" WHERE ${whereClause} ORDER BY "isPinned" DESC, "updatedAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, take]),
+      pool.query(`SELECT COUNT(*) FROM "Note" WHERE ${whereClause}`, params),
     ]);
+
+    const notes = notesResult.rows;
+    const total = parseInt(countResult.rows[0].count, 10);
 
     res.json({ success: true, data: { notes, total, page: parseInt(page as string), limit: take } });
   } catch (error) {
@@ -39,7 +54,8 @@ export async function getNoteById(req: Request, res: Response): Promise<void> {
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const note = await prisma.note.findFirst({ where: { id, userId } });
+    const result = await pool.query('SELECT * FROM "Note" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const note = result.rows[0];
     if (!note) { res.status(404).json({ success: false, message: 'Note not found' }); return; }
 
     res.json({ success: true, data: note });
@@ -61,11 +77,12 @@ export async function createNote(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const note = await prisma.note.create({
-      data: { userId, title, content, tags: tags || [], folderId: folderId || undefined },
-    });
+    const result = await pool.query(
+      'INSERT INTO "Note" ("userId", "title", "content", "tags", "folderId") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, title, content, tags || [], folderId || null]
+    );
+    const note = result.rows[0];
 
-    // Trigger AI Processing
     queueService.enqueue("AI_PROCESS_NOTE", { noteId: note.id });
 
     res.status(201).json({ success: true, data: note });
@@ -82,7 +99,8 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const existing = await prisma.note.findFirst({ where: { id, userId } });
+    const existingResult = await pool.query('SELECT * FROM "Note" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Note not found' }); return; }
 
     const { title, content, tags, folderId } = req.body;
@@ -92,9 +110,18 @@ export async function updateNote(req: Request, res: Response): Promise<void> {
     if (tags !== undefined) updateData.tags = tags;
     if (folderId !== undefined) updateData.folderId = folderId || null;
 
-    const note = await prisma.note.update({ where: { id }, data: updateData });
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+    for (const [key, value] of Object.entries(updateData)) {
+      setClauses.push(`"${key}" = $${paramIdx}`);
+      params.push(value);
+      paramIdx++;
+    }
+    params.push(id);
+    const result = await pool.query(`UPDATE "Note" SET ${setClauses.join(', ')} WHERE "id" = $${paramIdx} RETURNING *`, params);
+    const note = result.rows[0];
 
-    // Trigger AI Processing
     queueService.enqueue("AI_PROCESS_NOTE", { noteId: note.id });
 
     res.json({ success: true, data: note });
@@ -111,10 +138,11 @@ export async function deleteNote(req: Request, res: Response): Promise<void> {
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const existing = await prisma.note.findFirst({ where: { id, userId } });
+    const existingResult = await pool.query('SELECT * FROM "Note" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Note not found' }); return; }
 
-    await prisma.note.delete({ where: { id } });
+    await pool.query('DELETE FROM "Note" WHERE "id" = $1', [id]);
 
     res.json({ success: true, message: 'Note deleted successfully' });
   } catch (error) {
@@ -130,13 +158,12 @@ export async function pinNote(req: Request, res: Response): Promise<void> {
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const existing = await prisma.note.findFirst({ where: { id, userId } });
+    const existingResult = await pool.query('SELECT * FROM "Note" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Note not found' }); return; }
 
-    const note = await prisma.note.update({
-      where: { id },
-      data: { isPinned: !existing.isPinned },
-    });
+    const result = await pool.query('UPDATE "Note" SET "isPinned" = NOT "isPinned" WHERE "id" = $1 RETURNING *', [id]);
+    const note = result.rows[0];
 
     res.json({ success: true, data: note });
   } catch (error) {

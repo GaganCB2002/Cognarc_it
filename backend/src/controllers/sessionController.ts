@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 
 export async function getSessions(req: Request, res: Response): Promise<void> {
   try {
@@ -10,17 +10,34 @@ export async function getSessions(req: Request, res: Response): Promise<void> {
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
     const take = parseInt(limit as string);
 
-    const where: any = { userId };
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
+
     if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate as string);
-      if (endDate) where.createdAt.lte = new Date(endDate as string);
+      const dateConditions: string[] = [];
+      if (startDate) {
+        dateConditions.push(`"createdAt" >= $${paramIdx}`);
+        params.push(new Date(startDate as string));
+        paramIdx++;
+      }
+      if (endDate) {
+        dateConditions.push(`"createdAt" <= $${paramIdx}`);
+        params.push(new Date(endDate as string));
+        paramIdx++;
+      }
+      conditions.push(`(${dateConditions.join(' AND ')})`);
     }
 
-    const [sessions, total] = await Promise.all([
-      prisma.studySession.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take }),
-      prisma.studySession.count({ where }),
+    const whereClause = conditions.join(' AND ');
+
+    const [sessionsResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "StudySession" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, take]),
+      pool.query(`SELECT COUNT(*) FROM "StudySession" WHERE ${whereClause}`, params),
     ]);
+
+    const sessions = sessionsResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     res.json({ success: true, data: { sessions, total, page: parseInt(page as string), limit: take } });
   } catch (error) {
@@ -40,10 +57,11 @@ export async function getTodaySessions(req: Request, res: Response): Promise<voi
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const sessions = await prisma.studySession.findMany({
-      where: { userId, createdAt: { gte: todayStart, lte: todayEnd } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const result = await pool.query(
+      'SELECT * FROM "StudySession" WHERE "userId" = $1 AND "createdAt" >= $2 AND "createdAt" <= $3 ORDER BY "createdAt" DESC',
+      [userId, todayStart, todayEnd]
+    );
+    const sessions = result.rows;
 
     res.json({ success: true, data: sessions });
   } catch (error) {
@@ -59,9 +77,8 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const session = await prisma.studySession.findFirst({
-      where: { id, userId },
-    });
+    const result = await pool.query('SELECT * FROM "StudySession" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const session = result.rows[0];
 
     if (!session) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
@@ -91,9 +108,11 @@ export async function createSession(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const session = await prisma.studySession.create({
-      data: { userId, topic, duration: parseInt(duration), type: type || 'GENERAL', notes },
-    });
+    const result = await pool.query(
+      'INSERT INTO "StudySession" ("userId", "topic", "duration", "type", "notes") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, topic, parseInt(duration), type || 'GENERAL', notes]
+    );
+    const session = result.rows[0];
 
     res.status(201).json({ success: true, data: session });
   } catch (error) {
@@ -109,7 +128,8 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const existing = await prisma.studySession.findFirst({ where: { id, userId } });
+    const existingResult = await pool.query('SELECT * FROM "StudySession" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
     const { topic, duration, type, notes } = req.body;
@@ -120,16 +140,22 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const updateData: Record<string, any> = {};
-    if (topic !== undefined) updateData.topic = topic;
-    if (duration !== undefined) updateData.duration = parseInt(duration);
-    if (type !== undefined) updateData.type = type;
-    if (notes !== undefined) updateData.notes = notes;
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+    if (topic !== undefined) { setClauses.push(`"topic" = $${paramIdx}`); params.push(topic); paramIdx++; }
+    if (duration !== undefined) { setClauses.push(`"duration" = $${paramIdx}`); params.push(parseInt(duration)); paramIdx++; }
+    if (type !== undefined) { setClauses.push(`"type" = $${paramIdx}`); params.push(type); paramIdx++; }
+    if (notes !== undefined) { setClauses.push(`"notes" = $${paramIdx}`); params.push(notes); paramIdx++; }
 
-    const session = await prisma.studySession.update({
-      where: { id },
-      data: updateData,
-    });
+    if (setClauses.length === 0) {
+      res.json({ success: true, data: existing });
+      return;
+    }
+
+    params.push(id);
+    const result = await pool.query(`UPDATE "StudySession" SET ${setClauses.join(', ')} WHERE "id" = $${paramIdx} RETURNING *`, params);
+    const session = result.rows[0];
 
     res.json({ success: true, data: session });
   } catch (error) {
@@ -145,10 +171,11 @@ export async function deleteSession(req: Request, res: Response): Promise<void> 
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
     const id = req.params.id as string;
-    const existing = await prisma.studySession.findFirst({ where: { id, userId } });
+    const existingResult = await pool.query('SELECT * FROM "StudySession" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
-    await prisma.studySession.delete({ where: { id } });
+    await pool.query('DELETE FROM "StudySession" WHERE "id" = $1', [id]);
 
     res.json({ success: true, message: 'Session deleted successfully' });
   } catch (error) {

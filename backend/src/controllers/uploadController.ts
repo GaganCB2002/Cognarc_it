@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import path from "path";
 import fs from "fs/promises";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import { getFileType } from "../middleware/upload";
 import { 
   saveFile, 
@@ -20,7 +20,8 @@ const getParamId = (req: AuthRequest): string => req.params.id as string;
 
 // Helper to check user ownership
 async function checkOwnership(documentId: string, userId: string) {
-  const document = await prisma.document.findUnique({ where: { id: documentId } });
+  const result = await pool.query('SELECT * FROM "Document" WHERE "id" = $1 LIMIT 1', [documentId]);
+  const document = result.rows[0];
   if (!document) return { error: "File not found", status: 404 };
   if (document.userId !== userId) return { error: "Forbidden", status: 403 };
   if (document.status === "DELETED") return { error: "File has been deleted", status: 410 };
@@ -55,49 +56,30 @@ async function processUpload(
   };
 
   // Create Document & Resource in a transaction
-  const { document, resource } = await prisma.$transaction(async (tx) => {
-    const doc = await tx.document.create({
-      data: {
-        userId,
-        originalName: originalname,
-        mimeType: mimetype,
-        size,
-        storageProvider: stored.provider,
-        storageKey: stored.storageKey,
-        publicUrl: stored.publicUrl,
-        resourceType: getFileType(mimetype),
-        status: "READY",
-        tags: [],
-        metadata: fileMetadata,
-      },
-    });
+  const docResult = await pool.query(
+    'INSERT INTO "Document" ("userId", "originalName", "mimeType", "size", "storageProvider", "storageKey", "publicUrl", "resourceType", "status", "tags", "metadata") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+    [userId, originalname, mimetype, size, stored.provider, stored.storageKey, stored.publicUrl, getFileType(mimetype), "READY", [], fileMetadata]
+  );
+  const doc = docResult.rows[0];
 
-    const res = await tx.resource.create({
-      data: {
-        title,
-        type: getFileType(mimetype),
-        fileKey: stored.storageKey,
-        fileSize: size,
-        mimeType: mimetype,
-        isUpload: true,
-        userId,
-      },
-    });
+  const resResult = await pool.query(
+    'INSERT INTO "Resource" ("title", "type", "fileKey", "fileSize", "mimeType", "isUpload", "userId") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+    [title, getFileType(mimetype), stored.storageKey, size, mimetype, true, userId]
+  );
+  const resource = resResult.rows[0];
 
-    const updatedDoc = await tx.document.update({
-      where: { id: doc.id },
-      data: { resourceId: res.id },
-    });
-
-    return { document: updatedDoc, resource: res };
-  });
+  const updatedDocResult = await pool.query(
+    'UPDATE "Document" SET "resourceId" = $1 WHERE "id" = $2 RETURNING *',
+    [resource.id, doc.id]
+  );
+  const updatedDoc = updatedDocResult.rows[0];
 
   // Trigger asynchronous AI processing if it's a PDF
   if (getFileType(mimetype) === "PDF") {
-    queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: document.id });
+    queueService.enqueue("AI_PROCESS_DOCUMENT", { documentId: updatedDoc.id });
   }
 
-  return { document, resource };
+  return { document: updatedDoc, resource };
 }
 
 /**
@@ -313,33 +295,18 @@ export const replaceFile = async (req: AuthRequest, res: Response) => {
     };
 
     // Update document record
-    const updatedDoc = await prisma.document.update({
-      where: { id },
-      data: {
-        originalName: originalname,
-        mimeType: mimetype,
-        size,
-        storageProvider: stored.provider,
-        storageKey: stored.storageKey,
-        publicUrl: stored.publicUrl,
-        resourceType: getFileType(mimetype),
-        metadata: fileMetadata,
-        status: "READY",
-      },
-    });
+    const updatedDocResult = await pool.query(
+      'UPDATE "Document" SET "originalName" = $1, "mimeType" = $2, "size" = $3, "storageProvider" = $4, "storageKey" = $5, "publicUrl" = $6, "resourceType" = $7, "metadata" = $8, "status" = $9 WHERE "id" = $10 RETURNING *',
+      [originalname, mimetype, size, stored.provider, stored.storageKey, stored.publicUrl, getFileType(mimetype), fileMetadata, "READY", id]
+    );
+    const updatedDoc = updatedDocResult.rows[0];
 
     // Update resource details
     if (doc.resourceId) {
-      await prisma.resource.update({
-        where: { id: doc.resourceId },
-        data: {
-          title: originalname,
-          type: getFileType(mimetype),
-          fileKey: stored.storageKey,
-          fileSize: size,
-          mimeType: mimetype,
-        },
-      });
+      await pool.query(
+        'UPDATE "Resource" SET "title" = $1, "type" = $2, "fileKey" = $3, "fileSize" = $4, "mimeType" = $5 WHERE "id" = $6',
+        [originalname, getFileType(mimetype), stored.storageKey, size, mimetype, doc.resourceId]
+      );
     }
 
     // Re-trigger AI process if PDF
@@ -386,17 +353,18 @@ export const renameFile = async (req: AuthRequest, res: Response) => {
     await renameStorageFile(doc.storageKey, name);
 
     // Update document original name
-    const updatedDoc = await prisma.document.update({
-      where: { id },
-      data: { originalName: name },
-    });
+    const updatedDocResult = await pool.query(
+      'UPDATE "Document" SET "originalName" = $1 WHERE "id" = $2 RETURNING *',
+      [name, id]
+    );
+    const updatedDoc = updatedDocResult.rows[0];
 
     // Update Resource title
     if (doc.resourceId) {
-      await prisma.resource.update({
-        where: { id: doc.resourceId },
-        data: { title: name },
-      });
+      await pool.query(
+        'UPDATE "Resource" SET "title" = $1 WHERE "id" = $2',
+        [name, doc.resourceId]
+      );
     }
 
     res.status(200).json({ success: true, data: updatedDoc });
@@ -432,14 +400,11 @@ export const deleteFile = async (req: AuthRequest, res: Response) => {
     await deleteStorageFile(doc.storageKey);
 
     // Soft-delete the document record
-    await prisma.document.update({
-      where: { id },
-      data: { status: "DELETED" },
-    });
+    await pool.query('UPDATE "Document" SET "status" = $1 WHERE "id" = $2', ["DELETED", id]);
 
     // Also delete linked Resource if exists
     if (doc.resourceId) {
-      await prisma.resource.delete({ where: { id: doc.resourceId } }).catch(err => console.error('Failed to delete linked resource:', err));
+      await pool.query('DELETE FROM "Resource" WHERE "id" = $1', [doc.resourceId]).catch(err => console.error('Failed to delete linked resource:', err));
     }
 
     res.status(200).json({ success: true, data: { message: "File deleted successfully" } });
@@ -462,58 +427,45 @@ export const getMyFiles = async (req: AuthRequest, res: Response) => {
 
     const { type, folder, search } = req.query;
 
-    const where: Record<string, unknown> = {
-      userId,
-      status: { not: "DELETED" },
-    };
+    const conditions: string[] = ['"Document"."userId" = $1', '"Document"."status" != $2'];
+    const params: any[] = [userId, "DELETED"];
+    let paramIdx = 3;
 
     if (type && typeof type === "string") {
-      where.resourceType = type;
+      conditions.push(`"Document"."resourceType" = $${paramIdx}`);
+      params.push(type);
+      paramIdx++;
     }
     if (folder && typeof folder === "string") {
-      where.folder = folder;
+      conditions.push(`"Document"."folder" = $${paramIdx}`);
+      params.push(folder);
+      paramIdx++;
     }
     if (search && typeof search === "string") {
-      where.originalName = { contains: search, mode: "insensitive" };
+      conditions.push(`"Document"."originalName" ILIKE $${paramIdx}`);
+      params.push(`%${search}%`);
+      paramIdx++;
     }
 
-    const documents = await prisma.document.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        originalName: true,
-        mimeType: true,
-        size: true,
-        resourceType: true,
-        status: true,
-        folder: true,
-        tags: true,
-        createdAt: true,
-        publicUrl: true,
-        metadata: true,
-        resource: {
-          select: {
-            id: true,
-            title: true,
-            isFavorite: true,
-          },
-        },
-      },
-    });
+    const whereClause = conditions.join(' AND ');
 
-    const files = documents.map((doc: any) => ({
+    const documentsResult = await pool.query(
+      `SELECT "Document"."id", "Document"."originalName", "Document"."mimeType", "Document"."size", "Document"."resourceType", "Document"."status", "Document"."folder", "Document"."tags", "Document"."createdAt", "Document"."publicUrl", "Document"."metadata", "Resource"."id" AS "resource_id", "Resource"."title" AS "resource_title", "Resource"."isFavorite" AS "resource_isFavorite" FROM "Document" LEFT JOIN "Resource" ON "Document"."resourceId" = "Resource"."id" WHERE ${whereClause} ORDER BY "Document"."createdAt" DESC`,
+      params
+    );
+
+    const files = documentsResult.rows.map((doc: any) => ({
       id: doc.id,
       name: doc.originalName,
-      title: doc.resource?.title || doc.originalName,
+      title: doc.resource_title || doc.originalName,
       mimeType: doc.mimeType,
       size: doc.size,
       type: doc.resourceType,
       status: doc.status,
       folder: doc.folder,
       tags: doc.tags,
-      isFavorite: doc.resource?.isFavorite || false,
-      resourceId: doc.resource?.id,
+      isFavorite: doc.resource_isFavorite || false,
+      resourceId: doc.resource_id,
       publicUrl: doc.publicUrl,
       downloadUrl: doc.metadata?.downloadUrl || doc.publicUrl,
       thumbnailUrl: doc.metadata?.thumbnailUrl,
@@ -549,23 +501,27 @@ export const updateFileMetadata = async (req: AuthRequest, res: Response) => {
     const doc = check.document!;
     const { folder, tags, title, isFavorite } = req.body;
 
-    const docData: Record<string, unknown> = {};
-    if (folder !== undefined) docData.folder = folder;
-    if (tags !== undefined) docData.tags = tags;
+    const docSetClauses: string[] = [];
+    const docParams: any[] = [];
+    let docParamIdx = 1;
+    if (folder !== undefined) { docSetClauses.push(`"folder" = $${docParamIdx}`); docParams.push(folder); docParamIdx++; }
+    if (tags !== undefined) { docSetClauses.push(`"tags" = $${docParamIdx}`); docParams.push(tags); docParamIdx++; }
 
-    await prisma.document.update({
-      where: { id },
-      data: docData,
-    });
+    if (docSetClauses.length > 0) {
+      docParams.push(id);
+      await pool.query(`UPDATE "Document" SET ${docSetClauses.join(', ')} WHERE "id" = $${docParamIdx}`, docParams);
+    }
 
     if (doc.resourceId && (title !== undefined || isFavorite !== undefined)) {
-      const resData: Record<string, unknown> = {};
-      if (title !== undefined) resData.title = title;
-      if (isFavorite !== undefined) resData.isFavorite = isFavorite;
-      await prisma.resource.update({
-        where: { id: doc.resourceId },
-        data: resData,
-      });
+      const resSetClauses: string[] = [];
+      const resParams: any[] = [];
+      let resParamIdx = 1;
+      if (title !== undefined) { resSetClauses.push(`"title" = $${resParamIdx}`); resParams.push(title); resParamIdx++; }
+      if (isFavorite !== undefined) { resSetClauses.push(`"isFavorite" = $${resParamIdx}`); resParams.push(isFavorite); resParamIdx++; }
+      if (resSetClauses.length > 0) {
+        resParams.push(doc.resourceId);
+        await pool.query(`UPDATE "Resource" SET ${resSetClauses.join(', ')} WHERE "id" = $${resParamIdx}`, resParams);
+      }
     }
 
     res.status(200).json({ success: true, data: { message: "Metadata updated successfully" } });

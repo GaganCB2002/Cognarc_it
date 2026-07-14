@@ -1,26 +1,30 @@
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 
 export interface GeneratePdfOptions {
   outputPath?: string;
 }
 
 export async function generateSessionPdfReport(sessionId: string, userId: string, options: GeneratePdfOptions = {}): Promise<Buffer> {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId },
-    include: {
-      activities: { orderBy: { createdAt: 'asc' } },
-      browserTelemetry: { orderBy: { timestamp: 'asc' } },
-      desktopTelemetry: { orderBy: { timestamp: 'asc' } },
-      reports: true
-    }
-  });
+  const { rows: sessions } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (sessions.length === 0) throw new Error('Session not found');
+  const session = sessions[0];
 
-  if (!session) {
-    throw new Error('Session not found');
-  }
+  const [activitiesRes, browserRes, desktopRes, reportsRes] = await Promise.all([
+    pool.query(`SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = $1 ORDER BY "createdAt" ASC`, [sessionId]),
+    pool.query(`SELECT * FROM "BrowserTelemetry" WHERE "trackingSessionId" = $1 ORDER BY "timestamp" ASC`, [sessionId]),
+    pool.query(`SELECT * FROM "DesktopTelemetry" WHERE "trackingSessionId" = $1 ORDER BY "timestamp" ASC`, [sessionId]),
+    pool.query(`SELECT * FROM "Report" WHERE "trackingSessionId" = $1`, [sessionId]),
+  ]);
+  session.activities = activitiesRes.rows;
+  session.browserTelemetry = browserRes.rows;
+  session.desktopTelemetry = desktopRes.rows;
+  session.reports = reportsRes.rows;
 
   const report = session.reports?.[0];
 
@@ -100,7 +104,7 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
 
     // 4. In-App Activity & Modules breakdown
     const activityMap: Record<string, number> = {};
-    session.activities.forEach((act) => {
+    session.activities.forEach((act: any) => {
       activityMap[act.category] = (activityMap[act.category] || 0) + act.duration;
     });
 
@@ -147,7 +151,7 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
     let eventY = logY + 20;
     const displayEvents = session.activities.slice(0, 15); // Show first 15 events to fit page neatly
 
-    displayEvents.forEach((act) => {
+    displayEvents.forEach((act: any) => {
       if (eventY > 730) {
         doc.addPage();
         eventY = 50;
@@ -189,10 +193,10 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
         
         // Find top domains
         const domainMap: Record<string, number> = {};
-        session.browserTelemetry.forEach(t => domainMap[t.domain] = (domainMap[t.domain] || 0) + t.duration);
+        session.browserTelemetry.forEach((t: any) => domainMap[t.domain] = (domainMap[t.domain] || 0) + t.duration);
         const topDomains = Object.entries(domainMap).sort((a,b) => b[1] - a[1]).slice(0, 3);
         
-        topDomains.forEach(([dom, dur]) => {
+        topDomains.forEach(([dom, dur]: [string, any]) => {
           doc.text(`• ${dom}: spent ${Math.round(dur/60)} minutes`, { indent: 10 });
         });
         doc.moveDown(0.5);
@@ -204,10 +208,10 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
 
         // Find top apps
         const appMap: Record<string, number> = {};
-        session.desktopTelemetry.forEach(t => appMap[t.activeApp] = (appMap[t.activeApp] || 0) + t.duration);
+        session.desktopTelemetry.forEach((t: any) => appMap[t.activeApp] = (appMap[t.activeApp] || 0) + t.duration);
         const topApps = Object.entries(appMap).sort((a,b) => b[1] - a[1]).slice(0, 3);
 
-        topApps.forEach(([app, dur]) => {
+        topApps.forEach(([app, dur]: [string, any]) => {
           doc.text(`• ${app}: active for ${Math.round(dur/60)} minutes`, { indent: 10 });
         });
       }
@@ -241,9 +245,11 @@ export async function generateSessionPdfReport(sessionId: string, userId: string
 }
 
 export async function generatePeriodicPdfReport(reportId: string, userId: string, options: GeneratePdfOptions = {}): Promise<Buffer> {
-  const report = await prisma.report.findFirst({
-    where: { id: reportId, userId }
-  });
+  const { rows: reports } = await pool.query(
+    `SELECT * FROM "Report" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [reportId, userId]
+  );
+  const report = reports[0];
 
   if (!report) {
     throw new Error('Report not found');

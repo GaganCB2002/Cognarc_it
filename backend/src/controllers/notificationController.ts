@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 
 export const getNotifications = async (req: Request, res: Response) => {
   try {
@@ -9,16 +9,21 @@ export const getNotifications = async (req: Request, res: Response) => {
     const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 200);
     const unread = req.query.unread === "true";
 
-    const where: any = { userId };
-    if (unread) where.isRead = false;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    if (unread) {
+      conditions.push('"isRead" = false');
+    }
 
-    const notifications = await prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
+    const whereClause = conditions.join(' AND ');
 
-    const unreadCount = await prisma.notification.count({ where: { userId, isRead: false } });
+    const [notificationsResult, unreadCountResult] = await Promise.all([
+      pool.query(`SELECT * FROM "Notification" WHERE ${whereClause} ORDER BY "createdAt" DESC LIMIT $2`, [...params, limit]),
+      pool.query('SELECT COUNT(*) FROM "Notification" WHERE "userId" = $1 AND "isRead" = false', [userId]),
+    ]);
+
+    const notifications = notificationsResult.rows;
+    const unreadCount = parseInt(unreadCountResult.rows[0].count, 10);
 
     res.json({ success: true, notifications, unreadCount });
   } catch (error) {
@@ -38,9 +43,11 @@ export const createNotification = async (req: Request, res: Response) => {
       return;
     }
 
-    const notification = await prisma.notification.create({
-      data: { userId, title, body, type, actionUrl: actionUrl || null },
-    });
+    const result = await pool.query(
+      'INSERT INTO "Notification" ("userId", "title", "body", "type", "actionUrl") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, title, body, type, actionUrl || null]
+    );
+    const notification = result.rows[0];
 
     res.status(201).json({ success: true, data: notification });
   } catch (error) {
@@ -55,13 +62,14 @@ export const markAsRead = async (req: Request, res: Response) => {
     if (!userId) { res.status(401).json({ success: false, message: "Unauthorized" }); return; }
 
     const id = req.params.id as string;
-    const notification = await prisma.notification.findFirst({ where: { id, userId } });
+    const notificationResult = await pool.query('SELECT * FROM "Notification" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const notification = notificationResult.rows[0];
     if (!notification) {
       res.status(404).json({ success: false, message: "Notification not found" });
       return;
     }
 
-    await prisma.notification.update({ where: { id }, data: { isRead: true } });
+    await pool.query('UPDATE "Notification" SET "isRead" = true WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("markAsRead error:", error);
@@ -74,7 +82,7 @@ export const markAllAsRead = async (req: Request, res: Response) => {
     const userId = req.user?.userId as string | undefined;
     if (!userId) { res.status(401).json({ success: false, message: "Unauthorized" }); return; }
 
-    await prisma.notification.updateMany({ where: { userId, isRead: false }, data: { isRead: true } });
+    await pool.query('UPDATE "Notification" SET "isRead" = true WHERE "userId" = $1 AND "isRead" = false', [userId]);
     res.json({ success: true });
   } catch (error) {
     console.error("markAllAsRead error:", error);
@@ -88,13 +96,14 @@ export const deleteNotification = async (req: Request, res: Response) => {
     if (!userId) { res.status(401).json({ success: false, message: "Unauthorized" }); return; }
 
     const id = req.params.id as string;
-    const notification = await prisma.notification.findFirst({ where: { id, userId } });
+    const notificationResult = await pool.query('SELECT * FROM "Notification" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [id, userId]);
+    const notification = notificationResult.rows[0];
     if (!notification) {
       res.status(404).json({ success: false, message: "Notification not found" });
       return;
     }
 
-    await prisma.notification.delete({ where: { id } });
+    await pool.query('DELETE FROM "Notification" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("deleteNotification error:", error);

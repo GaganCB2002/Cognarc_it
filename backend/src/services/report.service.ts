@@ -1,15 +1,21 @@
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 
 export const generateSessionReport = async (sessionId: string, userId: string) => {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId },
-    include: { activities: { orderBy: { createdAt: "asc" } } },
-  });
-  if (!session) throw new Error("Session not found");
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (rows.length === 0) throw new Error("Session not found");
+  const session = rows[0];
+
+  const { rows: activities } = await pool.query(
+    `SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = $1 ORDER BY "createdAt" ASC`,
+    [sessionId]
+  );
 
   const totalMs = session.endTime
-    ? session.endTime.getTime() - session.startTime.getTime()
-    : Date.now() - session.startTime.getTime();
+    ? new Date(session.endTime).getTime() - new Date(session.startTime).getTime()
+    : Date.now() - new Date(session.startTime).getTime();
   const activeMs = Math.max(0, totalMs - session.totalPauseMs);
   const totalSec = Math.round(activeMs / 1000);
 
@@ -18,7 +24,7 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
   const technologies = new Set<string>();
   const topics = new Set<string>();
 
-  for (const a of session.activities) {
+  for (const a of activities) {
     if (!byCategory[a.category]) byCategory[a.category] = { duration: 0, count: 0 };
     byCategory[a.category].duration += a.duration;
     byCategory[a.category].count += 1;
@@ -78,7 +84,7 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
   const reportData = {
     sessionId,
     type: "SESSION_SUMMARY",
-    title: `Session Summary - ${session.startTime.toLocaleDateString()}`,
+    title: `Session Summary - ${new Date(session.startTime).toLocaleDateString()}`,
     summary: summaryLines.join(" "),
     durationSeconds: totalSec,
     productivityScore,
@@ -94,7 +100,7 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
       idleTime: Math.round(idleEstimate),
       productiveTime: Math.round(productiveTime),
       pauseMs: session.totalPauseMs,
-      eventCount: session.activities.length,
+      eventCount: activities.length,
       byCategory: Object.fromEntries(
         Object.entries(byCategory).map(([k, v]) => [k, { duration: v.duration, count: v.count }])
       ),
@@ -105,8 +111,8 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
         duration: data.duration,
         count: data.count,
       })),
-      timeline: session.activities.map((a) => ({
-        time: a.createdAt.toISOString(),
+      timeline: activities.map((a: any) => ({
+        time: new Date(a.createdAt).toISOString(),
         type: a.eventType,
         category: a.category,
         label: a.label,
@@ -118,26 +124,20 @@ export const generateSessionReport = async (sessionId: string, userId: string) =
     topics: Array.from(topics),
   };
 
-  const report = await prisma.report.create({
-    data: {
-      userId,
-      trackingSessionId: sessionId,
-      type: "SESSION_SUMMARY",
-      title: reportData.title,
-      summary: reportData.summary,
-      durationSeconds: reportData.durationSeconds,
-      productivityScore: reportData.productivityScore,
-      focusScore: reportData.focusScore,
-      metrics: JSON.parse(JSON.stringify(reportData.metrics)),
-      chartData: JSON.parse(JSON.stringify(reportData.chartData)),
-      recommendations: JSON.parse(JSON.stringify(reportData.recommendations)),
-      insights: JSON.parse(JSON.stringify(reportData.insights)),
-      technologies: reportData.technologies,
-      topics: reportData.topics,
-    },
-  });
+  const { rows: report } = await pool.query(
+    `INSERT INTO "Report" ("userId", "trackingSessionId", type, title, summary, "durationSeconds", "productivityScore", "focusScore", metrics, "chartData", recommendations, insights, technologies, topics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+    [
+      userId, sessionId, "SESSION_SUMMARY", reportData.title, reportData.summary,
+      reportData.durationSeconds, reportData.productivityScore, reportData.focusScore,
+      JSON.parse(JSON.stringify(reportData.metrics)),
+      JSON.parse(JSON.stringify(reportData.chartData)),
+      JSON.parse(JSON.stringify(reportData.recommendations)),
+      JSON.parse(JSON.stringify(reportData.insights)),
+      reportData.technologies, reportData.topics,
+    ]
+  );
 
-  return report;
+  return report[0];
 };
 
 export const generatePeriodicReport = async (
@@ -146,25 +146,26 @@ export const generatePeriodicReport = async (
   from: Date,
   to: Date
 ) => {
-  const sessions = await prisma.trackingSession.findMany({
-    where: {
-      userId,
-      status: "COMPLETED",
-      startTime: { gte: from, lte: to },
-    },
-    include: { _count: { select: { activities: true } } },
-  });
+  const { rows: sessions } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE "userId" = $1 AND status = 'COMPLETED' AND "startTime" >= $2 AND "startTime" <= $3`,
+    [userId, from, to]
+  );
 
-  const totalDuration = sessions.reduce((s, sess) => {
+  const totalDuration = sessions.reduce((s: number, sess: any) => {
     if (!sess.endTime) return s;
-    return s + (sess.endTime.getTime() - sess.startTime.getTime() - sess.totalPauseMs) / 1000;
+    return s + (new Date(sess.endTime).getTime() - new Date(sess.startTime).getTime() - sess.totalPauseMs) / 1000;
   }, 0);
   const totalSessions = sessions.length;
 
-  const sessionIds = sessions.map(s => s.id);
-  const allActivities = sessionIds.length > 0
-    ? await prisma.activityEvent.findMany({ where: { trackingSessionId: { in: sessionIds } } })
-    : [];
+  const sessionIds = sessions.map((s: any) => s.id);
+  let allActivities: any[] = [];
+  if (sessionIds.length > 0) {
+    const { rows } = await pool.query(
+      `SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = ANY($1)`,
+      [sessionIds]
+    );
+    allActivities = rows;
+  }
 
   const byCategory: Record<string, number> = {};
   let totalEventDuration = 0;
@@ -177,18 +178,13 @@ export const generatePeriodicReport = async (
   const productiveTime = learningTime + codingTime;
   const avgScore = totalDuration > 0 ? Math.round((productiveTime / totalDuration) * 100) : 0;
 
-  // Aggregate external telemetry for the period
-  const [browserEvents, desktopEvents] = await Promise.all([
-    prisma.browserTelemetry.findMany({
-      where: { userId, timestamp: { gte: from, lte: to } }
-    }),
-    prisma.desktopTelemetry.findMany({
-      where: { userId, timestamp: { gte: from, lte: to }, isIdle: false }
-    })
+  const [browserRes, desktopRes] = await Promise.all([
+    pool.query(`SELECT * FROM "BrowserTelemetry" WHERE "userId" = $1 AND "timestamp" >= $2 AND "timestamp" <= $3`, [userId, from, to]),
+    pool.query(`SELECT * FROM "DesktopTelemetry" WHERE "userId" = $1 AND "timestamp" >= $2 AND "timestamp" <= $3 AND "isIdle" = false`, [userId, from, to]),
   ]);
 
   const domainMap: Record<string, number> = {};
-  browserEvents.forEach(e => {
+  browserRes.rows.forEach((e: any) => {
     domainMap[e.domain] = (domainMap[e.domain] || 0) + e.duration;
   });
   const topWebsites = Object.entries(domainMap)
@@ -197,7 +193,7 @@ export const generatePeriodicReport = async (
     .slice(0, 10);
 
   const appMap: Record<string, number> = {};
-  desktopEvents.forEach(e => {
+  desktopRes.rows.forEach((e: any) => {
     appMap[e.activeApp] = (appMap[e.activeApp] || 0) + e.duration;
   });
   const topApps = Object.entries(appMap)
@@ -208,51 +204,46 @@ export const generatePeriodicReport = async (
   const title = `${type.charAt(0) + type.slice(1).toLowerCase()} Report - ${from.toLocaleDateString()} to ${to.toLocaleDateString()}`;
   const summary = `You completed ${totalSessions} sessions totaling ${Math.round(totalDuration / 60)} minutes. Average productivity score: ${avgScore}%.`;
 
-  return prisma.report.create({
-    data: {
-      userId,
-      type: type as any,
-      title,
-      summary,
-      durationSeconds: Math.round(totalDuration),
-      productivityScore: avgScore,
-      focusScore: avgScore,
-      metrics: { 
-        totalSessions, 
-        totalDuration: Math.round(totalDuration), 
-        avgScore,
-        topWebsites,
-        topApps
-      },
-      chartData: { 
-        sessions: sessions.map((s) => ({ id: s.id, start: s.startTime, end: s.endTime, durationSeconds: s.endTime ? Math.round((s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs) / 1000) : 0 })) 
-      },
-      recommendations: [],
-      insights: {},
-      technologies: [],
-      topics: [],
-    },
-  });
+  const { rows: report } = await pool.query(
+    `INSERT INTO "Report" ("userId", type, title, summary, "durationSeconds", "productivityScore", "focusScore", metrics, "chartData", recommendations, insights, technologies, topics) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+    [
+      userId, type, title, summary, Math.round(totalDuration), avgScore, avgScore,
+      { totalSessions, totalDuration: Math.round(totalDuration), avgScore, topWebsites, topApps },
+      { sessions: sessions.map((s: any) => ({ id: s.id, start: s.startTime, end: s.endTime, durationSeconds: s.endTime ? Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime() - s.totalPauseMs) / 1000) : 0 })) },
+      [], {}, [], [],
+    ]
+  );
+
+  return report[0];
 };
 
 export const getReports = async (
   userId: string,
   options: { type?: string; limit?: number; offset?: number } = {}
 ) => {
-  const where: any = { userId };
-  if (options.type) where.type = options.type;
-  const [reports, total] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: options.limit || 20,
-      skip: options.offset || 0,
-    }),
-    prisma.report.count({ where }),
-  ]);
-  return { reports, total };
+  const params: any[] = [userId];
+  let typeClause = "";
+  if (options.type) {
+    typeClause = ` AND type = $${params.length + 1}`;
+    params.push(options.type);
+  }
+
+  const { rows: reports } = await pool.query(
+    `SELECT * FROM "Report" WHERE "userId" = $1${typeClause} ORDER BY "createdAt" DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, options.limit || 20, options.offset || 0]
+  );
+  const { rows: [{ count }] } = await pool.query(
+    `SELECT COUNT(*) FROM "Report" WHERE "userId" = $1${typeClause}`,
+    params
+  );
+
+  return { reports, total: parseInt(count, 10) };
 };
 
 export const getReport = async (reportId: string, userId: string) => {
-  return prisma.report.findFirst({ where: { id: reportId, userId } });
+  const { rows } = await pool.query(
+    `SELECT * FROM "Report" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [reportId, userId]
+  );
+  return rows[0] || null;
 };

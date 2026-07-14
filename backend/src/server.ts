@@ -9,7 +9,7 @@ import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { prisma, pool } from "./lib/prisma";
+import { pool } from "./lib/prisma";
 import { verifyAccessToken } from "./utils/helpers";
 
 import authRoutes from "./routes/auth";
@@ -48,7 +48,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-export { prisma, pool };
+export { pool };
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -181,16 +181,16 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 // Health check with database verification
 app.get("/health", async (req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await pool.query('SELECT 1');
     res.status(200).json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
-  } catch (error) {
+  } catch {
     res.status(503).json({ success: false, status: "error", db: "disconnected", timestamp: new Date().toISOString() });
   }
 });
 
 app.get("/api/health", async (req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await pool.query('SELECT 1');
     res.json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
   } catch {
     res.status(503).json({ success: false, status: "error", db: "disconnected" });
@@ -199,7 +199,7 @@ app.get("/api/health", async (req, res) => {
 
 app.get("/api/database/status", async (req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await pool.query('SELECT 1');
     res.json({ success: true, status: "connected", provider: "postgresql", timestamp: new Date().toISOString() });
   } catch {
     res.status(503).json({ success: false, status: "disconnected" });
@@ -224,7 +224,7 @@ app.get("/api/backend/status", (req, res) => {
 
 app.get("/api/tracking/status", async (req, res) => {
   try {
-    const count = await prisma.trackingSession.count();
+    const { rows: [{ count }] } = await pool.query('SELECT COUNT(*) FROM "TrackingSession"');
     res.json({ success: true, status: "active", totalSessions: count, timestamp: new Date().toISOString() });
   } catch {
     res.json({ success: true, status: "active", totalSessions: 0, timestamp: new Date().toISOString() });
@@ -233,7 +233,7 @@ app.get("/api/tracking/status", async (req, res) => {
 
 app.get("/api/diagnostics", async (req, res) => {
   let dbConnected = false;
-  try { await prisma.$queryRaw`SELECT 1`; dbConnected = true; } catch {}
+  try { await pool.query('SELECT 1'); dbConnected = true; } catch {}
   const engine = io?.engine;
   res.json({
     success: true,
@@ -318,7 +318,6 @@ async function gracefulShutdown(signal: string) {
   httpServer.close(() => {
     console.log('HTTP server closed');
   });
-  await prisma.$disconnect();
   await pool.end();
   console.log('Database connections closed');
   process.exit(0);

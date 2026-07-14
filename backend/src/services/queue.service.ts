@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import { geminiService } from "./gemini.service";
 import { getLocalPath, getFile as getStorageFile } from "./storage.service";
 import fs from "fs/promises";
@@ -73,7 +73,8 @@ class JobQueue {
   }
 
   private async processDocument(documentId: string) {
-    const document = await prisma.document.findUnique({ where: { id: documentId } });
+    const { rows: docs } = await pool.query(`SELECT * FROM "Document" WHERE id = $1`, [documentId]);
+    const document = docs[0];
     if (!document) throw new Error("Document not found");
 
     let tempPath = "";
@@ -98,48 +99,20 @@ class JobQueue {
       
       const aiResult = await geminiService.generateDocumentIntelligenceFromFile(geminiFile.uri, document.mimeType);
 
-      // Save to DB
-      await prisma.documentIntelligence.upsert({
-        where: { documentId },
-        update: {
-          summary: aiResult.summary,
-          chapterSummaries: aiResult.chapterSummaries || [],
-          keyConcepts: aiResult.keyConcepts || [],
-          topics: aiResult.topics || [],
-          interviewQuestions: aiResult.interviewQuestions || [],
-          mcqs: aiResult.mcqs || [],
-          flashcards: aiResult.flashcards || [],
-          mindMapData: aiResult.mindMapData || [],
-          revisionChecklist: aiResult.revisionChecklist || [],
-        },
-        create: {
-          documentId,
-          summary: aiResult.summary,
-          chapterSummaries: aiResult.chapterSummaries || [],
-          keyConcepts: aiResult.keyConcepts || [],
-          topics: aiResult.topics || [],
-          interviewQuestions: aiResult.interviewQuestions || [],
-          mcqs: aiResult.mcqs || [],
-          flashcards: aiResult.flashcards || [],
-          mindMapData: aiResult.mindMapData || [],
-          revisionChecklist: aiResult.revisionChecklist || [],
-        }
-      });
+      await pool.query(
+        `INSERT INTO "DocumentIntelligence" ("documentId", summary, "chapterSummaries", "keyConcepts", topics, "interviewQuestions", mcqs, flashcards, "mindMapData", "revisionChecklist") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT ("documentId") DO UPDATE SET summary = EXCLUDED.summary, "chapterSummaries" = EXCLUDED."chapterSummaries", "keyConcepts" = EXCLUDED."keyConcepts", topics = EXCLUDED.topics, "interviewQuestions" = EXCLUDED."interviewQuestions", mcqs = EXCLUDED.mcqs, flashcards = EXCLUDED.flashcards, "mindMapData" = EXCLUDED."mindMapData", "revisionChecklist" = EXCLUDED."revisionChecklist"`,
+        [documentId, aiResult.summary, aiResult.chapterSummaries || [], aiResult.keyConcepts || [], aiResult.topics || [], aiResult.interviewQuestions || [], aiResult.mcqs || [], aiResult.flashcards || [], aiResult.mindMapData || [], aiResult.revisionChecklist || []]
+      );
       
       // Automatically schedule a revision in Calendar
       const revisionDate = new Date();
       revisionDate.setDate(revisionDate.getDate() + 3); // Review in 3 days
 
-      await prisma.calendarEvent.create({
-        data: {
-          userId: document.userId,
-          title: `Review Document: ${document.originalName}`,
-          description: `Automatic AI scheduled review. Summary: ${aiResult.summary}`,
-          eventType: "REVISION",
-          startTime: revisionDate,
-          endTime: new Date(revisionDate.getTime() + 60 * 60 * 1000), // 1 hour
-        }
-      });
+      await pool.query(
+        `INSERT INTO "CalendarEvent" ("userId", title, description, "eventType", "startTime", "endTime") VALUES ($1,$2,$3,$4,$5,$6)`,
+        [document.userId, `Review Document: ${document.originalName}`, `Automatic AI scheduled review. Summary: ${aiResult.summary}`, "REVISION", revisionDate, new Date(revisionDate.getTime() + 60 * 60 * 1000)]
+      );
     } finally {
       // Cleanup temp files
       if (isTemp && tempPath) {
@@ -153,23 +126,16 @@ class JobQueue {
   }
 
   private async processNote(noteId: string) {
-    const note = await prisma.note.findUnique({ where: { id: noteId } });
+    const { rows: notes } = await pool.query(`SELECT * FROM "Note" WHERE id = $1`, [noteId]);
+    const note = notes[0];
     if (!note) throw new Error("Note not found");
 
     const aiResult = await geminiService.generateNoteIntelligence(note.content);
 
-    await prisma.noteIntelligence.upsert({
-      where: { noteId },
-      update: {
-        summary: aiResult.summary,
-        keywords: aiResult.keywords || [],
-      },
-      create: {
-        noteId,
-        summary: aiResult.summary,
-        keywords: aiResult.keywords || [],
-      }
-    });
+    await pool.query(
+      `INSERT INTO "NoteIntelligence" ("noteId", summary, keywords) VALUES ($1,$2,$3) ON CONFLICT ("noteId") DO UPDATE SET summary = EXCLUDED.summary, keywords = EXCLUDED.keywords`,
+      [noteId, aiResult.summary, aiResult.keywords || []]
+    );
   }
 
   private async generateDailySummary(userId: string, date: Date) {
@@ -179,12 +145,16 @@ class JobQueue {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const [tasks, documents, notes, trackingSessions] = await Promise.all([
-      prisma.task.findMany({ where: { userId, updatedAt: { gte: startOfDay, lte: endOfDay } } }),
-      prisma.document.findMany({ where: { userId, createdAt: { gte: startOfDay, lte: endOfDay } } }),
-      prisma.note.findMany({ where: { userId, updatedAt: { gte: startOfDay, lte: endOfDay } } }),
-      prisma.trackingSession.findMany({ where: { userId, startTime: { gte: startOfDay, lte: endOfDay } } }),
+    const [tasksRes, docsRes, notesRes, sessionsRes] = await Promise.all([
+      pool.query(`SELECT * FROM "Task" WHERE "userId" = $1 AND "updatedAt" >= $2 AND "updatedAt" <= $3`, [userId, startOfDay, endOfDay]),
+      pool.query(`SELECT * FROM "Document" WHERE "userId" = $1 AND "createdAt" >= $2 AND "createdAt" <= $3`, [userId, startOfDay, endOfDay]),
+      pool.query(`SELECT * FROM "Note" WHERE "userId" = $1 AND "updatedAt" >= $2 AND "updatedAt" <= $3`, [userId, startOfDay, endOfDay]),
+      pool.query(`SELECT * FROM "TrackingSession" WHERE "userId" = $1 AND "startTime" >= $2 AND "startTime" <= $3`, [userId, startOfDay, endOfDay]),
     ]);
+    const tasks = tasksRes.rows;
+    const documents = docsRes.rows;
+    const notes = notesRes.rows;
+    const trackingSessions = sessionsRes.rows;
 
     const activities = {
       completedTasks: tasks.filter(t => t.status === "DONE").map(t => t.title),
@@ -199,21 +169,10 @@ class JobQueue {
 
     const aiResult = await geminiService.generateDailySummary(activities);
 
-    await prisma.dailySummary.upsert({
-      where: { userId_date: { userId, date: startOfDay } },
-      update: {
-        summary: aiResult.summary,
-        recommendations: aiResult.recommendations || [],
-        metrics: aiResult.metrics || {},
-      },
-      create: {
-        userId,
-        date: startOfDay,
-        summary: aiResult.summary,
-        recommendations: aiResult.recommendations || [],
-        metrics: aiResult.metrics || {},
-      }
-    });
+    await pool.query(
+      `INSERT INTO "DailySummary" ("userId", date, summary, recommendations, metrics) VALUES ($1,$2,$3,$4,$5) ON CONFLICT ("userId", date) DO UPDATE SET summary = EXCLUDED.summary, recommendations = EXCLUDED.recommendations, metrics = EXCLUDED.metrics`,
+      [userId, startOfDay, aiResult.summary, aiResult.recommendations || [], aiResult.metrics || {}]
+    );
   }
 }
 

@@ -1,59 +1,41 @@
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 import { generateAIInsights } from './ai.service';
 
 export const getAggregatedStats = async (userId: string) => {
-  // 1. Calculate Deep Hours (sum of duration in seconds -> hours)
-  const desktopDeep = await prisma.desktopTelemetry.aggregate({
-    _sum: { duration: true },
-    where: { 
-      userId,
-      category: { in: ['IDE', 'Terminal'] }
-    }
-  });
+  const desktopDeep = await pool.query(
+    `SELECT COALESCE(SUM(duration), 0) as duration FROM "DesktopTelemetry" WHERE "userId" = $1 AND category = ANY($2)`,
+    [userId, ['IDE', 'Terminal']]
+  );
+  const browserDeep = await pool.query(
+    `SELECT COALESCE(SUM(duration), 0) as duration FROM "BrowserTelemetry" WHERE "userId" = $1 AND category = ANY($2)`,
+    [userId, ['Documentation', 'Learning']]
+  );
 
-  const browserDeep = await prisma.browserTelemetry.aggregate({
-    _sum: { duration: true },
-    where: { 
-      userId,
-      category: { in: ['Documentation', 'Learning'] }
-    }
-  });
-
-  const totalDeepSeconds = (desktopDeep._sum.duration || 0) + (browserDeep._sum.duration || 0);
+  const totalDeepSeconds = Number(desktopDeep.rows[0].duration) + Number(browserDeep.rows[0].duration);
   const deepHours = (totalDeepSeconds / 3600).toFixed(1);
 
-  // 2. Session Intensity
-  const completedSessions = await prisma.trackingSession.findMany({
-    where: { userId, status: 'COMPLETED', endTime: { not: null } },
-    select: { startTime: true, endTime: true, totalPauseMs: true }
-  });
-  const totalSessionSeconds = completedSessions.reduce((acc, s) => {
-    if (!s.endTime) return acc;
-    return acc + Math.round((s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs) / 1000);
+  const { rows: sessions } = await pool.query(
+    `SELECT "startTime", "endTime", "totalPauseMs" FROM "TrackingSession" WHERE "userId" = $1 AND status = 'COMPLETED' AND "endTime" IS NOT NULL`,
+    [userId]
+  );
+  const totalSessionSeconds = sessions.reduce((acc: number, s: any) => {
+    return acc + Math.round((new Date(s.endTime).getTime() - new Date(s.startTime).getTime() - s.totalPauseMs) / 1000);
   }, 0);
   const intensityPct = totalSessionSeconds > 0 ? Math.round((totalDeepSeconds / totalSessionSeconds) * 100) : 0;
   const sessionIntensity = totalDeepSeconds > 0 ? `High (${intensityPct}%)` : "None (0%)";
 
-  // 3. Top Sessions
-  const topDesktop = await prisma.desktopTelemetry.groupBy({
-    by: ['processName'],
-    where: { userId },
-    _sum: { duration: true },
-    orderBy: { _sum: { duration: 'desc' } },
-    take: 2
-  });
-
-  const topBrowser = await prisma.browserTelemetry.groupBy({
-    by: ['domain'],
-    where: { userId },
-    _sum: { duration: true },
-    orderBy: { _sum: { duration: 'desc' } },
-    take: 2
-  });
+  const { rows: topDesktop } = await pool.query(
+    `SELECT "processName", SUM(duration) as duration FROM "DesktopTelemetry" WHERE "userId" = $1 GROUP BY "processName" ORDER BY duration DESC LIMIT 2`,
+    [userId]
+  );
+  const { rows: topBrowser } = await pool.query(
+    `SELECT domain, SUM(duration) as duration FROM "BrowserTelemetry" WHERE "userId" = $1 GROUP BY domain ORDER BY duration DESC LIMIT 2`,
+    [userId]
+  );
 
   let combinedSessions = [
-    ...topDesktop.map(s => ({ topic: s.processName, type: 'Desktop', duration: s._sum.duration || 0 })),
-    ...topBrowser.map(s => ({ topic: s.domain, type: 'Browser', duration: s._sum.duration || 0 }))
+    ...topDesktop.map((s: any) => ({ topic: s.processName, type: 'Desktop', duration: Number(s.duration) })),
+    ...topBrowser.map((s: any) => ({ topic: s.domain, type: 'Browser', duration: Number(s.duration) }))
   ].sort((a, b) => b.duration - a.duration).slice(0, 2);
 
   if (combinedSessions.length === 0) {
@@ -70,38 +52,28 @@ export const getAggregatedStats = async (userId: string) => {
     progress: Math.min(100, Math.round((s.duration / maxDuration) * 100))
   }));
 
-  // 4. Activity Pulse (Last 28 Days)
   const twentyEightDaysAgo = new Date();
   twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
 
-  const dailyDesktop = await prisma.desktopTelemetry.findMany({
-    where: {
-      userId,
-      timestamp: { gte: twentyEightDaysAgo }
-    },
-    select: { timestamp: true, duration: true }
-  });
-
-  const dailyBrowser = await prisma.browserTelemetry.findMany({
-    where: {
-      userId,
-      timestamp: { gte: twentyEightDaysAgo }
-    },
-    select: { timestamp: true, duration: true }
-  });
+  const { rows: dailyDesktop } = await pool.query(
+    `SELECT "timestamp", duration FROM "DesktopTelemetry" WHERE "userId" = $1 AND "timestamp" >= $2`,
+    [userId, twentyEightDaysAgo]
+  );
+  const { rows: dailyBrowser } = await pool.query(
+    `SELECT "timestamp", duration FROM "BrowserTelemetry" WHERE "userId" = $1 AND "timestamp" >= $2`,
+    [userId, twentyEightDaysAgo]
+  );
 
   const pulseMap = new Array(28).fill(0);
   const today = new Date();
   today.setHours(23, 59, 59, 999);
-  
+
   const bucketEvent = (event: any) => {
     const eventDate = new Date(event.timestamp);
     const diffTime = Math.abs(today.getTime() - eventDate.getTime());
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
     if (diffDays >= 0 && diffDays < 28) {
-      const index = 27 - diffDays;
-      pulseMap[index] += (event.duration || 0);
+      pulseMap[27 - diffDays] += (event.duration || 0);
     }
   };
 
@@ -117,7 +89,6 @@ export const getAggregatedStats = async (userId: string) => {
     return 1;
   });
 
-  // 5. AI Generation for Profile and Interview Prep
   const aiData = await generateAIInsights(combinedSessions.map(s => s.topic).filter((t): t is string => t !== null));
 
   return {

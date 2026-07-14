@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth as useClerkAuth, useClerk } from "@clerk/nextjs";
+import { useAuth as useClerkAuth, useClerk, useUser } from "@clerk/nextjs";
 import api from "@/lib/api";
 
 interface User {
@@ -72,14 +72,23 @@ function writeStoredUser(user: User | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userKey, setUserKey] = useState(0);
   const { isSignedIn, getToken: getClerkToken } = useClerkAuth();
+  const { user: clerkUser, isLoaded: isClerkUserLoaded } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
-  const exchangedRef = useRef(false);
+
+  // Create our internal User object from Clerk's user object
+  const user: User | null = clerkUser ? {
+    id: clerkUser.id,
+    email: clerkUser.primaryEmailAddress?.emailAddress || "",
+    name: clerkUser.fullName || clerkUser.firstName || "User",
+    avatar: clerkUser.imageUrl,
+    role: "STUDENT", // default role
+    profile: {}
+  } : null;
 
   const isAuthenticated = !!token;
 
@@ -88,8 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const clearAuthState = () => {
       setToken(null);
-      setUser(null);
-      writeStoredUser(null);
       clearAllLocalData();
       setUserKey(k => k + 1);
     };
@@ -99,70 +106,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api.setToken(null);
     });
 
-    const exchangeClerkSession = async () => {
-      if (exchangedRef.current) return;
-      exchangedRef.current = true;
-
-      try {
-        let clerkToken = await getClerkToken();
-        let retries = 0;
-        while (!clerkToken && retries < 10) {
-          await new Promise(r => setTimeout(r, 200));
-          clerkToken = await getClerkToken();
-          retries++;
-        }
-        if (!clerkToken) {
-          if (!cancelled) setIsLoading(false);
-          return;
-        }
-
-        // We use the Clerk token directly for our API requests.
-        // The backend authenticate middleware supports it via ClerkExpressRequireAuth.
-        if (cancelled) return;
-        api.setToken(clerkToken, null);
-        setToken(clerkToken);
-        
-        // Fetch user basic data via our mocked backend /auth/me or Clerk hook.
-        try {
-          const res = await api.get<{ user: User }>("/auth/me");
-          setUser(res.user);
-          writeStoredUser(res.user);
-        } catch {
-          // It's okay if /auth/me fails, user is managed by clerk UI
-        }
-
-        setUserKey(k => k + 1);
-        setIsLoading(false);
-      } catch {
-        if (cancelled) return;
-        clearAuthState();
-        api.setToken(null);
-        setIsLoading(false);
-        try { await signOut(); } catch {}
-      }
-    };
-
     const init = async () => {
       if (isSignedIn) {
-        await exchangeClerkSession();
-      } else {
-        const savedToken = localStorage.getItem("accessToken");
-        if (savedToken) {
-          api.setToken(savedToken);
-          setToken(savedToken);
-          const savedUser = readStoredUser();
-          if (savedUser) setUser(savedUser);
-
-          try {
-            const res = await api.get<{ user: User }>("/auth/me");
-            if (cancelled) return;
-            setUser(res.user);
-            writeStoredUser(res.user);
-          } catch {
-            // Silently keep saved session data — only clear on explicit logout
+        try {
+          const clerkToken = await getClerkToken();
+          if (cancelled) return;
+          if (clerkToken) {
+            api.setToken(clerkToken, null);
+            setToken(clerkToken);
+            writeStoredUser(user);
+          } else {
+            clearAuthState();
           }
+        } catch {
+          if (!cancelled) clearAuthState();
         }
-        if (!cancelled) setIsLoading(false);
+      } else if (isClerkUserLoaded) {
+        clearAuthState();
+        api.setToken(null);
+      }
+      
+      if (!cancelled) {
+        setIsLoading(!isClerkUserLoaded);
+        setUserKey(k => k + 1);
       }
     };
 
@@ -171,22 +137,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, getClerkToken, signOut]);
+  }, [isSignedIn, isClerkUserLoaded, getClerkToken, user]);
 
   const refreshUser = useCallback(async () => {
-    try {
-      const res = await api.get<{ user: User }>("/auth/me");
-      setUser(res.user);
-      writeStoredUser(res.user);
-    } catch {
-    }
+    // Relying on Clerk for user state, no need to manually fetch
   }, []);
 
-  const login = useCallback(async (_email: string, _code: string, _captchaKey: string, _captchaAnswer: string, _isOtp?: boolean, _isFace?: boolean) => {
+  const login = useCallback(async () => {
     router.push("/login");
   }, [router]);
 
-  const register = useCallback(async (_name: string, _email: string, _password: string, _captchaKey: string, _captchaAnswer: string) => {
+  const register = useCallback(async () => {
     router.push("/register");
   }, [router]);
 
@@ -197,8 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     api.setToken(null);
     setToken(null);
-    setUser(null);
-    writeStoredUser(null);
     clearAllLocalData();
     setUserKey(k => k + 1);
     window.location.replace("/");

@@ -6,7 +6,7 @@ import {
   INTERVIEW_DIAGRAM_CONTEXT,
   INTERVIEW_EVALUATION_CONTEXT,
 } from "../data/interview-context";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 
 function safeParse<T>(text: string, fallback: T): T {
   try {
@@ -311,30 +311,18 @@ Return ONLY valid JSON. For type "${type}", use the appropriate schema from the 
   },
 
   async generateRecommendations(userId: string) {
-    const [progress, recentQuestions, mcqsCompleted, codingSolved, recentSearches] = await Promise.all([
-      prisma.userInterviewProgress.findUnique({ where: { userId } }),
-      prisma.interviewQuestion.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      }),
-      prisma.mCQAttempt.findMany({
-        where: { userId },
-        include: { mcq: true },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      }),
-      prisma.codingSubmission.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      }),
-      prisma.interviewSearchLog.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-      }),
+    const [progressRes, questionsRes, mcqsRes, codingRes, searchesRes] = await Promise.all([
+      pool.query(`SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1`, [userId]),
+      pool.query(`SELECT * FROM "InterviewQuestion" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`, [userId]),
+      pool.query(`SELECT mcqa.*, mcq.category FROM "MCQAttempt" mcqa JOIN "MCQ" mcq ON mcq.id = mcqa."mcqId" WHERE mcqa."userId" = $1 ORDER BY mcqa."createdAt" DESC LIMIT 50`, [userId]),
+      pool.query(`SELECT * FROM "CodingSubmission" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`, [userId]),
+      pool.query(`SELECT * FROM "InterviewSearchLog" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`, [userId]),
     ]);
+    const progress = progressRes.rows[0];
+    const recentQuestions = questionsRes.rows;
+    const mcqsCompleted = mcqsRes.rows;
+    const codingSolved = codingRes.rows;
+    const recentSearches = searchesRes.rows;
 
     const categories = [...new Set(recentQuestions.map((q: any) => q.category).filter(Boolean))];
     const languages = [...new Set(codingSolved.map((s: any) => s.language).filter(Boolean))];
@@ -393,21 +381,16 @@ Return ONLY valid JSON matching this schema:
   },
 
   async searchQuestions(query: string, category?: string, difficulty?: string) {
-    const where: any = {
-      OR: [
-        { question: { contains: query, mode: "insensitive" as const } },
-        { answer: { contains: query, mode: "insensitive" as const } },
-        { tags: { has: query.toLowerCase() } },
-      ],
-    };
-    if (category) where.category = category;
-    if (difficulty) where.difficulty = difficulty;
+    const params: any[] = [`%${query}%`, `%${query}%`, query.toLowerCase()];
+    let extra = "";
+    if (category) { extra += ` AND category = $${params.length + 1}`; params.push(category); }
+    if (difficulty) { extra += ` AND difficulty = $${params.length + 1}`; params.push(difficulty); }
 
-    return await prisma.interviewQuestion.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
+    const { rows } = await pool.query(
+      `SELECT * FROM "InterviewQuestion" WHERE (question ILIKE $1 OR answer ILIKE $2 OR $3 = ANY(tags))${extra} ORDER BY "createdAt" DESC LIMIT 50`,
+      params
+    );
+    return rows;
   },
 
   async aiCodeReview(code: string, language: string, problemDescription: string) {

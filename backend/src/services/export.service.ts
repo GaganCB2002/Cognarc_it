@@ -1,4 +1,4 @@
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import ExcelJS from "exceljs";
 import { Buffer } from "buffer";
 
@@ -33,59 +33,58 @@ export const exportData = async (
   let fileName = "";
 
   if (entityType === "activity") {
-    const events = await prisma.activityEvent.findMany({
-      where: {
-        userId,
-        ...(options.from || options.to ? {
-          createdAt: {
-            ...(options.from ? { gte: options.from } : {}),
-            ...(options.to ? { lte: options.to } : {}),
-          },
-        } : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10000,
-    });
-    data = events.map((e) => ({
+    const params: any[] = [userId];
+    let dateClause = "";
+    if (options.from || options.to) {
+      const clauses: string[] = [];
+      if (options.from) { clauses.push(`"createdAt" >= $${params.length + 1}`); params.push(options.from); }
+      if (options.to) { clauses.push(`"createdAt" <= $${params.length + 1}`); params.push(options.to); }
+      dateClause = " AND " + clauses.join(" AND ");
+    }
+    const { rows: events } = await pool.query(
+      `SELECT id, "eventType", category, module, label, duration, "createdAt" FROM "ActivityEvent" WHERE "userId" = $1${dateClause} ORDER BY "createdAt" DESC LIMIT 10000`,
+      params
+    );
+    data = events.map((e: any) => ({
       id: e.id,
       eventType: e.eventType,
       category: e.category,
       module: e.module || "",
       label: e.label || "",
       duration: e.duration,
-      createdAt: e.createdAt.toISOString(),
+      createdAt: new Date(e.createdAt).toISOString(),
     }));
     fileName = `activity-export-${Date.now()}`;
   } else if (entityType === "sessions") {
-    const sessions = await prisma.trackingSession.findMany({
-      where: { userId },
-      orderBy: { startTime: "desc" },
-    });
-    data = sessions.map((s) => ({
+    const { rows: sessions } = await pool.query(
+      `SELECT id, status, "startTime", "endTime", "totalPauseMs", "deviceName", "projectName" FROM "TrackingSession" WHERE "userId" = $1 ORDER BY "startTime" DESC`,
+      [userId]
+    );
+    data = sessions.map((s: any) => ({
       id: s.id,
       status: s.status,
-      startTime: s.startTime.toISOString(),
-      endTime: s.endTime?.toISOString() || "",
+      startTime: new Date(s.startTime).toISOString(),
+      endTime: s.endTime ? new Date(s.endTime).toISOString() : "",
       durationMs: s.endTime
-        ? s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs
+        ? new Date(s.endTime).getTime() - new Date(s.startTime).getTime() - s.totalPauseMs
         : 0,
       deviceName: s.deviceName || "",
       projectName: s.projectName || "",
     }));
     fileName = `sessions-export-${Date.now()}`;
   } else if (entityType === "calendar") {
-    const events = await prisma.calendarEvent.findMany({
-      where: { userId },
-      orderBy: { startTime: "desc" },
-    });
-    data = events.map((e) => ({
+    const { rows: events } = await pool.query(
+      `SELECT id, title, "eventType", "startTime", "endTime", "isAllDay", tags, location FROM "CalendarEvent" WHERE "userId" = $1 ORDER BY "startTime" DESC`,
+      [userId]
+    );
+    data = events.map((e: any) => ({
       id: e.id,
       title: e.title,
       eventType: e.eventType,
-      startTime: e.startTime.toISOString(),
-      endTime: e.endTime?.toISOString() || "",
+      startTime: new Date(e.startTime).toISOString(),
+      endTime: e.endTime ? new Date(e.endTime).toISOString() : "",
       isAllDay: e.isAllDay,
-      tags: e.tags.join("; "),
+      tags: (e.tags || []).join("; "),
       location: e.location || "",
     }));
     fileName = `calendar-export-${Date.now()}`;
@@ -120,15 +119,10 @@ export const exportData = async (
 
   fileName = `${fileName}.${ext}`;
 
-  await prisma.exportLog.create({
-    data: {
-      userId,
-      format: format as any,
-      entityType,
-      fileName,
-      fileSize: Buffer.byteLength(content, "utf-8"),
-    },
-  });
+  await pool.query(
+    `INSERT INTO "ExportLog" ("userId", format, "entityType", "fileName", "fileSize") VALUES ($1, $2, $3, $4, $5)`,
+    [userId, format, entityType, fileName, Buffer.byteLength(content, "utf-8")]
+  );
 
   return { content, fileName, mimeType };
 };

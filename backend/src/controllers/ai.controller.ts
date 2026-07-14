@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { generateSummary, generateQuiz, chatWithTutor, chatWithCareerCoach } from "../services/ai.service";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import { getFile } from "../services/storage.service";
 import { lifelog } from "../services/lifelog.service";
 
@@ -43,11 +43,14 @@ export const listConversations = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const conversations = await prisma.aIConversation.findMany({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { messages: true } } },
-    });
+    const conversationsResult = await pool.query(
+      `SELECT *, (SELECT COUNT(*)::int FROM "AIMessage" WHERE "AIMessage"."conversationId" = "AIConversation"."id") AS "_count_messages" FROM "AIConversation" WHERE "userId" = $1 ORDER BY "updatedAt" DESC`,
+      [userId]
+    );
+    const conversations = conversationsResult.rows.map((c: any) => ({
+      ...c,
+      _count: { messages: c._count_messages },
+    }));
 
     res.json({ success: true, data: conversations });
   } catch (error) {
@@ -62,12 +65,13 @@ export const deleteConversation = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const conversation = await prisma.aIConversation.findUnique({ where: { id } });
+    const conversationResult = await pool.query('SELECT * FROM "AIConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
 
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    await prisma.aIConversation.delete({ where: { id } });
+    await pool.query('DELETE FROM "AIConversation" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("Delete conversation error:", error);
@@ -81,13 +85,17 @@ export const getConversation = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const conversation = await prisma.aIConversation.findUnique({
-      where: { id },
-      include: { messages: { orderBy: { createdAt: "asc" } } },
-    });
+    const conversationResult = await pool.query('SELECT * FROM "AIConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
 
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const messagesResult = await pool.query(
+      'SELECT * FROM "AIMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC',
+      [id]
+    );
+    conversation.messages = messagesResult.rows;
 
     res.json({ success: true, data: conversation });
   } catch (error) {
@@ -110,78 +118,67 @@ export const chat = async (req: AuthRequest, res: Response) => {
 
     let conversation = null;
     if (conversationId) {
-      conversation = await prisma.aIConversation.findUnique({
-        where: { id: conversationId },
-        include: { messages: true }
-      });
+      const convResult = await pool.query('SELECT * FROM "AIConversation" WHERE "id" = $1 LIMIT 1', [conversationId]);
+      conversation = convResult.rows[0];
+      if (conversation) {
+        const msgsResult = await pool.query('SELECT * FROM "AIMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC', [conversationId]);
+        conversation.messages = msgsResult.rows;
+      }
     }
 
     if (!conversation) {
-      conversation = await prisma.aIConversation.create({
-        data: {
-          userId,
-          documentId,
-          title: messages[0]?.content?.substring(0, 50) || "New Chat",
-        },
-        include: { messages: true }
-      });
+      const newConvResult = await pool.query(
+        'INSERT INTO "AIConversation" ("userId", "documentId", "title") VALUES ($1, $2, $3) RETURNING *',
+        [userId, documentId, messages[0]?.content?.substring(0, 50) || "New Chat"]
+      );
+      conversation = newConvResult.rows[0];
+      conversation.messages = [];
     }
 
-    // Determine the newest message
     const newMessageContent = messages[messages.length - 1].content;
 
-    // Save user message to DB
-    await prisma.aIMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: newMessageContent
-      }
-    });
+    await pool.query(
+      'INSERT INTO "AIMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)',
+      [conversation.id, "user", newMessageContent]
+    );
 
-    // Reconstruct history for Gemini
-    const history = conversation.messages.map(m => ({
+    const history = conversation.messages.map((m: any) => ({
       role: m.role as "user" | "model",
       content: m.content
     }));
     
-    // Check if we need to supply a document
     let documentFileUri;
     let documentText = "";
     if (conversation.documentId) {
-       const doc = await prisma.document.findUnique({ where: { id: conversation.documentId } });
-       if (doc) {
-         try {
-           const buf = await getFile(doc.storageKey);
-           if (buf && buf.length > 0 && doc.mimeType.startsWith("text/")) {
-             documentText = buf.toString("utf-8").substring(0, 50000);
-           } else if (buf && buf.length > 0) {
-             documentText = `[Binary file: ${doc.originalName} (${doc.mimeType}, ${doc.size} bytes)]`;
-           } else {
-             documentText = `[Document: ${doc.originalName} (${doc.mimeType})]`;
-           }
-         } catch {
-           documentText = `[Referenced document: ${doc.originalName}]`;
-         }
-       }
+      const docResult = await pool.query('SELECT * FROM "Document" WHERE "id" = $1 LIMIT 1', [conversation.documentId]);
+      const doc = docResult.rows[0];
+      if (doc) {
+        try {
+          const buf = await getFile(doc.storageKey);
+          if (buf && buf.length > 0 && doc.mimeType.startsWith("text/")) {
+            documentText = buf.toString("utf-8").substring(0, 50000);
+          } else if (buf && buf.length > 0) {
+            documentText = `[Binary file: ${doc.originalName} (${doc.mimeType}, ${doc.size} bytes)]`;
+          } else {
+            documentText = `[Document: ${doc.originalName} (${doc.mimeType})]`;
+          }
+        } catch {
+          documentText = `[Referenced document: ${doc.originalName}]`;
+        }
+      }
     }
 
-    // Build user message with document context
     const contextMessage = documentText
       ? `The user is referring to the following document:\n"""\n${documentText}\n"""\n\nUser question: ${newMessageContent}`
       : newMessageContent;
 
-    // Call AI
     const aiResponseText = await chatWithTutor([...history, { role: "user", content: contextMessage }]);
 
-    // Save AI message to DB
-    const aiMessage = await prisma.aIMessage.create({
-      data: {
-        conversationId: conversation.id,
-        role: "model",
-        content: aiResponseText
-      }
-    });
+    const aiMessageResult = await pool.query(
+      'INSERT INTO "AIMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3) RETURNING *',
+      [conversation.id, "model", aiResponseText]
+    );
+    const aiMessage = aiMessageResult.rows[0];
 
     await lifelog.conversation(userId, "CHAT_MESSAGE", `Chat: ${newMessageContent.substring(0, 80)}`, {
       conversationId: conversation.id,

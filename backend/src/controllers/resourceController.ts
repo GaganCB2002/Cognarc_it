@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 
 interface AuthRequest extends Request {
   user?: { userId: string };
@@ -18,20 +18,25 @@ export const getResources = async (req: AuthRequest, res: Response) => {
 
     const { type, search } = req.query;
 
-    const where: Record<string, unknown> = { userId };
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
 
     if (type && typeof type === "string") {
-      where.type = type;
+      conditions.push(`"type" = $${paramIdx}`);
+      params.push(type);
+      paramIdx++;
     }
 
     if (search && typeof search === "string") {
-      where.title = { contains: search, mode: "insensitive" };
+      conditions.push(`"title" ILIKE $${paramIdx}`);
+      params.push(`%${search}%`);
+      paramIdx++;
     }
 
-    const resources = await prisma.resource.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
+    const whereClause = conditions.join(' AND ');
+    const result = await pool.query(`SELECT * FROM "Resource" WHERE ${whereClause} ORDER BY "createdAt" DESC`, params);
+    const resources = result.rows;
 
     res.status(200).json({ success: true, data: resources });
   } catch (error) {
@@ -45,7 +50,8 @@ export const getResourceById = async (req: AuthRequest, res: Response) => {
     const id = getParamId(req);
     const userId = getUserId(req);
 
-    const resource = await prisma.resource.findUnique({ where: { id } });
+    const result = await pool.query('SELECT * FROM "Resource" WHERE "id" = $1 LIMIT 1', [id]);
+    const resource = result.rows[0];
     if (!resource) {
       res.status(404).json({ success: false, message: "Resource not found" });
       return;
@@ -78,7 +84,6 @@ export const createResource = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Validate URL if provided
     if (url) {
       try {
         const parsed = new URL(url);
@@ -92,16 +97,11 @@ export const createResource = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const resource = await prisma.resource.create({
-      data: {
-        title: title || url || "Untitled",
-        type,
-        url: url || null,
-        tags: tags || [],
-        collectionId: collectionId || null,
-        userId,
-      },
-    });
+    const result = await pool.query(
+      'INSERT INTO "Resource" ("title", "type", "url", "tags", "collectionId", "userId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [title || url || "Untitled", type, url || null, tags || [], collectionId || null, userId]
+    );
+    const resource = result.rows[0];
 
     res.status(201).json({ success: true, data: resource });
   } catch (error) {
@@ -115,7 +115,8 @@ export const updateResource = async (req: AuthRequest, res: Response) => {
     const id = getParamId(req);
     const userId = getUserId(req);
 
-    const existing = await prisma.resource.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "Resource" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) {
       res.status(404).json({ success: false, message: "Resource not found" });
       return;
@@ -128,16 +129,22 @@ export const updateResource = async (req: AuthRequest, res: Response) => {
 
     const { title, tags, collectionId, isFavorite } = req.body;
 
-    const data: Record<string, unknown> = {};
-    if (title !== undefined) data.title = title;
-    if (tags !== undefined) data.tags = tags;
-    if (collectionId !== undefined) data.collectionId = collectionId;
-    if (isFavorite !== undefined) data.isFavorite = isFavorite;
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+    if (title !== undefined) { setClauses.push(`"title" = $${paramIdx}`); params.push(title); paramIdx++; }
+    if (tags !== undefined) { setClauses.push(`"tags" = $${paramIdx}`); params.push(tags); paramIdx++; }
+    if (collectionId !== undefined) { setClauses.push(`"collectionId" = $${paramIdx}`); params.push(collectionId); paramIdx++; }
+    if (isFavorite !== undefined) { setClauses.push(`"isFavorite" = $${paramIdx}`); params.push(isFavorite); paramIdx++; }
 
-    const resource = await prisma.resource.update({
-      where: { id },
-      data,
-    });
+    if (setClauses.length === 0) {
+      res.status(200).json({ success: true, data: existing });
+      return;
+    }
+
+    params.push(id);
+    const result = await pool.query(`UPDATE "Resource" SET ${setClauses.join(', ')} WHERE "id" = $${paramIdx} RETURNING *`, params);
+    const resource = result.rows[0];
 
     res.status(200).json({ success: true, data: resource });
   } catch (error) {
@@ -151,7 +158,8 @@ export const deleteResource = async (req: AuthRequest, res: Response) => {
     const id = getParamId(req);
     const userId = getUserId(req);
 
-    const resource = await prisma.resource.findUnique({ where: { id } });
+    const result = await pool.query('SELECT * FROM "Resource" WHERE "id" = $1 LIMIT 1', [id]);
+    const resource = result.rows[0];
     if (!resource) {
       res.status(404).json({ success: false, message: "Resource not found" });
       return;
@@ -162,7 +170,7 @@ export const deleteResource = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    await prisma.resource.delete({ where: { id } });
+    await pool.query('DELETE FROM "Resource" WHERE "id" = $1', [id]);
 
     res.status(200).json({ success: true, data: { message: "Resource deleted successfully" } });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 import { generateSessionReport } from '../services/report.service';
 import { generateSessionPdfReport } from '../services/pdfReport.service';
 import { lifelog } from '../services/lifelog.service';
@@ -89,12 +89,10 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
 
     const session = await stopTrackingSession(sessionId, userId);
 
-    // Run report and PDF generation in the background to prevent blocking the API response
     (async () => {
       try {
         await generateSessionReport(sessionId, userId);
         
-        // Auto-generate and cache PDF file in uploads
         const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
         if (!fs.existsSync(uploadsDir)) {
           fs.mkdirSync(uploadsDir, { recursive: true });
@@ -113,7 +111,6 @@ export async function stopSession(req: Request, res: Response): Promise<void> {
       hasReport: true,
     });
     
-    // We return immediately with report: null. The UI will fetch the report when it's ready.
     res.json({ success: true, data: { session, report: null } });
   } catch (error: any) {
     console.error('[stopSession]', { userId: req.user?.userId, sessionId: req.params.sessionId, error: error.message });
@@ -213,11 +210,11 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
       res.status(400).json({ success: false, message: 'No valid trackingSessionId found in events' });
       return;
     }
-    const validSessions = await prisma.trackingSession.findMany({
-      where: { id: { in: sessionIds }, userId },
-      select: { id: true },
-    });
-    const validSessionIds = new Set(validSessions.map((s) => s.id));
+    const validSessionsResult = await pool.query(
+      'SELECT "id" FROM "TrackingSession" WHERE "id" = ANY($1) AND "userId" = $2',
+      [sessionIds, userId]
+    );
+    const validSessionIds = new Set(validSessionsResult.rows.map((s: any) => s.id));
     const invalid = sessionIds.find((sid) => !validSessionIds.has(sid));
     if (invalid) {
       res.status(403).json({ success: false, message: `Session ${invalid} not found or does not belong to user` });
@@ -228,25 +225,13 @@ export async function batchLogActivities(req: Request, res: Response): Promise<v
     const allCreated: Array<any> = [];
     for (let i = 0; i < eventsArr.length; i += BATCH_SIZE) {
       const batch = eventsArr.slice(i, i + BATCH_SIZE);
-      const batchResult = await prisma.$transaction(
-        batch.map((ev) =>
-          prisma.activityEvent.create({
-            data: {
-              trackingSessionId: ev.trackingSessionId,
-              userId,
-              eventType: ev.eventType,
-              category: validateCategory(ev.category) as any,
-              module: ev.module || null,
-              entityId: ev.entityId || null,
-              entityType: ev.entityType || null,
-              label: ev.label || null,
-              duration: Math.max(0, ev.duration || 0),
-              metadata: ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null,
-            },
-          })
-        )
-      );
-      allCreated.push(...batchResult);
+      for (const ev of batch) {
+        const result = await pool.query(
+          'INSERT INTO "ActivityEvent" ("trackingSessionId", "userId", "eventType", "category", "module", "entityId", "entityType", "label", "duration", "metadata") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+          [ev.trackingSessionId, userId, ev.eventType, validateCategory(ev.category), ev.module || null, ev.entityId || null, ev.entityType || null, ev.label || null, Math.max(0, ev.duration || 0), ev.metadata ? JSON.parse(JSON.stringify(ev.metadata)) : null]
+        );
+        allCreated.push(result.rows[0]);
+      }
     }
 
     res.status(201).json({ success: true, data: allCreated, count: allCreated.length });
@@ -298,7 +283,8 @@ export async function getSessionById(req: Request, res: Response): Promise<void>
     const sessionId = req.params.sessionId as string;
     if (!sessionId) { res.status(400).json({ success: false, message: 'Session ID is required' }); return; }
 
-    const session = await prisma.trackingSession.findFirst({ where: { id: sessionId, userId } });
+    const result = await pool.query('SELECT * FROM "TrackingSession" WHERE "id" = $1 AND "userId" = $2 LIMIT 1', [sessionId, userId]);
+    const session = result.rows[0];
     if (!session) { res.status(404).json({ success: false, message: 'Session not found' }); return; }
 
     res.json({ success: true, data: session });
@@ -352,10 +338,11 @@ export async function getLiveTelemetry(req: Request, res: Response): Promise<voi
     const userId = req.user?.userId as string;
     if (!userId) { res.status(401).json({ success: false, message: 'Authentication required' }); return; }
 
-    const activeSession = await prisma.trackingSession.findFirst({
-      where: { userId, status: { in: ["ACTIVE", "PAUSED"] } },
-      orderBy: { startTime: "desc" },
-    });
+    const activeSessionResult = await pool.query(
+      'SELECT * FROM "TrackingSession" WHERE "userId" = $1 AND "status" = ANY($2) ORDER BY "startTime" DESC LIMIT 1',
+      [userId, ["ACTIVE", "PAUSED"]]
+    );
+    const activeSession = activeSessionResult.rows[0];
 
     if (!activeSession) {
       res.json({ success: true, data: null });
@@ -364,18 +351,14 @@ export async function getLiveTelemetry(req: Request, res: Response): Promise<voi
 
     const sessionId = activeSession.id;
 
-    const [latestBrowser, latestDesktop] = await Promise.all([
-      prisma.browserTelemetry.findFirst({
-        where: { trackingSessionId: sessionId, userId },
-        orderBy: { timestamp: "desc" },
-      }),
-      prisma.desktopTelemetry.findFirst({
-        where: { trackingSessionId: sessionId, userId },
-        orderBy: { timestamp: "desc" },
-      }),
+    const [latestBrowserResult, latestDesktopResult] = await Promise.all([
+      pool.query('SELECT * FROM "BrowserTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2 ORDER BY "timestamp" DESC LIMIT 1', [sessionId, userId]),
+      pool.query('SELECT * FROM "DesktopTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2 ORDER BY "timestamp" DESC LIMIT 1', [sessionId, userId]),
     ]);
 
-    // Add estimated running seconds for the current live item
+    const latestBrowser = latestBrowserResult.rows[0];
+    const latestDesktop = latestDesktopResult.rows[0];
+
     const now = Date.now();
     const liveTab = latestBrowser
       ? {
@@ -420,41 +403,34 @@ export async function getDashboardData(req: Request, res: Response): Promise<voi
 
     const sessionId = activeSession.id;
 
-    // 1. Get session stats
     const stats = await getAggregatedSessionStats(sessionId, userId);
 
-    // 2. Get top desktop apps for this session
-    const desktopApps = await prisma.desktopTelemetry.groupBy({
-      by: ['processName', 'category'],
-      where: { trackingSessionId: sessionId, userId },
-      _sum: { duration: true },
-      orderBy: { _sum: { duration: 'desc' } },
-      take: 10
-    });
+    const [desktopAppsResult, browserDomainsResult, recentActivitiesResult] = await Promise.all([
+      pool.query(
+        'SELECT "processName", "category", COALESCE(SUM("duration"), 0)::int AS "_sum_duration" FROM "DesktopTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2 GROUP BY "processName", "category" ORDER BY SUM("duration") DESC LIMIT 10',
+        [sessionId, userId]
+      ),
+      pool.query(
+        'SELECT "domain", "category", COALESCE(SUM("duration"), 0)::int AS "_sum_duration" FROM "BrowserTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2 GROUP BY "domain", "category" ORDER BY SUM("duration") DESC LIMIT 10',
+        [sessionId, userId]
+      ),
+      pool.query(
+        'SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = $1 AND "userId" = $2 ORDER BY "createdAt" DESC LIMIT 20',
+        [sessionId, userId]
+      ),
+    ]);
 
-    // 3. Get top browser domains for this session
-    const browserDomains = await prisma.browserTelemetry.groupBy({
-      by: ['domain', 'category'],
-      where: { trackingSessionId: sessionId, userId },
-      _sum: { duration: true },
-      orderBy: { _sum: { duration: 'desc' } },
-      take: 10
-    });
-
-    // 4. Get recent activities
-    const recentActivities = await prisma.activityEvent.findMany({
-      where: { trackingSessionId: sessionId, userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20
-    });
+    const desktopApps = desktopAppsResult.rows;
+    const browserDomains = browserDomainsResult.rows;
+    const recentActivities = recentActivitiesResult.rows;
 
     res.json({ 
       success: true, 
       data: {
         session: activeSession,
         stats,
-        desktopApps: desktopApps.map(a => ({ name: a.processName, category: a.category, duration: a._sum.duration || 0 })),
-        browserDomains: browserDomains.map(b => ({ name: b.domain, category: b.category, duration: b._sum.duration || 0 })),
+        desktopApps: desktopApps.map((a: any) => ({ name: a.processName, category: a.category, duration: a._sum_duration || 0 })),
+        browserDomains: browserDomains.map((b: any) => ({ name: b.domain, category: b.category, duration: b._sum_duration || 0 })),
         recentActivities
       } 
     });

@@ -1,46 +1,47 @@
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 
 export const generateProductivityInsights = async (userId: string) => {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const sessions = await prisma.trackingSession.findMany({
-    where: { userId, status: "COMPLETED", startTime: { gte: thirtyDaysAgo } },
-    include: { _count: { select: { activities: true } } },
-  });
+  const { rows: sessions } = await pool.query(
+    `SELECT id, "startTime", "endTime", "totalPauseMs" FROM "TrackingSession" WHERE "userId" = $1 AND status = 'COMPLETED' AND "startTime" >= $2`,
+    [userId, thirtyDaysAgo]
+  );
+
   const totalSessions = sessions.length;
   if (totalSessions === 0) return { message: "Not enough data. Complete a few sessions to get insights." };
 
-  const totalDuration = sessions.reduce((s, sess) => {
+  const totalDuration = sessions.reduce((s: number, sess: any) => {
     if (!sess.endTime) return s;
-    return s + (sess.endTime.getTime() - sess.startTime.getTime() - sess.totalPauseMs);
+    return s + (new Date(sess.endTime).getTime() - new Date(sess.startTime).getTime() - sess.totalPauseMs);
   }, 0);
 
   const avgDuration = totalSessions > 0 ? totalDuration / totalSessions : 0;
-  const bestSession = sessions.reduce((best, s) => {
+  const bestSession = sessions.reduce((best: any, s: any) => {
     if (!s.endTime) return best;
-    const d = s.endTime.getTime() - s.startTime.getTime() - s.totalPauseMs;
+    const d = new Date(s.endTime).getTime() - new Date(s.startTime).getTime() - s.totalPauseMs;
     return d > (best.duration || 0) ? { id: s.id, duration: d, date: s.startTime } : best;
   }, { id: "", duration: 0, date: new Date() });
 
-  const reports = await prisma.report.findMany({
-    where: { userId, createdAt: { gte: thirtyDaysAgo } },
-    orderBy: { createdAt: "desc" },
-  });
+  const { rows: reports } = await pool.query(
+    `SELECT "productivityScore", topics FROM "Report" WHERE "userId" = $1 AND "createdAt" >= $2 ORDER BY "createdAt" DESC`,
+    [userId, thirtyDaysAgo]
+  );
 
   const avgProductivity = reports.length > 0
-    ? reports.reduce((s, r) => s + (r.productivityScore || 0), 0) / reports.length
+    ? reports.reduce((s: number, r: any) => s + (r.productivityScore || 0), 0) / reports.length
     : 0;
 
   const strongTopics: string[] = [];
   const weakTopics: string[] = [];
   const allTopics = new Set<string>();
   for (const r of reports) {
-    if (r.topics) r.topics.forEach((t) => allTopics.add(t));
+    if (r.topics) r.topics.forEach((t: string) => allTopics.add(t));
     if (r.productivityScore && r.productivityScore > 70 && r.topics) {
-      r.topics.forEach((t) => { if (!weakTopics.includes(t) && !strongTopics.includes(t)) strongTopics.push(t); });
+      r.topics.forEach((t: string) => { if (!weakTopics.includes(t) && !strongTopics.includes(t)) strongTopics.push(t); });
     } else if (r.productivityScore && r.productivityScore < 50 && r.topics) {
-      r.topics.forEach((t) => { if (!strongTopics.includes(t) && !weakTopics.includes(t)) weakTopics.push(t); });
+      r.topics.forEach((t: string) => { if (!strongTopics.includes(t) && !weakTopics.includes(t)) weakTopics.push(t); });
     }
   }
 
@@ -67,17 +68,16 @@ export const generateProductivityInsights = async (userId: string) => {
 };
 
 export const generateLearningRoadmap = async (userId: string) => {
-  const reports = await prisma.report.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
+  const { rows: reports } = await pool.query(
+    `SELECT technologies, topics FROM "Report" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 20`,
+    [userId]
+  );
 
   const allTechnologies = new Set<string>();
   const allTopics = new Set<string>();
   for (const r of reports) {
-    if (r.technologies) r.technologies.forEach((t) => allTechnologies.add(t));
-    if (r.topics) r.topics.forEach((t) => allTopics.add(t));
+    if (r.technologies) r.technologies.forEach((t: string) => allTechnologies.add(t));
+    if (r.topics) r.topics.forEach((t: string) => allTopics.add(t));
   }
 
   return {
@@ -94,15 +94,14 @@ export const generateLearningRoadmap = async (userId: string) => {
 };
 
 export const generateInterviewQuestions = async (userId: string) => {
-  const reports = await prisma.report.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  });
+  const { rows: reports } = await pool.query(
+    `SELECT technologies FROM "Report" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 10`,
+    [userId]
+  );
 
   const technologies = new Set<string>();
   for (const r of reports) {
-    if (r.technologies) r.technologies.forEach((t) => technologies.add(t));
+    if (r.technologies) r.technologies.forEach((t: string) => technologies.add(t));
   }
 
   const techList = Array.from(technologies);

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import { io } from "../server";
 import { getAggregatedStats } from "../services/analytics.service";
 
@@ -19,26 +19,22 @@ export const logBrowserEvent = async (req: Request, res: Response) => {
       return;
     }
 
-    const activeSession = await prisma.trackingSession.findFirst({
-      where: { id: trackingSessionId, userId, status: "ACTIVE" }
-    });
+    const activeSessionResult = await pool.query(
+      'SELECT * FROM "TrackingSession" WHERE "id" = $1 AND "userId" = $2 AND "status" = $3 LIMIT 1',
+      [trackingSessionId, userId, "ACTIVE"]
+    );
+    const activeSession = activeSessionResult.rows[0];
 
     if (!activeSession) {
       res.status(403).json({ success: false, message: "Tracking disabled: Session is not active." });
       return;
     }
 
-    const event = await prisma.browserTelemetry.create({
-      data: { 
-        userId, 
-        url, 
-        title, 
-        domain, 
-        duration, 
-        category,
-        trackingSessionId: activeSession.id 
-      },
-    });
+    const result = await pool.query(
+      'INSERT INTO "BrowserTelemetry" ("userId", "url", "title", "domain", "duration", "category", "trackingSessionId") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [userId, url, title, domain, duration, category, activeSession.id]
+    );
+    const event = result.rows[0];
 
     try {
       io.to(`user_${userId}`).emit('live-tracking-update', { type: 'BROWSER', data: event });
@@ -69,27 +65,22 @@ export const logDesktopEvent = async (req: Request, res: Response) => {
       return;
     }
 
-    const activeSession = await prisma.trackingSession.findFirst({
-      where: { id: trackingSessionId, userId, status: "ACTIVE" }
-    });
+    const activeSessionResult = await pool.query(
+      'SELECT * FROM "TrackingSession" WHERE "id" = $1 AND "userId" = $2 AND "status" = $3 LIMIT 1',
+      [trackingSessionId, userId, "ACTIVE"]
+    );
+    const activeSession = activeSessionResult.rows[0];
 
     if (!activeSession) {
       res.status(403).json({ success: false, message: "Tracking disabled: Session is not active." });
       return;
     }
 
-    const event = await prisma.desktopTelemetry.create({
-      data: { 
-        userId, 
-        activeApp, 
-        windowTitle, 
-        processName, 
-        duration, 
-        isIdle, 
-        category,
-        trackingSessionId: activeSession.id
-      },
-    });
+    const result = await pool.query(
+      'INSERT INTO "DesktopTelemetry" ("userId", "activeApp", "windowTitle", "processName", "duration", "isIdle", "category", "trackingSessionId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [userId, activeApp, windowTitle, processName, duration, isIdle, category, activeSession.id]
+    );
+    const event = result.rows[0];
 
     try {
       io.to(`user_${userId}`).emit('live-tracking-update', { type: 'DESKTOP', data: event });

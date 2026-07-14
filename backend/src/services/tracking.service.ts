@@ -1,5 +1,4 @@
-import { prisma } from "../lib/prisma";
-import type { Prisma } from '@prisma/client';
+import { pool } from "../lib/prisma";
 
 export interface StartSessionInput {
   userId: string;
@@ -22,138 +21,120 @@ export interface LogActivityInput {
 }
 
 export const startTrackingSession = async (input: StartSessionInput) => {
-  // Auto-cancel any abandoned active/paused sessions
-  await prisma.trackingSession.updateMany({
-    where: { userId: input.userId, status: { in: ["ACTIVE", "PAUSED"] } },
-    data: {
-      status: "COMPLETED",
-      endTime: new Date(),
-      lastActivity: new Date(),
-    },
-  });
+  await pool.query(
+    `UPDATE "TrackingSession" SET status = 'COMPLETED', "endTime" = $2, "lastActivity" = $2 WHERE "userId" = $1 AND status IN ('ACTIVE', 'PAUSED')`,
+    [input.userId, new Date()]
+  );
 
-  return prisma.trackingSession.create({
-    data: {
-      userId: input.userId,
-      deviceId: input.deviceId || null,
-      deviceName: input.deviceName || null,
-      projectName: input.projectName || null,
-      status: "ACTIVE",
-      startTime: new Date(),
-      lastActivity: new Date(),
-    },
-  });
+  const { rows } = await pool.query(
+    `INSERT INTO "TrackingSession" ("userId", "deviceId", "deviceName", "projectName", status, "startTime", "lastActivity") VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $5) RETURNING *`,
+    [input.userId, input.deviceId || null, input.deviceName || null, input.projectName || null, new Date()]
+  );
+  return rows[0];
 };
 
 export const pauseTrackingSession = async (sessionId: string, userId: string) => {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId, status: "ACTIVE" },
-  });
-  if (!session) throw new Error("Active session not found");
-  return prisma.trackingSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "PAUSED",
-      pausedAt: new Date(),
-    },
-  });
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 AND status = 'ACTIVE' LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (rows.length === 0) throw new Error("Active session not found");
+  const { rows: updated } = await pool.query(
+    `UPDATE "TrackingSession" SET status = 'PAUSED', "pausedAt" = $2 WHERE id = $1 RETURNING *`,
+    [sessionId, new Date()]
+  );
+  return updated[0];
 };
 
 export const resumeTrackingSession = async (sessionId: string, userId: string) => {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId, status: "PAUSED" },
-  });
-  if (!session || !session.pausedAt) throw new Error("Paused session not found");
-  const pauseDuration = Date.now() - session.pausedAt.getTime();
-  return prisma.trackingSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "ACTIVE",
-      pausedAt: null,
-      totalPauseMs: session.totalPauseMs + pauseDuration,
-      lastActivity: new Date(),
-    },
-  });
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 AND status = 'PAUSED' LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (rows.length === 0 || !rows[0].pausedAt) throw new Error("Paused session not found");
+  const pauseDuration = Date.now() - new Date(rows[0].pausedAt).getTime();
+  const { rows: updated } = await pool.query(
+    `UPDATE "TrackingSession" SET status = 'ACTIVE', "pausedAt" = NULL, "totalPauseMs" = "totalPauseMs" + $2, "lastActivity" = $3 WHERE id = $1 RETURNING *`,
+    [sessionId, pauseDuration, new Date()]
+  );
+  return updated[0];
 };
 
 export const stopTrackingSession = async (sessionId: string, userId: string) => {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId },
-  });
-  if (!session) throw new Error("Session not found");
-  
-  if (session.status === "COMPLETED") {
-    return session; // Idempotent: already stopped
-  }
-
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (rows.length === 0) throw new Error("Session not found");
+  if (rows[0].status === "COMPLETED") return rows[0];
   const endTime = new Date();
-  return prisma.trackingSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "COMPLETED",
-      endTime,
-      lastActivity: endTime,
-    },
-  });
+  const { rows: updated } = await pool.query(
+    `UPDATE "TrackingSession" SET status = 'COMPLETED', "endTime" = $2, "lastActivity" = $2 WHERE id = $1 RETURNING *`,
+    [sessionId, endTime]
+  );
+  return updated[0];
 };
 
 const VALID_CATEGORIES = ["LEARNING", "CODING", "READING", "VIDEO", "QUIZ", "TASK", "NOTE", "AI_ASSISTANT", "DOCUMENT", "RESOURCE", "CALENDAR", "MEETING", "BREAK", "IDLE", "OTHER"];
 
-import type { EventCategory } from '@prisma/client';
-
-export function validateCategory(cat: string | undefined): EventCategory {
-  if (!cat) return "OTHER" as EventCategory;
+export function validateCategory(cat: string | undefined): string {
+  if (!cat) return "OTHER";
   const upper = cat.toUpperCase();
-  return (VALID_CATEGORIES.includes(upper) ? upper : "OTHER") as EventCategory;
+  return VALID_CATEGORIES.includes(upper) ? upper : "OTHER";
 }
 
 export const logActivityEvent = async (input: LogActivityInput) => {
-  return prisma.activityEvent.create({
-    data: {
-      trackingSessionId: input.trackingSessionId,
-      userId: input.userId,
-      eventType: input.eventType,
-      category: validateCategory(input.category),
-      module: input.module || null,
-      entityId: input.entityId || null,
-      entityType: input.entityType || null,
-      label: input.label || null,
-      duration: Math.max(0, input.duration || 0),
-      metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : null,
-    },
-  });
+  const { rows } = await pool.query(
+    `INSERT INTO "ActivityEvent" ("trackingSessionId", "userId", "eventType", category, module, "entityId", "entityType", label, duration, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [
+      input.trackingSessionId,
+      input.userId,
+      input.eventType,
+      validateCategory(input.category),
+      input.module || null,
+      input.entityId || null,
+      input.entityType || null,
+      input.label || null,
+      Math.max(0, input.duration || 0),
+      input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : null,
+    ]
+  );
+  return rows[0];
 };
 
 export const getActiveSession = async (userId: string) => {
-  return prisma.trackingSession.findFirst({
-    where: { userId, status: { in: ["ACTIVE", "PAUSED"] } },
-    orderBy: { startTime: "desc" },
-  });
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE "userId" = $1 AND status IN ('ACTIVE', 'PAUSED') ORDER BY "startTime" DESC LIMIT 1`,
+    [userId]
+  );
+  return rows[0] || null;
 };
 
 export const getSessionHistory = async (
   userId: string,
   options: { limit?: number; offset?: number; from?: Date; to?: Date } = {}
 ) => {
-  const where: { userId: string; startTime?: { gte?: Date; lte?: Date } } = { userId };
+  const params: any[] = [userId];
+  let dateClause = "";
   if (options.from || options.to) {
-    where.startTime = {};
-    if (options.from) where.startTime.gte = options.from;
-    if (options.to) where.startTime.lte = options.to;
+    const clauses: string[] = [];
+    if (options.from) { clauses.push(`"startTime" >= $${params.length + 1}`); params.push(options.from); }
+    if (options.to) { clauses.push(`"startTime" <= $${params.length + 1}`); params.push(options.to); }
+    dateClause = " AND " + clauses.join(" AND ");
   }
   const limit = Math.min(Math.max(1, options.limit || 50), 200);
   const offset = Math.max(0, options.offset || 0);
-  const [sessions, total] = await Promise.all([
-    prisma.trackingSession.findMany({
-      where,
-      orderBy: { startTime: "desc" },
-      take: limit,
-      skip: offset,
-      include: { _count: { select: { activities: true } } },
-    }),
-    prisma.trackingSession.count({ where }),
-  ]);
-  return { sessions, total };
+
+  const { rows: sessions } = await pool.query(
+    `SELECT ts.*, (SELECT COUNT(*) FROM "ActivityEvent" ae WHERE ae."trackingSessionId" = ts.id) as activity_count FROM "TrackingSession" ts WHERE "userId" = $1${dateClause} ORDER BY "startTime" DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset]
+  );
+  const { rows: [{ count }] } = await pool.query(
+    `SELECT COUNT(*) FROM "TrackingSession" WHERE "userId" = $1${dateClause}`,
+    params
+  );
+
+  return { sessions, total: parseInt(count, 10) };
 };
 
 export const getSessionActivities = async (
@@ -161,66 +142,64 @@ export const getSessionActivities = async (
   userId: string,
   options: { category?: string; limit?: number } = {}
 ) => {
-  const where: Prisma.ActivityEventWhereInput = { trackingSessionId: sessionId, userId };
-  if (options.category) where.category = options.category as any;
-  return prisma.activityEvent.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: Math.min(Math.max(1, options.limit || 500), 1000),
-  });
+  const params: any[] = [sessionId, userId];
+  let categoryClause = "";
+  if (options.category) {
+    categoryClause = ` AND category = $3`;
+    params.push(options.category);
+  }
+  const { rows } = await pool.query(
+    `SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = $1 AND "userId" = $2${categoryClause} ORDER BY "createdAt" DESC LIMIT ${Math.min(Math.max(1, options.limit || 500), 1000)}`,
+    params
+  );
+  return rows;
 };
 
 export const getAggregatedSessionStats = async (sessionId: string, userId: string) => {
-  const session = await prisma.trackingSession.findFirst({
-    where: { id: sessionId, userId },
-  });
-  if (!session) throw new Error("Session not found");
+  const { rows } = await pool.query(
+    `SELECT * FROM "TrackingSession" WHERE id = $1 AND "userId" = $2 LIMIT 1`,
+    [sessionId, userId]
+  );
+  if (rows.length === 0) throw new Error("Session not found");
+  const session = rows[0];
 
-  const [activities, browserTelemetries, desktopTelemetries] = await Promise.all([
-    prisma.activityEvent.findMany({
-      where: { trackingSessionId: sessionId, userId },
-    }),
-    prisma.browserTelemetry.findMany({
-      where: { trackingSessionId: sessionId, userId },
-    }),
-    prisma.desktopTelemetry.findMany({
-      where: { trackingSessionId: sessionId, userId },
-    }),
+  const [activitiesRes, browserRes, desktopRes] = await Promise.all([
+    pool.query(`SELECT * FROM "ActivityEvent" WHERE "trackingSessionId" = $1 AND "userId" = $2`, [sessionId, userId]),
+    pool.query(`SELECT * FROM "BrowserTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2`, [sessionId, userId]),
+    pool.query(`SELECT * FROM "DesktopTelemetry" WHERE "trackingSessionId" = $1 AND "userId" = $2`, [sessionId, userId]),
   ]);
+  const activities = activitiesRes.rows;
+  const browserTelemetries = browserRes.rows;
+  const desktopTelemetries = desktopRes.rows;
 
   const totalDuration = session.endTime
-    ? (session.endTime.getTime() - session.startTime.getTime() - session.totalPauseMs) / 1000
-    : (Date.now() - session.startTime.getTime() - session.totalPauseMs) / 1000;
+    ? (new Date(session.endTime).getTime() - new Date(session.startTime).getTime() - session.totalPauseMs) / 1000
+    : (Date.now() - new Date(session.startTime).getTime() - session.totalPauseMs) / 1000;
 
   const byCategory: Record<string, number> = {};
   let totalEventDuration = 0;
 
-  // Aggregate manual activities
   for (const a of activities) {
     byCategory[a.category] = (byCategory[a.category] || 0) + a.duration;
     totalEventDuration += a.duration;
   }
 
-  // Aggregate browser telemetry
   let autoLearningDuration = 0;
   for (const b of browserTelemetries) {
     const cat = b.category || "General";
     byCategory[cat] = (byCategory[cat] || 0) + b.duration;
     totalEventDuration += b.duration;
-
     if (cat === "Programming" || cat === "Documentation" || cat === "AI Tools") {
       autoLearningDuration += b.duration;
     }
   }
 
-  // Aggregate desktop telemetry
   let autoCodingDuration = 0;
   let autoCommDuration = 0;
   for (const d of desktopTelemetries) {
     const cat = d.category || "General";
     byCategory[cat] = (byCategory[cat] || 0) + d.duration;
     totalEventDuration += d.duration;
-
     if (cat === "IDE" || cat === "Terminal") {
       autoCodingDuration += d.duration;
     } else if (cat === "Communication") {
@@ -236,7 +215,6 @@ export const getAggregatedSessionStats = async (sessionId: string, userId: strin
   const productiveTime = learningTime + codingTime + taskTime;
 
   const productivityScore = totalDuration > 0 ? Math.round((productiveTime / totalDuration) * 100) : 0;
-  
   const distractionDuration = byCategory["Social Media"] || 0;
   const focusScore = Math.max(0, Math.min(100, 100 - Math.round(((idleEstimate + distractionDuration) / Math.max(totalDuration, 1)) * 100)));
 

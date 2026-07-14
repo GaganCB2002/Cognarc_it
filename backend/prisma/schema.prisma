@@ -7,358 +7,309 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
-  password      String
-  name          String
-  role          String    @default("STUDENT")
-  isApproved    Boolean   @default(false)
-  emailVerified DateTime?
-  otpCode       String?
-  otpExpiresAt  DateTime?
-  avatar        String?
-  refreshToken  String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  profile       Profile?
-  learningStreak LearningStreak?
+  id               String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  email            String             @unique
+  name             String
+  password         String?
+  avatar           String?
+  role             Role               @default(STUDENT)
+  isapproved       Boolean            @default(false)
+  emailverified    DateTime?          @db.Timestamp(6)
+  provider         AuthProvider       @default(LOCAL)
+  providerid       String?
+  refreshtoken     String?
+  settings         Json?
+  createdat        DateTime           @default(now()) @db.Timestamp(6)
+  updatedat        DateTime           @default(now()) @db.Timestamp(6)
+  ActivityLog      ActivityLog[]
+  BrowserTelemetry BrowserTelemetry[]
+  Collection       Collection[]
+  DesktopTelemetry DesktopTelemetry[]
+  Document         Document[]
+  LearningStreak   LearningStreak?
+  LoginHistory     LoginHistory[]
+  Note             Note[]
+  Notification     Notification[]
+  Otp              Otp[]
+  Profile          Profile?
+  Resource         Resource[]
+  Session          Session[]
+  StudySession     StudySession[]
+  Task             Task[]
+
+  @@index([email], map: "idx_user_email")
+  @@index([provider], map: "idx_user_provider")
+  @@index([role], map: "idx_user_role")
 }
 
 model Profile {
-  id             String  @id @default(uuid())
-  userId         String  @unique
-  bio            String?
-  targetRole     String?
-  currentLevel   String?
-  weeklyHours    Int?
-  timezone       String?
-  skills         Json?
-  careerGoals    String?
-  githubUrl      String?
-  linkedinUrl    String?
-  portfolioUrl   String?
-  resume         String?
-  jobDescription String?
-  user           User    @relation(fields: [userId], references: [id])
+  id           String  @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid       String  @unique
+  bio          String?
+  targetrole   String?
+  currentlevel String?
+  weeklyhours  Int?
+  careergoals  String?
+  skills       Json?
+  timezone     String?
+  githuburl    String?
+  linkedinurl  String?
+  portfoliourl String?
+  User         User    @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userid], map: "idx_profile_userid")
 }
 
 model LearningStreak {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  currentStreak  Int      @default(0)
-  longestStreak  Int      @default(0)
-  lastActiveDate DateTime?
-  updatedAt      DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id])
+  id             String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid         String    @unique
+  currentstreak  Int       @default(0)
+  longeststreak  Int       @default(0)
+  lastactivedate DateTime? @db.Date
+  User           User      @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userid], map: "idx_learningstreak_userid")
 }
 
 model StudySession {
-  id        String      @id @default(uuid())
-  userId    String
+  id        String      @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
   topic     String
-  duration  Int // in seconds
+  duration  Int
   type      SessionType @default(GENERAL)
   notes     String?
-  createdAt DateTime    @default(now())
+  createdat DateTime    @default(now()) @db.Timestamp(6)
+  User      User        @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdat], map: "idx_studysession_createdat")
+  @@index([topic], map: "idx_studysession_topic")
+  @@index([type], map: "idx_studysession_type")
+  @@index([userid], map: "idx_studysession_userid")
 }
 
 model Task {
-  id          String     @id @default(uuid())
-  userId      String
+  id          String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid      String
   title       String
   description String?
   priority    Priority   @default(MEDIUM)
   status      TaskStatus @default(TODO)
-  dueDate     DateTime?
+  duedate     DateTime?  @db.Timestamp(6)
   category    String?
   checklist   Json?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdat   DateTime   @default(now()) @db.Timestamp(6)
+  updatedat   DateTime   @default(now()) @db.Timestamp(6)
+  User        User       @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([userId, status])
-  @@index([userId, priority])
-  @@index([userId, dueDate])
+  @@index([category], map: "idx_task_category")
+  @@index([duedate], map: "idx_task_duedate")
+  @@index([priority], map: "idx_task_priority")
+  @@index([status], map: "idx_task_status")
+  @@index([userid], map: "idx_task_userid")
 }
 
 model Note {
-  id        String   @id @default(uuid())
-  userId    String
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
   title     String
   content   String
-  tags      String[]
-  folderId  String?
-  isPinned  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  tags      String[] @default([])
+  folderid  String?
+  ispinned  Boolean  @default(false)
+  createdat DateTime @default(now()) @db.Timestamp(6)
+  updatedat DateTime @default(now()) @db.Timestamp(6)
+  User      User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  // AI Integration
-  intelligence NoteIntelligence?
-
-  @@index([userId, createdAt])
-  @@index([userId, isPinned])
-  @@index([folderId])
+  @@index([folderid], map: "idx_note_folderid")
+  @@index([ispinned], map: "idx_note_ispinned")
+  @@index([tags], map: "idx_note_tags", type: Gin)
+  @@index([userid], map: "idx_note_userid")
 }
 
 model Resource {
-  id           String       @id @default(uuid())
-  userId       String
+  id           String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid       String
   title        String
   type         ResourceType
   url          String?
-  fileKey      String?
-  fileSize     Int? // in bytes
-  mimeType     String? // MIME type of the file
-  tags         String[]
-  collectionId String?
-  isFavorite   Boolean      @default(false)
-  isUpload     Boolean      @default(false) // true if this is an uploaded file
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  filekey      String?
+  filesize     Int?
+  mimetype     String?
+  tags         String[]     @default([])
+  collectionid String?
+  isfavorite   Boolean      @default(false)
+  isupload     Boolean      @default(false)
+  createdat    DateTime     @default(now()) @db.Timestamp(6)
+  updatedat    DateTime     @default(now()) @db.Timestamp(6)
+  Document     Document?
+  Collection   Collection?  @relation(fields: [collectionid], references: [id], onUpdate: NoAction)
+  User         User         @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  document   Document? // link to Document for uploaded files
-
-  @@index([userId])
-  @@index([userId, type])
-  @@index([userId, isFavorite])
+  @@index([collectionid], map: "idx_resource_collectionid")
+  @@index([isfavorite], map: "idx_resource_isfavorite")
+  @@index([isupload], map: "idx_resource_isupload")
+  @@index([tags], map: "idx_resource_tags", type: Gin)
+  @@index([type], map: "idx_resource_type")
+  @@index([userid], map: "idx_resource_userid")
 }
 
 model Collection {
-  id          String   @id @default(uuid())
-  userId      String
+  id          String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid      String
   name        String
   description String?
   color       String?
   icon        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdat   DateTime   @default(now()) @db.Timestamp(6)
+  updatedat   DateTime   @default(now()) @db.Timestamp(6)
+  User        User       @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Resource    Resource[]
 
-  resources Resource[]
+  @@index([userid], map: "idx_collection_userid")
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
+  id        String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
   title     String
   body      String
   type      NotificationType
-  isRead    Boolean          @default(false)
-  actionUrl String?
-  createdAt DateTime         @default(now())
+  isread    Boolean          @default(false)
+  actionurl String?
+  createdat DateTime         @default(now()) @db.Timestamp(6)
+  User      User             @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([userId, createdAt])
-  @@index([userId, isRead])
-  @@index([userId, isRead, createdAt])
+  @@index([createdat], map: "idx_notification_createdat")
+  @@index([isread], map: "idx_notification_isread")
+  @@index([type], map: "idx_notification_type")
+  @@index([userid], map: "idx_notification_userid")
 }
 
 model ActivityLog {
-  id        String   @id @default(uuid())
-  userId    String
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
   action    String
   entity    String
-  entityId  String
+  entityid  String
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdat DateTime @default(now()) @db.Timestamp(6)
+  User      User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([action], map: "idx_activitylog_action")
+  @@index([createdat], map: "idx_activitylog_createdat")
+  @@index([entity], map: "idx_activitylog_entity")
+  @@index([userid], map: "idx_activitylog_userid")
 }
 
-enum TrackingSessionStatus {
-  ACTIVE
-  PAUSED
-  COMPLETED
-  CANCELLED
+model Document {
+  id              String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid          String
+  originalname    String
+  mimetype        String
+  size            Int
+  storageprovider StorageProvider @default(LOCAL)
+  storagekey      String          @unique
+  publicurl       String?
+  resourcetype    ResourceType
+  status          DocumentStatus  @default(READY)
+  folder          String?
+  tags            String[]        @default([])
+  metadata        Json?
+  resourceid      String?         @unique
+  createdat       DateTime        @default(now()) @db.Timestamp(6)
+  updatedat       DateTime        @default(now()) @db.Timestamp(6)
+  Resource        Resource?       @relation(fields: [resourceid], references: [id], onUpdate: NoAction)
+  User            User            @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([folder], map: "idx_document_folder")
+  @@index([status], map: "idx_document_status")
+  @@index([storagekey], map: "idx_document_storagekey")
+  @@index([tags], map: "idx_document_tags", type: Gin)
+  @@index([userid], map: "idx_document_userid")
+  @@index([userid, resourcetype], map: "idx_document_userid_type")
 }
 
-enum EventCategory {
-  LEARNING
-  CODING
-  READING
-  VIDEO
-  QUIZ
-  TASK
-  NOTE
-  AI_ASSISTANT
-  DOCUMENT
-  RESOURCE
-  CALENDAR
-  MEETING
-  BREAK
-  IDLE
-  OTHER
+model BrowserTelemetry {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
+  url       String
+  title     String?
+  domain    String
+  duration  Int
+  category  String?
+  timestamp DateTime @default(now()) @db.Timestamp(6)
+  User      User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([category], map: "idx_browsertelemetry_category")
+  @@index([domain], map: "idx_browsertelemetry_domain")
+  @@index([timestamp], map: "idx_browsertelemetry_timestamp")
+  @@index([userid], map: "idx_browsertelemetry_userid")
 }
 
-enum CalendarViewType {
-  DAY
-  WEEK
-  MONTH
-  QUARTER
-  YEAR
-  MULTI_YEAR
-  TIMELINE
-  AGENDA
-  HEATMAP
+model DesktopTelemetry {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid      String
+  activeapp   String
+  windowtitle String
+  processname String?
+  duration    Int
+  isidle      Boolean  @default(false)
+  category    String?
+  timestamp   DateTime @default(now()) @db.Timestamp(6)
+  User        User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([activeapp], map: "idx_desktopelemetry_activeapp")
+  @@index([category], map: "idx_desktopelemetry_category")
+  @@index([timestamp], map: "idx_desktopelemetry_timestamp")
+  @@index([userid], map: "idx_desktopelemetry_userid")
 }
 
-enum RecurrenceType {
-  DAILY
-  WEEKLY
-  BIWEEKLY
-  MONTHLY
-  QUARTERLY
-  YEARLY
-  CUSTOM
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model LoginHistory {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
+  device    String?
+  ip        String?
+  browser   String?
+  os        String?
+  location  String?
+  createdat DateTime @default(now()) @db.Timestamp(6)
+  User      User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdat], map: "idx_loginhistory_createdat")
+  @@index([userid], map: "idx_loginhistory_userid")
 }
 
-enum ReportType {
-  SESSION_SUMMARY
-  DAILY
-  WEEKLY
-  MONTHLY
-  YEARLY
-  CUSTOM
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Otp {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid    String
+  email     String
+  code      String
+  type      String    @default("LOGIN")
+  expiresat DateTime  @db.Timestamp(6)
+  usedat    DateTime? @db.Timestamp(6)
+  createdat DateTime  @default(now()) @db.Timestamp(6)
+  User      User      @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdat], map: "idx_otp_createdat")
+  @@index([email], map: "idx_otp_email")
+  @@index([userid], map: "idx_otp_userid")
 }
 
-enum ExportFormat {
-  PDF
-  EXCEL
-  CSV
-  JSON
-}
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Session {
+  id         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  userid     String
+  token      String   @unique
+  device     String?
+  ip         String?
+  lastactive DateTime @default(now()) @db.Timestamp(6)
+  expiresat  DateTime @db.Timestamp(6)
+  User       User     @relation(fields: [userid], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-enum NotificationChannel {
-  IN_APP
-  EMAIL
-  PUSH
-}
-
-model TrackingSession {
-  id           String                @id @default(uuid())
-  userId       String
-  status       TrackingSessionStatus @default(ACTIVE)
-  deviceId     String? // client-generated device identifier
-  deviceName   String? // "Chrome on Windows", "Safari on iPhone", etc.
-  projectName  String? // optional project context
-  startTime    DateTime
-  endTime      DateTime?
-  pausedAt     DateTime?
-  totalPauseMs Int                   @default(0) // accumulated pause duration in ms
-  lastActivity DateTime              @default(now())
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-
-  activities       ActivityEvent[]
-  reports          Report[]
-  browserTelemetry BrowserTelemetry[]
-  desktopTelemetry DesktopTelemetry[]
-
-  @@index([userId])
-  @@index([userId, status])
-  @@index([userId, startTime])
-  @@index([deviceId])
-}
-
-model ActivityEvent {
-  id                String        @id @default(uuid())
-  trackingSessionId String
-  userId            String
-  eventType         String // PAGE_VIEW, TASK_DONE, NOTE_CREATED, VIDEO_WATCHED, etc.
-  category          EventCategory @default(OTHER)
-  module            String? // "dashboard", "curriculum", "tasks", "notes", etc.
-  entityId          String? // UUID of related entity (task id, note id, etc.)
-  entityType        String? // "Task", "Note", "StudySession", etc.
-  label             String? // human-readable description
-  duration          Int           @default(0) // time spent in seconds
-  metadata          Json? // arbitrary event-specific data
-  createdAt         DateTime      @default(now())
-
-  trackingSession TrackingSession @relation(fields: [trackingSessionId], references: [id], onDelete: Cascade)
-
-  @@index([trackingSessionId])
-  @@index([userId])
-  @@index([userId, createdAt])
-  @@index([userId, category])
-  @@index([eventType])
-  @@index([createdAt])
-}
-
-model CalendarEvent {
-  id             String          @id @default(uuid())
-  userId         String
-  title          String
-  description    String?
-  eventType      String // "LEARNING", "CODING", "TASK", "MEETING", "REVISION", "GOAL", etc.
-  color          String? // hex color for display
-  startTime      DateTime
-  endTime        DateTime?
-  isAllDay       Boolean         @default(false)
-  isRecurring    Boolean         @default(false)
-  recurrenceType RecurrenceType?
-  recurrenceRule Json? // RFC 5545 RRULE or custom JSON
-  recurrenceEnd  DateTime?
-  timezone       String? // IANA timezone (e.g. "America/New_York")
-  location       String?
-  tags           String[]
-  metadata       Json?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  @@index([userId])
-  @@index([userId, startTime])
-  @@index([userId, eventType])
-  @@index([startTime, endTime])
-}
-
-model Report {
-  id                String     @id @default(uuid())
-  userId            String
-  trackingSessionId String? // null for daily/weekly/monthly reports
-  type              ReportType
-  title             String
-  summary           String? // natural-language AI summary
-  durationSeconds   Int        @default(0)
-  productivityScore Float? // 0-100
-  focusScore        Float? // 0-100
-  metrics           Json? // { learningTime, codingTime, taskTime, etc. }
-  chartData         Json? // pre-computed chart data
-  recommendations   Json? // AI-generated recommendations
-  insights          Json? // AI-generated insights
-  technologies      String[] // technologies covered
-  topics            String[] // topics learned
-  createdAt         DateTime   @default(now())
-
-  trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([userId, createdAt])
-  @@index([trackingSessionId])
-}
-
-model ExportLog {
-  id         String       @id @default(uuid())
-  userId     String
-  format     ExportFormat
-  entityType String // "report", "activity", "calendar", etc.
-  entityId   String?
-  fileName   String
-  fileSize   Int?
-  storageKey String? // path to exported file
-  createdAt  DateTime     @default(now())
-
-  @@index([userId])
-  @@index([userId, createdAt])
-}
-
-model NotificationPreference {
-  id                String                @id @default(uuid())
-  userId            String                @unique
-  studyReminders    Boolean               @default(true)
-  revisionReminders Boolean               @default(true)
-  taskReminders     Boolean               @default(true)
-  meetingReminders  Boolean               @default(true)
-  goalReminders     Boolean               @default(true)
-  channels          NotificationChannel[] @default([IN_APP])
-  quietHoursStart   String? // "22:00" format
-  quietHoursEnd     String? // "07:00" format
-  timezone          String?
+  @@index([token], map: "idx_session_token")
+  @@index([userid], map: "idx_session_userid")
 }
 
 enum Role {
@@ -404,7 +355,6 @@ enum ResourceType {
   LINK
   CODE
   IMAGE
-  AUDIO
   OTHER
 }
 
@@ -413,8 +363,6 @@ enum StorageProvider {
   S3
   CLOUDINARY
   GITHUB
-  GOOGLE_DRIVE
-  SUPABASE
 }
 
 enum DocumentStatus {
@@ -424,423 +372,9 @@ enum DocumentStatus {
   DELETED
 }
 
-model Document {
-  id              String          @id @default(uuid())
-  userId          String
-  originalName    String
-  mimeType        String
-  size            Int // in bytes
-  storageProvider StorageProvider @default(LOCAL)
-  storageKey      String          @unique // relative path or S3 key
-  publicUrl       String? // cached public URL if available
-  resourceType    ResourceType
-  status          DocumentStatus  @default(READY)
-  folder          String? // user-defined folder path
-  tags            String[]
-  metadata        Json? // EXIF, PDF page count, video duration, etc.
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
-  resourceId String?   @unique
-  resource   Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
-
-  // AI Integration
-  intelligence DocumentIntelligence?
-
-  @@index([userId])
-  @@index([userId, resourceType])
-  @@index([storageKey])
-}
-
 enum NotificationType {
   REMINDER
   ACHIEVEMENT
   SYSTEM
   MENTOR
-}
-
-model BrowserTelemetry {
-  id                String   @id @default(uuid())
-  userId            String
-  trackingSessionId String?
-  url               String
-  title             String?
-  domain            String
-  duration          Int // in seconds
-  category          String? // e.g. Documentation, Programming, Social Media
-  timestamp         DateTime @default(now())
-
-  trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
-
-  @@index([trackingSessionId, userId, timestamp])
-  @@index([userId, timestamp])
-  @@index([trackingSessionId, category])
-}
-
-model DesktopTelemetry {
-  id                String   @id @default(uuid())
-  userId            String
-  trackingSessionId String?
-  activeApp         String
-  windowTitle       String
-  processName       String?
-  duration          Int // in seconds
-  isIdle            Boolean  @default(false)
-  category          String? // e.g. IDE, Terminal
-  timestamp         DateTime @default(now())
-
-  trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
-
-  @@index([trackingSessionId, userId, timestamp])
-  @@index([userId, timestamp])
-  @@index([trackingSessionId, category])
-}
-
-// -----------------------------------------------------------------------------
-// AI Integration Models
-// -----------------------------------------------------------------------------
-
-model AIConversation {
-  id         String   @id @default(uuid())
-  userId     String
-  title      String   @default("New Chat")
-  documentId String? // Optional link to a specific document being discussed
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  messages AIMessage[]
-
-  @@index([userId])
-  @@index([documentId])
-}
-
-model AIMessage {
-  id             String   @id @default(uuid())
-  conversationId String
-  role           String // "user" or "model"
-  content        String
-  createdAt      DateTime @default(now())
-
-  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-}
-
-model DocumentIntelligence {
-  id                 String   @id @default(uuid())
-  documentId         String   @unique
-  summary            String?
-  chapterSummaries   Json?
-  keyConcepts        Json?
-  topics             Json?
-  interviewQuestions Json?
-  mcqs               Json?
-  flashcards         Json?
-  mindMapData        Json?
-  revisionChecklist  Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-}
-
-model NoteIntelligence {
-  id        String   @id @default(uuid())
-  noteId    String   @unique
-  summary   String?
-  keywords  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
-}
-
-model DailySummary {
-  id              String   @id @default(uuid())
-  userId          String
-  date            DateTime @db.Date
-  summary         String
-  recommendations Json?
-  metrics         Json?
-  createdAt       DateTime @default(now())
-
-  @@unique([userId, date])
-  @@index([userId])
-}
-
-// ============================================================================
-// Interview Hub Models
-// ============================================================================
-
-model InterviewQuestion {
-  id               String   @id @default(uuid())
-  userId           String
-  question         String
-  answer           String
-  explanation      String?
-  difficulty       String   @default("Intermediate") // Beginner, Intermediate, Advanced, Expert
-  category         String // Java, Python, React, JavaScript, etc.
-  type             String   @default("Theory") // Theory, Practical, Scenario, Coding, Debugging, Architecture, SQL, MCQ
-  tags             String[]
-  companyFrequency Json? // [{company: "Google", frequency: "High"}]
-  similarQuestions Json? // [{question: "Q?", answer: "A"}]
-  relatedTopics    String[]
-  isAIGenerated    Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@index([userId])
-  @@index([category])
-  @@index([difficulty])
-  @@index([userId, category])
-}
-
-model CompanyQuestion {
-  id          String   @id @default(uuid())
-  userId      String
-  company     String // Google, Microsoft, Amazon, etc.
-  role        String? // SDE, Frontend, Backend, etc.
-  experience  String? // Fresher, 1-3 years, 3-5 years, etc.
-  question    String
-  answer      String
-  explanation String?
-  difficulty  String   @default("Intermediate")
-  technology  String[] // ["Java", "System Design"]
-  tags        String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([userId])
-  @@index([company])
-  @@index([difficulty])
-}
-
-model AIInterviewConversation {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String   @default("New Interview Chat")
-  type      String   @default("qa") // qa, mock-interview, resume-review
-  isPinned  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  messages AIInterviewMessage[]
-
-  @@index([userId])
-  @@index([userId, type])
-}
-
-model AIInterviewMessage {
-  id             String                  @id @default(uuid())
-  conversationId String
-  role           String // "user" or "model"
-  content        String
-  createdAt      DateTime                @default(now())
-  conversation   AIInterviewConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-}
-
-model UserSavedItem {
-  id        String   @id @default(uuid())
-  userId    String
-  itemType  String // question, answer, mcq, coding-problem, chat, note, company-question
-  itemId    String // UUID of the referenced item
-  label     String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-
-  @@unique([userId, itemType, itemId])
-  @@index([userId])
-  @@index([userId, itemType])
-}
-
-model UserBookmark {
-  id        String   @id @default(uuid())
-  userId    String
-  itemType  String // question, mcq, coding, conversation, note
-  itemId    String
-  label     String?
-  tags      String[]
-  createdAt DateTime @default(now())
-
-  @@unique([userId, itemType, itemId])
-  @@index([userId])
-  @@index([userId, itemType])
-}
-
-model MCQ {
-  id            String   @id @default(uuid())
-  userId        String
-  question      String
-  options       Json // ["A", "B", "C", "D"]
-  correctAnswer Int // index of correct option
-  explanation   String?
-  category      String // Technical, Aptitude, Logical, Verbal, HR
-  topic         String?
-  difficulty    String   @default("Medium")
-  tags          String[]
-  timeLimit     Int? // seconds
-  createdAt     DateTime @default(now())
-
-  attempts MCQAttempt[]
-
-  @@index([userId])
-  @@index([category])
-  @@index([difficulty])
-}
-
-model MCQAttempt {
-  id             String   @id @default(uuid())
-  userId         String
-  mcqId          String
-  selectedAnswer Int?
-  isCorrect      Boolean?
-  timeTaken      Int? // seconds
-  createdAt      DateTime @default(now())
-
-  mcq MCQ @relation(fields: [mcqId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([mcqId])
-}
-
-model CodingProblem {
-  id              String   @id @default(uuid())
-  userId          String
-  title           String
-  description     String
-  examples        Json? // [{input: "...", output: "...", explanation: "..."}]
-  constraints     String?
-  difficulty      String   @default("Medium")
-  category        String? // "Algorithms", "Data Structures", "SQL", etc.
-  tags            String[]
-  sampleTestCases Json? // [{input: "...", output: "..."}]
-  hiddenTestCases Json? // [{input: "...", output: "..."}]
-  timeLimit       Int? // ms
-  memoryLimit     Int? // MB
-  isAIGenerated   Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  submissions CodingSubmission[]
-
-  @@index([userId])
-  @@index([difficulty])
-  @@index([category])
-}
-
-model CodingSubmission {
-  id          String   @id @default(uuid())
-  userId      String
-  problemId   String
-  language    String // Java, Python, JavaScript, C++, C#, Go, Rust
-  code        String
-  status      String // Accepted, Wrong Answer, Time Limit Exceeded, Runtime Error, Compilation Error
-  passedTests Int      @default(0)
-  totalTests  Int      @default(0)
-  runtime     Int? // ms
-  memory      Int? // MB
-  aiReview    Json? // {feedback: "...", complexity: "...", suggestions: [...]}
-  createdAt   DateTime @default(now())
-
-  problem CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([problemId])
-  @@index([status])
-}
-
-model InterviewSession {
-  id                     String    @id @default(uuid())
-  userId                 String
-  type                   String // mock, technical, hr, resume, behavioral
-  status                 String    @default("in-progress") // in-progress, completed, cancelled
-  difficulty             String    @default("Intermediate")
-  questions              Json? // [{question: "...", answer: "...", userAnswer: "...", score: Int, feedback: "..."}]
-  currentQuestionIndex   Int       @default(0)
-  totalQuestions         Int       @default(0)
-  context                String? // user context (resume, JD, notes) used for this session
-  timeLimit              Int? // total time in minutes
-  timeTaken              Int? // actual time taken in minutes
-  technicalScore         Float? // 0-100
-  communicationScore     Float? // 0-100
-  confidenceScore        Float? // 0-100
-  overallScore           Float? // 0-100
-  feedback               String?
-  improvementSuggestions Json? // ["suggestion 1", "suggestion 2"]
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-
-  @@index([userId])
-  @@index([userId, type])
-  @@index([userId, status])
-}
-
-model InterviewNote {
-  id         String   @id @default(uuid())
-  userId     String
-  title      String
-  content    String // markdown
-  type       String   @default("general") // general, study, revision, flashcard, cheat-sheet, interview
-  tags       String[]
-  isPinned   Boolean  @default(false)
-  sourceType String? // ai-generated, manual, pdf-import
-  sourceId   String? // reference to original source
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([userId])
-  @@index([userId, type])
-  @@index([userId, isPinned])
-}
-
-model UserInterviewProgress {
-  id                   String    @id @default(uuid())
-  userId               String    @unique
-  questionsSolved      Int       @default(0)
-  mcqsCompleted        Int       @default(0)
-  codingProblemsSolved Int       @default(0)
-  interviewSessions    Int       @default(0)
-  averageScore         Float? // 0-100
-  weakTopics           Json? // [{topic: "...", score: 0}]
-  strongTopics         Json? // [{topic: "...", score: 100}]
-  dailyProgress        Json? // [{date: "2024-01-01", questionsSolved: 5, mcqsCompleted: 10}]
-  weeklyProgress       Json? // [{week: "2024-W01", ...}]
-  monthlyProgress      Json? // [{month: "2024-01", ...}]
-  learningStreak       Int       @default(0)
-  longestStreak        Int       @default(0)
-  lastActiveDate       DateTime?
-  totalStudyTime       Int       @default(0) // minutes
-  updatedAt            DateTime  @updatedAt
-}
-
-model InterviewRecommendation {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String // topic, weak-area, revision, interview-plan, coding-challenge, mcq, article, video
-  title       String
-  description String?
-  priority    Int      @default(0) // 0-10
-  reason      String?
-  isCompleted Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-  @@index([userId, type])
-  @@index([userId, isCompleted])
-}
-
-model InterviewSearchLog {
-  id        String   @id @default(uuid())
-  userId    String
-  query     String
-  category  String? // questions, companies, topics, tags
-  results   Int      @default(0)
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([userId, createdAt])
 }

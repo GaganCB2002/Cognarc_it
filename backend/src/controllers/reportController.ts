@@ -8,7 +8,7 @@ import {
 import { generatePeriodicPdfReport } from '../services/pdfReport.service';
 import path from 'path';
 import fs from 'fs';
-import { prisma } from '../lib/prisma';
+import { pool } from '../lib/prisma';
 import { queueService } from '../services/queue.service';
 
 export async function createSessionReport(req: Request, res: Response): Promise<void> {
@@ -147,9 +147,11 @@ export async function getDailySummary(req: Request, res: Response): Promise<void
     let date = req.query.date ? new Date(req.query.date as string) : new Date();
     date.setHours(0, 0, 0, 0);
 
-    const summary = await prisma.dailySummary.findUnique({
-      where: { userId_date: { userId, date } }
-    });
+    const result = await pool.query(
+      'SELECT * FROM "DailySummary" WHERE "userId" = $1 AND "date" = $2 LIMIT 1',
+      [userId, date]
+    );
+    const summary = result.rows[0];
 
     if (!summary) {
       res.status(404).json({ success: false, message: 'Summary not generated yet for this date' });
@@ -179,4 +181,3 @@ export async function triggerDailySummary(req: Request, res: Response): Promise<
     res.status(500).json({ success: false, message: msg });
   }
 }
-

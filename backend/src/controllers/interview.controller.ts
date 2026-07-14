@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { interviewService } from "../services/interview.service";
 import { geminiService } from "../services/gemini.service";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
 import { lifelog } from "../services/lifelog.service";
 
 interface AuthRequest extends Request {
@@ -33,35 +33,41 @@ export const askAI = async (req: AuthRequest, res: Response) => {
 
     let conversation: any;
     if (conversationId) {
-      conversation = await prisma.aIInterviewConversation.findUnique({
-        where: { id: conversationId },
-        include: { messages: true },
-      });
+      const convResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [conversationId]);
+      conversation = convResult.rows[0];
+      if (conversation) {
+        const msgsResult = await pool.query('SELECT * FROM "AIInterviewMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC', [conversationId]);
+        conversation.messages = msgsResult.rows;
+      }
     }
 
     if (!conversation) {
-      conversation = await prisma.aIInterviewConversation.create({
-        data: { userId, title: question.substring(0, 50), type: "qa" },
-        include: { messages: true },
-      });
+      const newConvResult = await pool.query(
+        'INSERT INTO "AIInterviewConversation" ("userId", "title", "type") VALUES ($1, $2, $3) RETURNING *',
+        [userId, question.substring(0, 50), "qa"]
+      );
+      conversation = newConvResult.rows[0];
+      conversation.messages = [];
     }
 
-    await prisma.aIInterviewMessage.create({
-      data: { conversationId: conversation.id, role: "user", content: question },
-    });
+    await pool.query(
+      'INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)',
+      [conversation.id, "user", question]
+    );
 
     const result = await interviewService.askAI(question, history || [], userId);
 
     const responseText = JSON.stringify(result);
-    await prisma.aIInterviewMessage.create({
-      data: { conversationId: conversation.id, role: "model", content: responseText },
-    });
+    await pool.query(
+      'INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)',
+      [conversation.id, "model", responseText]
+    );
 
     if (conversation.title === "New Interview Chat") {
-      await prisma.aIInterviewConversation.update({
-        where: { id: conversation.id },
-        data: { title: question.substring(0, 50) },
-      });
+      await pool.query(
+        'UPDATE "AIInterviewConversation" SET "title" = $1 WHERE "id" = $2',
+        [question.substring(0, 50), conversation.id]
+      );
     }
 
     await lifelog.conversation(userId, "INTERVIEW_ASK", `Interview Q&A: ${question.substring(0, 80)}`, {
@@ -116,18 +122,11 @@ export const saveQuestion = async (req: AuthRequest, res: Response) => {
     const { question, answer, explanation, difficulty, category, type, tags } = req.body;
     if (!question || !answer) return res.status(400).json({ success: false, message: "Question and answer are required" });
 
-    const created = await prisma.interviewQuestion.create({
-      data: {
-        userId,
-        question,
-        answer,
-        explanation,
-        difficulty: difficulty || "Intermediate",
-        category: category || "General",
-        type: type || "Theory",
-        tags: tags || [],
-      },
-    });
+    const result = await pool.query(
+      'INSERT INTO "InterviewQuestion" ("userId", "question", "answer", "explanation", "difficulty", "category", "type", "tags") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [userId, question, answer, explanation, difficulty || "Intermediate", category || "General", type || "Theory", tags || []]
+    );
+    const created = result.rows[0];
 
     await lifelog.conversation(userId, "SAVE_QUESTION", `Saved question: ${question.substring(0, 80)}`, {
       questionId: created.id,
@@ -151,21 +150,27 @@ export const listQuestions = async (req: AuthRequest, res: Response) => {
     const difficulty = str(req.query.difficulty);
     const search = str(req.query.search);
 
-    const where: any = { userId };
-    if (category) where.category = category;
-    if (difficulty) where.difficulty = difficulty;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
+
+    if (category) { conditions.push(`"category" = $${paramIdx}`); params.push(category); paramIdx++; }
+    if (difficulty) { conditions.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
     if (search) {
-      where.OR = [
-        { question: { contains: search, mode: "insensitive" as const } },
-        { answer: { contains: search, mode: "insensitive" as const } },
-        { tags: { has: search.toLowerCase() } },
-      ];
+      conditions.push(`("question" ILIKE $${paramIdx} OR "answer" ILIKE $${paramIdx + 1} OR $${paramIdx + 2} = ANY("tags"))`);
+      params.push(`%${search}%`, `%${search}%`, search.toLowerCase());
+      paramIdx += 3;
     }
 
-    const [questions, total] = await Promise.all([
-      prisma.interviewQuestion.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
-      prisma.interviewQuestion.count({ where }),
+    const whereClause = conditions.join(' AND ');
+
+    const [questionsResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "InterviewQuestion" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
+      pool.query(`SELECT COUNT(*) FROM "InterviewQuestion" WHERE ${whereClause}`, params),
     ]);
+
+    const questions = questionsResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     res.json({ success: true, data: { questions, total, page, limit, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -180,7 +185,8 @@ export const getQuestion = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const question = await prisma.interviewQuestion.findUnique({ where: { id } });
+    const result = await pool.query('SELECT * FROM "InterviewQuestion" WHERE "id" = $1 LIMIT 1', [id]);
+    const question = result.rows[0];
     if (!question) return res.status(404).json({ success: false, message: "Question not found" });
     if (question.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
@@ -197,23 +203,26 @@ export const updateQuestion = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const existing = await prisma.interviewQuestion.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "InterviewQuestion" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: "Question not found" });
     if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
     const { question, answer, explanation, difficulty, category, type, tags } = req.body;
-    const updated = await prisma.interviewQuestion.update({
-      where: { id },
-      data: {
-        ...(question !== undefined && { question }),
-        ...(answer !== undefined && { answer }),
-        ...(explanation !== undefined && { explanation }),
-        ...(difficulty !== undefined && { difficulty }),
-        ...(category !== undefined && { category }),
-        ...(type !== undefined && { type }),
-        ...(tags !== undefined && { tags }),
-      },
-    });
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+    if (question !== undefined) { setClauses.push(`"question" = $${paramIdx}`); params.push(question); paramIdx++; }
+    if (answer !== undefined) { setClauses.push(`"answer" = $${paramIdx}`); params.push(answer); paramIdx++; }
+    if (explanation !== undefined) { setClauses.push(`"explanation" = $${paramIdx}`); params.push(explanation); paramIdx++; }
+    if (difficulty !== undefined) { setClauses.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
+    if (category !== undefined) { setClauses.push(`"category" = $${paramIdx}`); params.push(category); paramIdx++; }
+    if (type !== undefined) { setClauses.push(`"type" = $${paramIdx}`); params.push(type); paramIdx++; }
+    if (tags !== undefined) { setClauses.push(`"tags" = $${paramIdx}`); params.push(tags); paramIdx++; }
+
+    params.push(id);
+    const result = await pool.query(`UPDATE "InterviewQuestion" SET ${setClauses.join(', ')} WHERE "id" = $${paramIdx} RETURNING *`, params);
+    const updated = result.rows[0];
 
     res.json({ success: true, data: updated });
   } catch (error) {
@@ -228,11 +237,12 @@ export const deleteQuestion = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const existing = await prisma.interviewQuestion.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "InterviewQuestion" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: "Question not found" });
     if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    await prisma.interviewQuestion.delete({ where: { id } });
+    await pool.query('DELETE FROM "InterviewQuestion" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("Delete question error:", error);
@@ -252,15 +262,17 @@ export const getCompanyQuestions = async (req: AuthRequest, res: Response) => {
     const experience = str(req.query.experience);
     const difficulty = str(req.query.difficulty);
 
-    const where: any = { userId, company };
-    if (role) where.role = role;
-    if (experience) where.experience = experience;
-    if (difficulty) where.difficulty = difficulty;
+    const conditions: string[] = ['"userId" = $1', '"company" = $2'];
+    const params: any[] = [userId, company];
+    let paramIdx = 3;
 
-    const questions = await prisma.companyQuestion.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-    });
+    if (role) { conditions.push(`"role" = $${paramIdx}`); params.push(role); paramIdx++; }
+    if (experience) { conditions.push(`"experience" = $${paramIdx}`); params.push(experience); paramIdx++; }
+    if (difficulty) { conditions.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
+
+    const whereClause = conditions.join(' AND ');
+    const result = await pool.query(`SELECT * FROM "CompanyQuestion" WHERE ${whereClause} ORDER BY "createdAt" DESC`, params);
+    const questions = result.rows;
 
     res.json({ success: true, data: questions });
   } catch (error) {
@@ -279,19 +291,11 @@ export const saveCompanyQuestion = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: "Company, question, and answer are required" });
     }
 
-    const created = await prisma.companyQuestion.create({
-      data: {
-        userId,
-        company,
-        role,
-        experience,
-        question,
-        answer,
-        difficulty: difficulty || "Intermediate",
-        technology: technology || [],
-        tags: [],
-      },
-    });
+    const result = await pool.query(
+      'INSERT INTO "CompanyQuestion" ("userId", "company", "role", "experience", "question", "answer", "difficulty", "technology", "tags") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [userId, company, role, experience, question, answer, difficulty || "Intermediate", technology || [], []]
+    );
+    const created = result.rows[0];
 
     await lifelog.conversation(userId, "SAVE_COMPANY_QUESTION", `Saved ${company} question`, {
       company,
@@ -321,20 +325,11 @@ export const generateMCQ = async (req: AuthRequest, res: Response) => {
     const savedMcqs: any[] = [];
     const mcqs = (result as any).mcqs || [];
     for (const mcq of mcqs) {
-      const saved = await prisma.mCQ.create({
-        data: {
-          userId,
-          question: mcq.question,
-          options: mcq.options,
-          correctAnswer: mcq.correctAnswer,
-          explanation: mcq.explanation,
-          category,
-          topic: mcq.topic,
-          difficulty: mcq.difficulty || difficulty || "Medium",
-          tags: [],
-        },
-      });
-      savedMcqs.push(saved);
+      const savedResult = await pool.query(
+        'INSERT INTO "MCQ" ("userId", "question", "options", "correctAnswer", "explanation", "category", "topic", "difficulty", "tags") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+        [userId, mcq.question, mcq.options, mcq.correctAnswer, mcq.explanation, category, mcq.topic, mcq.difficulty || difficulty || "Medium", []]
+      );
+      savedMcqs.push(savedResult.rows[0]);
     }
 
     await lifelog.conversation(userId, "GENERATE_MCQ", `Generated ${savedMcqs.length} MCQs for ${category}`, { category, count: savedMcqs.length });
@@ -355,14 +350,22 @@ export const listMCQs = async (req: AuthRequest, res: Response) => {
     const category = str(req.query.category);
     const difficulty = str(req.query.difficulty);
 
-    const where: any = { userId };
-    if (category) where.category = category;
-    if (difficulty) where.difficulty = difficulty;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
 
-    const [mcqs, total] = await Promise.all([
-      prisma.mCQ.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
-      prisma.mCQ.count({ where }),
+    if (category) { conditions.push(`"category" = $${paramIdx}`); params.push(category); paramIdx++; }
+    if (difficulty) { conditions.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
+
+    const whereClause = conditions.join(' AND ');
+
+    const [mcqsResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "MCQ" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
+      pool.query(`SELECT COUNT(*) FROM "MCQ" WHERE ${whereClause}`, params),
     ]);
+
+    const mcqs = mcqsResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     res.json({ success: true, data: { mcqs, total, page, limit, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -381,29 +384,33 @@ export const attemptMCQ = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: "mcqId and selectedAnswer are required" });
     }
 
-    const mcq = await prisma.mCQ.findUnique({ where: { id: mcqId } });
+    const mcqResult = await pool.query('SELECT * FROM "MCQ" WHERE "id" = $1 LIMIT 1', [mcqId]);
+    const mcq = mcqResult.rows[0];
     if (!mcq) return res.status(404).json({ success: false, message: "MCQ not found" });
 
     const isCorrect = selectedAnswer === mcq.correctAnswer;
-    const attempt = await prisma.mCQAttempt.create({
-      data: { userId, mcqId, selectedAnswer, isCorrect, timeTaken },
-    });
+    const attemptResult = await pool.query(
+      'INSERT INTO "MCQAttempt" ("userId", "mcqId", "selectedAnswer", "isCorrect", "timeTaken") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, mcqId, selectedAnswer, isCorrect, timeTaken]
+    );
+    const attempt = attemptResult.rows[0];
 
     const evaluation = await interviewService.evaluateMCQAnswer(mcq.question, String(selectedAnswer), String(mcq.correctAnswer));
 
     // Update progress
-    await prisma.userInterviewProgress.upsert({
-      where: { userId },
-      update: {
-        mcqsCompleted: { increment: 1 },
-        lastActiveDate: new Date(),
-      },
-      create: {
-        userId,
-        mcqsCompleted: 1,
-        lastActiveDate: new Date(),
-      },
-    });
+    const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+    const existingProgress = existingProgressResult.rows[0];
+    if (existingProgress) {
+      await pool.query(
+        'UPDATE "UserInterviewProgress" SET "mcqsCompleted" = "mcqsCompleted" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+        [new Date(), userId]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO "UserInterviewProgress" ("userId", "mcqsCompleted", "lastActiveDate") VALUES ($1, $2, $3)',
+        [userId, 1, new Date()]
+      );
+    }
 
     await lifelog.conversation(userId, "MCQ_ATTEMPT", `MCQ attempt: ${isCorrect ? "Correct" : "Wrong"}`, {
       mcqId,
@@ -424,12 +431,16 @@ export const getMCQResult = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const mcq = await prisma.mCQ.findUnique({
-      where: { id },
-      include: { attempts: { where: { userId }, orderBy: { createdAt: "desc" } } },
-    });
+    const mcqResult = await pool.query('SELECT * FROM "MCQ" WHERE "id" = $1 LIMIT 1', [id]);
+    const mcq = mcqResult.rows[0];
 
     if (!mcq) return res.status(404).json({ success: false, message: "MCQ not found" });
+
+    const attemptsResult = await pool.query(
+      'SELECT * FROM "MCQAttempt" WHERE "mcqId" = $1 AND "userId" = $2 ORDER BY "createdAt" DESC',
+      [id, userId]
+    );
+    mcq.attempts = attemptsResult.rows;
 
     res.json({ success: true, data: mcq });
   } catch (error) {
@@ -450,23 +461,11 @@ export const generateCodingProblem = async (req: AuthRequest, res: Response) => 
 
     const result = await interviewService.generateCodingProblem(difficulty || "Medium", language, topic);
 
-    const problem = await prisma.codingProblem.create({
-      data: {
-        userId,
-        title: result.title,
-        description: result.description,
-        examples: result.examples,
-        constraints: result.constraints,
-        difficulty: difficulty || "Medium",
-        category: topic,
-        tags: [topic, language],
-        sampleTestCases: result.sampleTestCases,
-        hiddenTestCases: result.hiddenTestCases,
-        timeLimit: result.timeLimit,
-        memoryLimit: result.memoryLimit,
-        isAIGenerated: true,
-      },
-    });
+    const problemResult = await pool.query(
+      'INSERT INTO "CodingProblem" ("userId", "title", "description", "examples", "constraints", "difficulty", "category", "tags", "sampleTestCases", "hiddenTestCases", "timeLimit", "memoryLimit", "isAIGenerated") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *',
+      [userId, result.title, result.description, result.examples, result.constraints, difficulty || "Medium", topic, [topic, language], result.sampleTestCases, result.hiddenTestCases, result.timeLimit, result.memoryLimit, true]
+    );
+    const problem = problemResult.rows[0];
 
     await lifelog.conversation(userId, "GENERATE_CODING", `Generated coding problem: ${result.title}`, {
       problemId: problem.id,
@@ -490,14 +489,22 @@ export const listCodingProblems = async (req: AuthRequest, res: Response) => {
     const difficulty = str(req.query.difficulty);
     const category = str(req.query.category);
 
-    const where: any = { userId };
-    if (difficulty) where.difficulty = difficulty;
-    if (category) where.category = category;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
 
-    const [problems, total] = await Promise.all([
-      prisma.codingProblem.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
-      prisma.codingProblem.count({ where }),
+    if (difficulty) { conditions.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
+    if (category) { conditions.push(`"category" = $${paramIdx}`); params.push(category); paramIdx++; }
+
+    const whereClause = conditions.join(' AND ');
+
+    const [problemsResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "CodingProblem" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
+      pool.query(`SELECT COUNT(*) FROM "CodingProblem" WHERE ${whereClause}`, params),
     ]);
+
+    const problems = problemsResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     res.json({ success: true, data: { problems, total, page, limit, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -512,15 +519,19 @@ export const getCodingProblem = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const problem = await prisma.codingProblem.findUnique({
-      where: { id },
-      include: { submissions: { where: { userId }, orderBy: { createdAt: "desc" }, take: 10 } },
-    });
+    const problemResult = await pool.query('SELECT * FROM "CodingProblem" WHERE "id" = $1 LIMIT 1', [id]);
+    const problem = problemResult.rows[0];
 
     if (!problem) return res.status(404).json({ success: false, message: "Coding problem not found" });
 
-    const hasSubmission = problem.submissions.length > 0;
-    const { submissions, ...rest } = problem;
+    const submissionsResult = await pool.query(
+      'SELECT * FROM "CodingSubmission" WHERE "problemId" = $1 AND "userId" = $2 ORDER BY "createdAt" DESC LIMIT 10',
+      [id, userId]
+    );
+    const submissions = submissionsResult.rows;
+
+    const hasSubmission = submissions.length > 0;
+    const { hiddenTestCases, ...rest } = problem;
     const response = {
       ...rest,
       hiddenTestCases: hasSubmission ? problem.hiddenTestCases : undefined,
@@ -543,7 +554,8 @@ export const submitCoding = async (req: AuthRequest, res: Response) => {
     const { code, language } = req.body;
     if (!code || !language) return res.status(400).json({ success: false, message: "Code and language are required" });
 
-    const problem = await prisma.codingProblem.findUnique({ where: { id } });
+    const problemResult = await pool.query('SELECT * FROM "CodingProblem" WHERE "id" = $1 LIMIT 1', [id]);
+    const problem = problemResult.rows[0];
     if (!problem) return res.status(404).json({ success: false, message: "Coding problem not found" });
 
     const testCases = (problem.sampleTestCases as any[]) || [];
@@ -552,24 +564,25 @@ export const submitCoding = async (req: AuthRequest, res: Response) => {
 
     const aiReview = await interviewService.aiCodeReview(code, language, problem.description);
 
-    const submission = await prisma.codingSubmission.create({
-      data: {
-        userId,
-        problemId: id,
-        language,
-        code,
-        status: "Accepted",
-        passedTests,
-        totalTests,
-        aiReview: aiReview as any,
-      },
-    });
+    const submissionResult = await pool.query(
+      'INSERT INTO "CodingSubmission" ("userId", "problemId", "language", "code", "status", "passedTests", "totalTests", "aiReview") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [userId, id, language, code, "Accepted", passedTests, totalTests, aiReview as any]
+    );
+    const submission = submissionResult.rows[0];
 
-    await prisma.userInterviewProgress.upsert({
-      where: { userId },
-      update: { codingProblemsSolved: { increment: 1 }, lastActiveDate: new Date() },
-      create: { userId, codingProblemsSolved: 1, lastActiveDate: new Date() },
-    });
+    const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+    const existingProgress = existingProgressResult.rows[0];
+    if (existingProgress) {
+      await pool.query(
+        'UPDATE "UserInterviewProgress" SET "codingProblemsSolved" = "codingProblemsSolved" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+        [new Date(), userId]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO "UserInterviewProgress" ("userId", "codingProblemsSolved", "lastActiveDate") VALUES ($1, $2, $3)',
+        [userId, 1, new Date()]
+      );
+    }
 
     await lifelog.conversation(userId, "SUBMIT_CODING", `Submitted ${language} solution for problem ${id}`, {
       problemId: id,
@@ -613,11 +626,13 @@ export const startMockInterview = async (req: AuthRequest, res: Response) => {
     const { type, difficulty } = req.body;
     const sessionType = type || "technical";
 
-    // Gather user context: notes, documents
-    const [notes, documents] = await Promise.all([
-      prisma.note.findMany({ where: { userId }, orderBy: { updatedAt: "desc" }, take: 10 }),
-      prisma.document.findMany({ where: { userId, status: "READY" }, orderBy: { createdAt: "desc" }, take: 10 }),
+    const [notesResult, documentsResult] = await Promise.all([
+      pool.query('SELECT * FROM "Note" WHERE "userId" = $1 ORDER BY "updatedAt" DESC LIMIT 10', [userId]),
+      pool.query('SELECT * FROM "Document" WHERE "userId" = $1 AND "status" = $2 ORDER BY "createdAt" DESC LIMIT 10', [userId, "READY"]),
     ]);
+
+    const notes = notesResult.rows;
+    const documents = documentsResult.rows;
 
     const userContext = {
       resume: null,
@@ -642,17 +657,11 @@ export const startMockInterview = async (req: AuthRequest, res: Response) => {
       feedback: "",
     }));
 
-    const session = await prisma.interviewSession.create({
-      data: {
-        userId,
-        type: sessionType,
-        difficulty: difficulty || "Intermediate",
-        questions,
-        currentQuestionIndex: 0,
-        totalQuestions: questions.length,
-        context: JSON.stringify(userContext),
-      },
-    });
+    const sessionResult = await pool.query(
+      'INSERT INTO "InterviewSession" ("userId", "type", "difficulty", "questions", "currentQuestionIndex", "totalQuestions", "context") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [userId, sessionType, difficulty || "Intermediate", JSON.stringify(questions), 0, questions.length, JSON.stringify(userContext)]
+    );
+    const session = sessionResult.rows[0];
 
     await lifelog.conversation(userId, "START_MOCK_INTERVIEW", `Started ${sessionType} mock interview`, {
       sessionId: session.id,
@@ -684,7 +693,8 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
     const { answer } = req.body;
     if (!answer) return res.status(400).json({ success: false, message: "Answer is required" });
 
-    const session = await prisma.interviewSession.findUnique({ where: { id: sessionId } });
+    const sessionResult = await pool.query('SELECT * FROM "InterviewSession" WHERE "id" = $1 LIMIT 1', [sessionId]);
+    const session = sessionResult.rows[0];
     if (!session) return res.status(404).json({ success: false, message: "Session not found" });
     if (session.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
     if (session.status !== "in-progress") return res.status(400).json({ success: false, message: "Session is not active" });
@@ -727,14 +737,31 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
       updateData.feedback = `Interview completed. Overall score: ${avgScore.toFixed(1)}/60`;
       updateData.improvementSuggestions = evaluation.areasForImprovement || [];
 
-      await prisma.userInterviewProgress.upsert({
-        where: { userId },
-        update: { interviewSessions: { increment: 1 }, lastActiveDate: new Date() },
-        create: { userId, interviewSessions: 1, lastActiveDate: new Date() },
-      });
+      const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+      const existingProgress = existingProgressResult.rows[0];
+      if (existingProgress) {
+        await pool.query(
+          'UPDATE "UserInterviewProgress" SET "interviewSessions" = "interviewSessions" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+          [new Date(), userId]
+        );
+      } else {
+        await pool.query(
+          'INSERT INTO "UserInterviewProgress" ("userId", "interviewSessions", "lastActiveDate") VALUES ($1, $2, $3)',
+          [userId, 1, new Date()]
+        );
+      }
     }
 
-    await prisma.interviewSession.update({ where: { id: sessionId }, data: updateData });
+    const setClauses: string[] = [];
+    const updateParams: any[] = [];
+    let updateParamIdx = 1;
+    for (const [key, value] of Object.entries(updateData)) {
+      setClauses.push(`"${key}" = $${updateParamIdx}`);
+      updateParams.push(value);
+      updateParamIdx++;
+    }
+    updateParams.push(sessionId);
+    await pool.query(`UPDATE "InterviewSession" SET ${setClauses.join(', ')} WHERE "id" = $${updateParamIdx}`, updateParams);
 
     await lifelog.conversation(userId, "MOCK_ANSWER", `Answered question ${currentIndex + 1}/${session.totalQuestions}`, {
       sessionId,
@@ -763,7 +790,8 @@ export const getMockInterviewResult = async (req: AuthRequest, res: Response) =>
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const sessionId = req.params.sessionId as string;
-    const session = await prisma.interviewSession.findUnique({ where: { id: sessionId } });
+    const sessionResult = await pool.query('SELECT * FROM "InterviewSession" WHERE "id" = $1 LIMIT 1', [sessionId]);
+    const session = sessionResult.rows[0];
     if (!session) return res.status(404).json({ success: false, message: "Session not found" });
     if (session.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
@@ -807,16 +835,11 @@ export const generateNotes = async (req: AuthRequest, res: Response) => {
 
     const result = await interviewService.generateNotes(topic, type);
 
-    const note = await prisma.interviewNote.create({
-      data: {
-        userId,
-        title: (result as any).title || `${topic} - ${type} notes`,
-        content: JSON.stringify(result),
-        type,
-        tags: [topic],
-        sourceType: "ai-generated",
-      },
-    });
+    const noteResult = await pool.query(
+      'INSERT INTO "InterviewNote" ("userId", "title", "content", "type", "tags", "sourceType") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [userId, (result as any).title || `${topic} - ${type} notes`, JSON.stringify(result), type, [topic], "ai-generated"]
+    );
+    const note = noteResult.rows[0];
 
     await lifelog.conversation(userId, "GENERATE_NOTES", `Generated ${type} notes for: ${topic}`, { topic, type, noteId: note.id });
 
@@ -835,13 +858,21 @@ export const listNotes = async (req: AuthRequest, res: Response) => {
     const { page, limit, skip } = paginate(req.query);
     const type = str(req.query.type);
 
-    const where: any = { userId };
-    if (type) where.type = type;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    let paramIdx = 2;
 
-    const [notes, total] = await Promise.all([
-      prisma.interviewNote.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
-      prisma.interviewNote.count({ where }),
+    if (type) { conditions.push(`"type" = $${paramIdx}`); params.push(type); paramIdx++; }
+
+    const whereClause = conditions.join(' AND ');
+
+    const [notesResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "InterviewNote" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
+      pool.query(`SELECT COUNT(*) FROM "InterviewNote" WHERE ${whereClause}`, params),
     ]);
+
+    const notes = notesResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
 
     res.json({ success: true, data: { notes, total, page, limit, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -858,9 +889,11 @@ export const saveNote = async (req: AuthRequest, res: Response) => {
     const { title, content, type, tags } = req.body;
     if (!title || !content) return res.status(400).json({ success: false, message: "Title and content are required" });
 
-    const note = await prisma.interviewNote.create({
-      data: { userId, title, content, type: type || "general", tags: tags || [] },
-    });
+    const result = await pool.query(
+      'INSERT INTO "InterviewNote" ("userId", "title", "content", "type", "tags") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [userId, title, content, type || "general", tags || []]
+    );
+    const note = result.rows[0];
 
     res.json({ success: true, data: note });
   } catch (error) {
@@ -875,11 +908,12 @@ export const deleteNote = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const existing = await prisma.interviewNote.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "InterviewNote" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: "Note not found" });
     if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    await prisma.interviewNote.delete({ where: { id } });
+    await pool.query('DELETE FROM "InterviewNote" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("Delete note error:", error);
@@ -893,19 +927,25 @@ export const updateInterviewNote = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const existing = await prisma.interviewNote.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "InterviewNote" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: "Note not found" });
     if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
     const { title, content, type, tags, pinned } = req.body;
-    const data: any = {};
-    if (title !== undefined) data.title = title;
-    if (content !== undefined) data.content = content;
-    if (type !== undefined) data.type = type;
-    if (tags !== undefined) data.tags = tags;
-    if (pinned !== undefined) data.isPinned = pinned;
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+    if (title !== undefined) { setClauses.push(`"title" = $${paramIdx}`); params.push(title); paramIdx++; }
+    if (content !== undefined) { setClauses.push(`"content" = $${paramIdx}`); params.push(content); paramIdx++; }
+    if (type !== undefined) { setClauses.push(`"type" = $${paramIdx}`); params.push(type); paramIdx++; }
+    if (tags !== undefined) { setClauses.push(`"tags" = $${paramIdx}`); params.push(tags); paramIdx++; }
+    if (pinned !== undefined) { setClauses.push(`"isPinned" = $${paramIdx}`); params.push(pinned); paramIdx++; }
 
-    const updated = await prisma.interviewNote.update({ where: { id }, data });
+    params.push(id);
+    const result = await pool.query(`UPDATE "InterviewNote" SET ${setClauses.join(', ')} WHERE "id" = $${paramIdx} RETURNING *`, params);
+    const updated = result.rows[0];
+
     res.json({ success: true, data: updated });
   } catch (error) {
     console.error("Update note error:", error);
@@ -923,15 +963,20 @@ export const toggleBookmark = async (req: AuthRequest, res: Response) => {
     const { itemType, itemId, label } = req.body;
     if (!itemType || !itemId) return res.status(400).json({ success: false, message: "itemType and itemId are required" });
 
-    const existing = await prisma.userBookmark.findUnique({
-      where: { userId_itemType_itemId: { userId, itemType, itemId } },
-    });
+    const existingResult = await pool.query(
+      'SELECT * FROM "UserBookmark" WHERE "userId" = $1 AND "itemType" = $2 AND "itemId" = $3 LIMIT 1',
+      [userId, itemType, itemId]
+    );
+    const existing = existingResult.rows[0];
 
     if (existing) {
-      await prisma.userBookmark.delete({ where: { id: existing.id } });
+      await pool.query('DELETE FROM "UserBookmark" WHERE "id" = $1', [existing.id]);
       res.json({ success: true, data: { bookmarked: false } });
     } else {
-      await prisma.userBookmark.create({ data: { userId, itemType, itemId, label } });
+      await pool.query(
+        'INSERT INTO "UserBookmark" ("userId", "itemType", "itemId", "label") VALUES ($1, $2, $3, $4)',
+        [userId, itemType, itemId, label]
+      );
       res.json({ success: true, data: { bookmarked: true } });
     }
   } catch (error) {
@@ -946,10 +991,14 @@ export const listBookmarks = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const itemType = str(req.query.itemType);
-    const where: any = { userId };
-    if (itemType) where.itemType = itemType;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    if (itemType) { conditions.push('"itemType" = $2'); params.push(itemType); }
 
-    const bookmarks = await prisma.userBookmark.findMany({ where, orderBy: { createdAt: "desc" } });
+    const whereClause = conditions.join(' AND ');
+    const result = await pool.query(`SELECT * FROM "UserBookmark" WHERE ${whereClause} ORDER BY "createdAt" DESC`, params);
+    const bookmarks = result.rows;
+
     res.json({ success: true, data: bookmarks });
   } catch (error) {
     console.error("List bookmarks error:", error);
@@ -967,13 +1016,15 @@ export const saveItem = async (req: AuthRequest, res: Response) => {
     const { itemType, itemId, label } = req.body;
     if (!itemType || !itemId) return res.status(400).json({ success: false, message: "itemType and itemId are required" });
 
-    const saved = await prisma.userSavedItem.create({
-      data: { userId, itemType, itemId, label },
-    });
+    const result = await pool.query(
+      'INSERT INTO "UserSavedItem" ("userId", "itemType", "itemId", "label") VALUES ($1, $2, $3, $4) RETURNING *',
+      [userId, itemType, itemId, label]
+    );
+    const saved = result.rows[0];
 
     res.json({ success: true, data: saved });
   } catch (error: any) {
-    if (error.code === "P2002") {
+    if (error.code === "23505") {
       return res.status(409).json({ success: false, message: "Item already saved" });
     }
     console.error("Save item error:", error);
@@ -987,10 +1038,14 @@ export const listSavedItems = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const itemType = str(req.query.itemType);
-    const where: any = { userId };
-    if (itemType) where.itemType = itemType;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    if (itemType) { conditions.push('"itemType" = $2'); params.push(itemType); }
 
-    const items = await prisma.userSavedItem.findMany({ where, orderBy: { createdAt: "desc" } });
+    const whereClause = conditions.join(' AND ');
+    const result = await pool.query(`SELECT * FROM "UserSavedItem" WHERE ${whereClause} ORDER BY "createdAt" DESC`, params);
+    const items = result.rows;
+
     res.json({ success: true, data: items });
   } catch (error) {
     console.error("List saved items error:", error);
@@ -1004,11 +1059,12 @@ export const deleteSavedItem = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const existing = await prisma.userSavedItem.findUnique({ where: { id } });
+    const existingResult = await pool.query('SELECT * FROM "UserSavedItem" WHERE "id" = $1 LIMIT 1', [id]);
+    const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: "Saved item not found" });
     if (existing.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    await prisma.userSavedItem.delete({ where: { id } });
+    await pool.query('DELETE FROM "UserSavedItem" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("Delete saved item error:", error);
@@ -1030,28 +1086,32 @@ export const search = async (req: AuthRequest, res: Response) => {
 
     const { page, limit, skip } = paginate(req.query, 20);
 
-    const questionWhere: any = {
-      userId,
-      OR: [
-        { question: { contains: query, mode: "insensitive" as const } },
-        { tags: { has: query.toLowerCase() } },
-      ],
-    };
-    if (category) questionWhere.category = category;
+    const questionConditions: string[] = ['"userId" = $1'];
+    const questionParams: any[] = [userId];
+    let questionParamIdx = 2;
 
-    const [questions, companyQuestions, total] = await Promise.all([
-      prisma.interviewQuestion.findMany({ where: questionWhere, skip, take: limit }),
-      prisma.companyQuestion.findMany({
-        where: { userId, question: { contains: query, mode: "insensitive" as const } },
-        skip,
-        take: limit,
-      }),
-      prisma.interviewQuestion.count({ where: questionWhere }),
+    questionConditions.push(`("question" ILIKE $${questionParamIdx} OR $${questionParamIdx + 1} = ANY("tags"))`);
+    questionParams.push(`%${query}%`, query.toLowerCase());
+    questionParamIdx += 2;
+
+    if (category) { questionConditions.push(`"category" = $${questionParamIdx}`); questionParams.push(category); questionParamIdx++; }
+
+    const questionWhere = questionConditions.join(' AND ');
+
+    const [questionsResult, companyQuestionsResult, totalResult] = await Promise.all([
+      pool.query(`SELECT * FROM "InterviewQuestion" WHERE ${questionWhere} OFFSET $${questionParamIdx} LIMIT $${questionParamIdx + 1}`, [...questionParams, skip, limit]),
+      pool.query('SELECT * FROM "CompanyQuestion" WHERE "userId" = $1 AND "question" ILIKE $2 OFFSET $3 LIMIT $4', [userId, `%${query}%`, skip, limit]),
+      pool.query(`SELECT COUNT(*) FROM "InterviewQuestion" WHERE ${questionWhere}`, questionParams),
     ]);
 
-    await prisma.interviewSearchLog.create({
-      data: { userId, query, category: category || "questions", results: questions.length },
-    });
+    const questions = questionsResult.rows;
+    const companyQuestions = companyQuestionsResult.rows;
+    const total = parseInt(totalResult.rows[0].count, 10);
+
+    await pool.query(
+      'INSERT INTO "InterviewSearchLog" ("userId", "query", "category", "results") VALUES ($1, $2, $3, $4)',
+      [userId, query, category || "questions", questions.length]
+    );
 
     await lifelog.conversation(userId, "INTERVIEW_SEARCH", `Searched: ${query}`, { query, category, results: questions.length });
 
@@ -1069,26 +1129,33 @@ export const getAnalytics = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const [totalQuestions, totalMCQs, totalCoding, totalSessions, totalNotes, progress] = await Promise.all([
-      prisma.interviewQuestion.count({ where: { userId } }),
-      prisma.mCQ.count({ where: { userId } }),
-      prisma.codingProblem.count({ where: { userId } }),
-      prisma.interviewSession.count({ where: { userId } }),
-      prisma.interviewNote.count({ where: { userId } }),
-      prisma.userInterviewProgress.findUnique({ where: { userId } }),
+    const [totalQuestionsResult, totalMCQsResult, totalCodingResult, totalSessionsResult, totalNotesResult, progressResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM "InterviewQuestion" WHERE "userId" = $1', [userId]),
+      pool.query('SELECT COUNT(*) FROM "MCQ" WHERE "userId" = $1', [userId]),
+      pool.query('SELECT COUNT(*) FROM "CodingProblem" WHERE "userId" = $1', [userId]),
+      pool.query('SELECT COUNT(*) FROM "InterviewSession" WHERE "userId" = $1', [userId]),
+      pool.query('SELECT COUNT(*) FROM "InterviewNote" WHERE "userId" = $1', [userId]),
+      pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]),
     ]);
 
-    const categoryBreakdown = await prisma.interviewQuestion.groupBy({
-      by: ["category"],
-      where: { userId },
-      _count: true,
-    });
+    const totalQuestions = parseInt(totalQuestionsResult.rows[0].count, 10);
+    const totalMCQs = parseInt(totalMCQsResult.rows[0].count, 10);
+    const totalCoding = parseInt(totalCodingResult.rows[0].count, 10);
+    const totalSessions = parseInt(totalSessionsResult.rows[0].count, 10);
+    const totalNotes = parseInt(totalNotesResult.rows[0].count, 10);
+    const progress = progressResult.rows[0];
 
-    const difficultyBreakdown = await prisma.interviewQuestion.groupBy({
-      by: ["difficulty"],
-      where: { userId },
-      _count: true,
-    });
+    const categoryBreakdownResult = await pool.query(
+      'SELECT "category", COUNT(*)::int AS "_count" FROM "InterviewQuestion" WHERE "userId" = $1 GROUP BY "category"',
+      [userId]
+    );
+    const categoryBreakdown = categoryBreakdownResult.rows;
+
+    const difficultyBreakdownResult = await pool.query(
+      'SELECT "difficulty", COUNT(*)::int AS "_count" FROM "InterviewQuestion" WHERE "userId" = $1 GROUP BY "difficulty"',
+      [userId]
+    );
+    const difficultyBreakdown = difficultyBreakdownResult.rows;
 
     res.json({
       success: true,
@@ -1116,22 +1183,17 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
 
     const recs = (aiRecommendations as any).recommendations || [];
     for (const rec of recs) {
-      await prisma.interviewRecommendation.create({
-        data: {
-          userId,
-          type: rec.type || "topic",
-          title: rec.title || "",
-          description: rec.description,
-          priority: rec.priority || 0,
-          reason: rec.reason,
-        },
-      });
+      await pool.query(
+        'INSERT INTO "InterviewRecommendation" ("userId", "type", "title", "description", "priority", "reason") VALUES ($1, $2, $3, $4, $5, $6)',
+        [userId, rec.type || "topic", rec.title || "", rec.description, rec.priority || 0, rec.reason]
+      );
     }
 
-    const allRecommendations = await prisma.interviewRecommendation.findMany({
-      where: { userId, isCompleted: false },
-      orderBy: { priority: "desc" },
-    });
+    const allRecommendationsResult = await pool.query(
+      'SELECT * FROM "InterviewRecommendation" WHERE "userId" = $1 AND "isCompleted" = false ORDER BY "priority" DESC',
+      [userId]
+    );
+    const allRecommendations = allRecommendationsResult.rows;
 
     res.json({
       success: true,
@@ -1155,7 +1217,8 @@ export const getProgress = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const progress = await prisma.userInterviewProgress.findUnique({ where: { userId } });
+    const progressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+    const progress = progressResult.rows[0];
     if (!progress) {
       return res.json({
         success: true,
@@ -1187,14 +1250,19 @@ export const listInterviewConversations = async (req: AuthRequest, res: Response
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const type = str(req.query.type);
-    const where: any = { userId };
-    if (type) where.type = type;
+    const conditions: string[] = ['"userId" = $1'];
+    const params: any[] = [userId];
+    if (type) { conditions.push('"type" = $2'); params.push(type); }
 
-    const conversations = await prisma.aIInterviewConversation.findMany({
-      where,
-      orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }],
-      include: { _count: { select: { messages: true } } },
-    });
+    const whereClause = conditions.join(' AND ');
+    const conversationsResult = await pool.query(
+      `SELECT *, (SELECT COUNT(*)::int FROM "AIInterviewMessage" WHERE "AIInterviewMessage"."conversationId" = "AIInterviewConversation"."id") AS "_count_messages" FROM "AIInterviewConversation" WHERE ${whereClause} ORDER BY "isPinned" DESC, "updatedAt" DESC`,
+      params
+    );
+    const conversations = conversationsResult.rows.map((c: any) => ({
+      ...c,
+      _count: { messages: c._count_messages },
+    }));
 
     res.json({ success: true, data: conversations });
   } catch (error) {
@@ -1209,13 +1277,17 @@ export const getInterviewConversation = async (req: AuthRequest, res: Response) 
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const conversation = await prisma.aIInterviewConversation.findUnique({
-      where: { id },
-      include: { messages: { orderBy: { createdAt: "asc" } } },
-    });
+    const conversationResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
 
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const messagesResult = await pool.query(
+      'SELECT * FROM "AIInterviewMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC',
+      [id]
+    );
+    conversation.messages = messagesResult.rows;
 
     res.json({ success: true, data: conversation });
   } catch (error) {
@@ -1230,11 +1302,12 @@ export const deleteInterviewConversation = async (req: AuthRequest, res: Respons
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const conversation = await prisma.aIInterviewConversation.findUnique({ where: { id } });
+    const conversationResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    await prisma.aIInterviewConversation.delete({ where: { id } });
+    await pool.query('DELETE FROM "AIInterviewConversation" WHERE "id" = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error("Delete conversation error:", error);
@@ -1247,7 +1320,7 @@ export const deleteAllConversations = async (req: AuthRequest, res: Response) =>
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    await prisma.aIInterviewConversation.deleteMany({ where: { userId } });
+    await pool.query('DELETE FROM "AIInterviewConversation" WHERE "userId" = $1', [userId]);
     res.json({ success: true, message: "All conversations deleted" });
   } catch (error) {
     console.error("Delete all conversations error:", error);
@@ -1261,14 +1334,16 @@ export const pinConversation = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const conversation = await prisma.aIInterviewConversation.findUnique({ where: { id } });
+    const conversationResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
 
-    const updated = await prisma.aIInterviewConversation.update({
-      where: { id },
-      data: { isPinned: !conversation.isPinned },
-    });
+    const updatedResult = await pool.query(
+      'UPDATE "AIInterviewConversation" SET "isPinned" = NOT "isPinned" WHERE "id" = $1 RETURNING *',
+      [id]
+    );
+    const updated = updatedResult.rows[0];
 
     res.json({ success: true, data: { isPinned: updated.isPinned } });
   } catch (error) {
@@ -1285,13 +1360,17 @@ export const exportConversation = async (req: AuthRequest, res: Response) => {
     const id = req.params.id as string;
     const format = (req.query.format as string) || "markdown";
 
-    const conversation = await prisma.aIInterviewConversation.findUnique({
-      where: { id },
-      include: { messages: { orderBy: { createdAt: "asc" } } },
-    });
+    const conversationResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [id]);
+    const conversation = conversationResult.rows[0];
 
     if (!conversation) return res.status(404).json({ success: false, message: "Conversation not found" });
     if (conversation.userId !== userId) return res.status(403).json({ success: false, message: "Forbidden" });
+
+    const messagesResult = await pool.query(
+      'SELECT * FROM "AIInterviewMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC',
+      [id]
+    );
+    conversation.messages = messagesResult.rows;
 
     if (format === "markdown") {
       const markdown = `# ${conversation.title}\n\n${conversation.messages

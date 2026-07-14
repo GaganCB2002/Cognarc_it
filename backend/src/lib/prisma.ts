@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { setDefaultResultOrder } from "dns";
 
+// Prefer IPv4 when resolving hostnames (fixes ENETUNREACH on Render)
 setDefaultResultOrder("ipv4first");
 
 const pool = new Pool({
@@ -15,6 +14,8 @@ const pool = new Pool({
   connectionTimeoutMillis: 15000,
 });
 
-const adapter = new PrismaPg(pool);
-export const prisma = new PrismaClient({ adapter });
+pool.on("error", (err) => {
+  console.error("[db] Unexpected pool error:", err.message);
+});
+
 export { pool };
