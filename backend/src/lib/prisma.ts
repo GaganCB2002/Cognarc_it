@@ -1,8 +1,11 @@
 import { Pool } from "pg";
-// Removed IPv4 forced resolution since Supabase deprecates IPv4 for direct connections
+import { setDefaultResultOrder } from "dns";
+
+// Force IPv4 DNS resolution for Render compatibility (Supabase IPv6 ENETUNREACH fix)
+setDefaultResultOrder("ipv4first");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL?.replace("?sslmode=require", "?sslmode=no-verify"),
+  connectionString: process.env.DATABASE_URL?.replace("?sslmode=require", ""),
   ssl: {
     rejectUnauthorized: false,
   },
