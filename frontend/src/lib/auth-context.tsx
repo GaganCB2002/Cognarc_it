@@ -115,6 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             api.setToken(clerkToken, null);
             setToken(clerkToken);
             writeStoredUser(user);
+
+            // Record this login event in Supabase (fire-and-forget)
+            api.post("/login/record", {}).catch(() => {});
           } else {
             clearAuthState();
           }

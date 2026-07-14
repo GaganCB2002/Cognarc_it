@@ -668,3 +668,35 @@ CREATE TABLE "InterviewSearchLog" (
 );
 CREATE INDEX ON "InterviewSearchLog"("userId");
 CREATE INDEX ON "InterviewSearchLog"("userId", "createdAt");
+
+-- ============================================================================
+-- Login Tracking & User Sessions (Clerk Integration)
+-- ============================================================================
+
+-- User Login Tracking: stores every login event with a unique hash
+CREATE TABLE "UserLogin" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" TEXT NOT NULL,
+  "loginHash" TEXT NOT NULL,
+  "loginCount" INT DEFAULT 0 NOT NULL,
+  "ipAddress" TEXT,
+  "userAgent" TEXT,
+  "loginMethod" TEXT DEFAULT 'clerk' NOT NULL,
+  "isActive" BOOLEAN DEFAULT true NOT NULL,
+  "loggedInAt" TIMESTAMPTZ DEFAULT now() NOT NULL,
+  "lastActiveAt" TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+CREATE INDEX ON "UserLogin"("userId");
+CREATE INDEX ON "UserLogin"("userId", "loginHash");
+CREATE INDEX ON "UserLogin"("userId", "loggedInAt");
+
+-- User Login Stats: aggregated login statistics per user
+CREATE TABLE "UserLoginStats" (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" TEXT UNIQUE NOT NULL,
+  "totalLogins" INT DEFAULT 0 NOT NULL,
+  "lastLoginAt" TIMESTAMPTZ,
+  "lastIpAddress" TEXT,
+  "createdAt" TIMESTAMPTZ DEFAULT now() NOT NULL,
+  "updatedAt" TIMESTAMPTZ DEFAULT now() NOT NULL
+);

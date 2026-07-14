@@ -30,6 +30,7 @@ import exportRoutes from "./routes/export.routes";
 import insightsRoutes from "./routes/insights.routes";
 import interviewRoutes from "./routes/interview.routes";
 import notificationRoutes from "./routes/notifications.routes";
+import loginRoutes from "./routes/login.routes";
 import { lifelogMiddleware } from "./middleware/lifelog";
 import { authenticate } from "./middleware/auth";
 import { lifelog } from "./services/lifelog.service";
@@ -263,6 +264,7 @@ app.use("/api/export", exportRoutes);
 app.use("/api/insights", insightsRoutes);
 app.use("/api/interview", interviewRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api", loginRoutes);
 
 // Lifelog retrieval API
 app.get("/api/lifelog", authenticate, async (req, res) => {
