@@ -163,8 +163,9 @@ app.get("/health", async (req, res) => {
     await pool.query("SELECT 1");
     res.status(200).json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
   } catch (error) {
-    console.error("Health check DB Error:", error);
-    res.status(503).json({ success: false, status: "error", db: "disconnected", timestamp: new Date().toISOString() });
+    const errMsg = (error as Error).message;
+    console.error("Health check DB Error:", errMsg);
+    res.status(503).json({ success: false, status: "error", db: "disconnected", error: errMsg, timestamp: new Date().toISOString() });
   }
 });
 
@@ -173,8 +174,9 @@ app.get("/api/health", async (req, res) => {
     await pool.query("SELECT 1");
     res.json({ success: true, status: "ok", db: "connected", timestamp: new Date().toISOString() });
   } catch (error) {
-    console.error("API Health check DB Error:", error);
-    res.status(503).json({ success: false, status: "error", db: "disconnected" });
+    const errMsg = (error as Error).message;
+    console.error("API Health check DB Error:", errMsg);
+    res.status(503).json({ success: false, status: "error", db: "disconnected", error: errMsg });
   }
 });
 
