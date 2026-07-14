@@ -1,23 +1,42 @@
 import { Pool } from "pg";
-import { resolve4 } from "dns/promises";
+import { promises as dns } from "dns";
 
 let _pool: Pool | null = null;
 
 async function resolveHostnameToIPv4(hostname: string, timeoutMs = 5000): Promise<string | null> {
-  try {
-    const result = await Promise.race([
-      resolve4(hostname),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("DNS resolution timed out")), timeoutMs)
-      ),
-    ]);
-    if (result.length > 0) {
-      console.log(`[db] Resolved ${hostname} -> ${result[0]}`);
-      return result[0];
+  // Try multiple DNS resolution methods — Render may restrict some
+  const methods: Array<() => Promise<string | null>> = [
+    // Method 1: dns.lookup — uses OS getaddrinfo (most reliable)
+    async () => {
+      const { address } = await dns.lookup(hostname, { family: 4 });
+      return address;
+    },
+    // Method 2: dns.resolve4 — uses network DNS servers
+    async () => {
+      const addresses = await dns.resolve4(hostname);
+      return addresses[0] || null;
+    },
+  ];
+
+  for (const method of methods) {
+    try {
+      const result = await Promise.race([
+        method(),
+        new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("DNS resolution timed out")), timeoutMs)
+        ),
+      ]);
+      if (result) {
+        console.log(`[db] Resolved ${hostname} -> ${result}`);
+        return result;
+      }
+    } catch (err) {
+      console.warn(`[db] DNS method failed for ${hostname}: ${(err as Error).message}`);
     }
-  } catch (err) {
-    console.warn(`[db] IPv4 resolution failed for ${hostname}: ${(err as Error).message}`);
   }
+
+  // Last resort: try to connect with family: 4 directly (pg will do dns.lookup internally)
+  console.warn(`[db] All DNS resolution methods failed for ${hostname}, using family:4 fallback`);
   return null;
 }
 

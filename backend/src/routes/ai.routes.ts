@@ -2,8 +2,9 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth";
 import { getDocumentSummary, getQuiz, chat, careerChat, listConversations, deleteConversation, getConversation, documentQA, audioAnalysis, videoAnalysis } from "../controllers/ai.controller";
 import multer from "multer";
+import { MAX_FILE_SIZE } from "../constants/upload.constants";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_SIZE } });
 const router = Router();
 
 router.post("/summary", authenticate, getDocumentSummary);

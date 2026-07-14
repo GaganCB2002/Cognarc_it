@@ -97,7 +97,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
 
     const { topic, duration, type, notes } = req.body;
 
-    const validTypes = ['DEEP_WORK', 'LEARNING', 'MEETING', 'BREAK', 'OTHER'];
+    const validTypes = ['GENERAL', 'CODING', 'READING', 'VIDEO', 'QUIZ'];
     if (type && !validTypes.includes(type)) {
       res.status(400).json({ success: false, message: 'Invalid session type' });
       return;
@@ -134,7 +134,7 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
 
     const { topic, duration, type, notes } = req.body;
 
-    const validTypes = ['DEEP_WORK', 'LEARNING', 'MEETING', 'BREAK', 'OTHER'];
+    const validTypes = ['GENERAL', 'CODING', 'READING', 'VIDEO', 'QUIZ'];
     if (type && !validTypes.includes(type)) {
       res.status(400).json({ success: false, message: 'Invalid session type' });
       return;
