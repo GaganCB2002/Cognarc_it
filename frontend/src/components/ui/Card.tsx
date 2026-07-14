@@ -8,8 +8,8 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        "relative rounded-xl border border-st-border bg-st-bg-card text-st-text-primary shadow-sm",
-        "before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/[0.02] before:to-transparent",
+        "relative rounded-xl border border-st-border bg-st-bg-card text-st-text-primary shadow-sm glass-dash-card",
+        "before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:bg-gradient-to-b before:from-white/[0.03] before:to-transparent",
         className
       )}
       {...props}

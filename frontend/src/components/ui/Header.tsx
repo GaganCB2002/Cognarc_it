@@ -79,7 +79,7 @@ export function Header({
   ];
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-st-bg-card/70 backdrop-blur-xl border-b border-st-border sticky top-0 z-40 gap-4 shadow-sm">
+    <header className="flex items-center justify-between px-6 py-3 glass-dash-header sticky top-0 z-40 gap-4">
       
       <div className="flex flex-col min-w-[200px]">
         <div className="flex items-center text-xs font-medium text-st-text-muted mb-0.5">

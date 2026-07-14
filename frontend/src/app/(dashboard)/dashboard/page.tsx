@@ -105,10 +105,10 @@ export default function DashboardPage() {
           <p className="text-sm text-st-text-secondary mt-0.5">Ready for today&apos;s deep work session?</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link href="/reports" className="relative p-2.5 rounded-lg bg-st-bg-card border border-st-border hover:border-st-border-light hover:bg-st-bg-elevated transition-all duration-200">
+          <Link href="/reports" className="relative p-2.5 rounded-lg glass-dash-card hover:bg-st-bg-elevated transition-all duration-200">
             <Bell className="w-[18px] h-[18px] text-st-text-secondary" />
           </Link>
-          <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-st-accent/10 to-st-accent/5 rounded-lg border border-st-accent/15">
+          <div className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-st-accent/10 to-st-accent/5 rounded-lg border border-st-accent/15 glass-dash-card">
             <Flame className="w-[18px] h-[18px] text-st-accent" />
             <span className="text-sm font-semibold text-st-text-primary">0 Day Streak</span>
           </div>
@@ -119,14 +119,14 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {quickActions.map((action) => (
           <Link key={action.name} href={action.href}>
-            <Card className="p-4 hover:border-st-accent/20 transition-all duration-200 cursor-pointer group hover:shadow-lg hover:shadow-st-accent/[0.02]">
+            <Card className="p-4 hover:border-st-accent/20 transition-all duration-200 cursor-pointer group">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg ${action.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
                   <action.icon className={`w-5 h-5 ${action.color}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-sm text-st-text-primary block truncate">{action.name}</span>
-                  <span className="text-[10px] text-st-text-muted">Quick action</span>
+                  <span className="text-[10px] text-st-text-tertiary">Quick action</span>
                 </div>
                 <ArrowUpRight className="w-3.5 h-3.5 text-st-text-muted group-hover:text-st-accent transition-colors shrink-0" />
               </div>
@@ -143,10 +143,7 @@ export default function DashboardPage() {
               <Clock className="w-3.5 h-3.5 text-emerald-400" />
               <p className="text-xs font-medium text-emerald-400">Study Hours</p>
             </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">{totalStudyHours}</h3>
-              <span className="text-xs text-st-text-muted">total</span>
-            </div>
+            <p className="text-2xl font-bold text-st-text-primary tracking-tight">{totalStudyHours} <span className="text-xs font-normal text-st-text-tertiary">total</span></p>
           </Card>
         </Link>
         <Link href="/tasks">
@@ -155,9 +152,7 @@ export default function DashboardPage() {
               <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
               <p className="text-xs font-medium text-blue-400">Tasks Done</p>
             </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">{completedTasksCount}/{tasks.length}</h3>
-            </div>
+            <p className="text-2xl font-bold text-st-text-primary tracking-tight">{completedTasksCount}/{tasks.length}</p>
           </Card>
         </Link>
         <Link href="/productivity">
@@ -166,9 +161,7 @@ export default function DashboardPage() {
               <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
               <p className="text-xs font-medium text-purple-400">Productivity</p>
             </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">--%</h3>
-            </div>
+            <p className="text-2xl font-bold text-st-text-primary tracking-tight">--%</p>
           </Card>
         </Link>
         <Link href="/analytics">
@@ -177,12 +170,9 @@ export default function DashboardPage() {
               <Zap className="w-3.5 h-3.5 text-rose-400" />
               <p className="text-xs font-medium text-rose-400">Focus Score</p>
             </div>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-2xl font-bold text-st-text-primary tracking-tight">--</h3>
-            </div>
+            <p className="text-2xl font-bold text-st-text-primary tracking-tight">--</p>
           </Card>
         </Link>
-        {/* Pomodoro Timer */}
         <Card className="p-4 bg-gradient-to-br from-st-accent/[0.08] to-st-accent/[0.03] border-st-accent/15 group">
           <div className="flex justify-between items-center mb-1.5">
             <p className="text-xs font-medium text-st-accent">Pomodoro</p>
@@ -195,7 +185,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          <h3 className="text-2xl font-bold text-st-text-primary font-mono tracking-tight">{formatTime(timerSeconds)}</h3>
+          <p className="text-2xl font-bold text-st-text-primary font-mono tracking-tight">{formatTime(timerSeconds)}</p>
           {pomodoroCount > 0 && (
             <p className="text-[10px] text-st-accent mt-1 font-medium">{pomodoroCount} session{pomodoroCount > 1 ? 's' : ''} completed</p>
           )}
