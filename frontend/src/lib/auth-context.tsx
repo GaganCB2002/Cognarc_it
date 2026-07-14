@@ -27,17 +27,7 @@ interface User {
   settings?: unknown;
 }
 
-interface LoginResponse {
-  message: string;
-  token: string;
-  refreshToken?: string;
-  user: User;
-}
 
-interface RegisterResponse {
-  message: string;
-  user: User;
-}
 
 interface AuthContextType {
   user: User | null;
@@ -126,20 +116,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const res = await api.post<LoginResponse>("/auth/clerk", { token: clerkToken });
+        // We use the Clerk token directly for our API requests.
+        // The backend authenticate middleware supports it via ClerkExpressRequireAuth.
         if (cancelled) return;
-        api.setToken(res.token, res.refreshToken || null);
-        setToken(res.token);
-        setUser(res.user);
-        writeStoredUser(res.user);
+        api.setToken(clerkToken, null);
+        setToken(clerkToken);
+        
+        // Fetch user basic data via our mocked backend /auth/me or Clerk hook.
+        try {
+          const res = await api.get<{ user: User }>("/auth/me");
+          setUser(res.user);
+          writeStoredUser(res.user);
+        } catch {
+          // It's okay if /auth/me fails, user is managed by clerk UI
+        }
+
         setUserKey(k => k + 1);
         setIsLoading(false);
-      } catch (e) {
+      } catch {
         if (cancelled) return;
         clearAuthState();
         api.setToken(null);
         setIsLoading(false);
-        try { await signOut(); } catch (err) {}
+        try { await signOut(); } catch {}
       }
     };
 
@@ -174,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, getClerkToken]);
+  }, [isSignedIn, getClerkToken, signOut]);
 
   const refreshUser = useCallback(async () => {
     try {

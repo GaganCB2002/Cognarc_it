@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -8,15 +8,18 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 gsap.registerPlugin(ScrollTrigger);
 
 export function SmoothScroll({ children }: { children: ReactNode }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: 1.1,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: "vertical",
       gestureOrientation: "vertical",
       wheelMultiplier: 1,
-      touchMultiplier: 2,
+      touchMultiplier: 1.5,
       infinite: false,
+      smoothWheel: true,
     });
 
     lenis.on("scroll", ScrollTrigger.update);
@@ -36,7 +39,10 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="landing-page-wrapper bg-lp-bg-primary text-lp-text-primary min-h-screen w-full overflow-hidden font-sans selection:bg-lp-accent-blue/30">
+    <div
+      ref={wrapperRef}
+      className="landing-page-wrapper bg-lp-bg-primary text-lp-text-primary min-h-screen w-full overflow-x-hidden font-sans selection:bg-lp-accent/20"
+    >
       {children}
     </div>
   );

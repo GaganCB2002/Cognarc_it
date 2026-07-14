@@ -3,6 +3,7 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import { format } from "date-fns";
+import Image from "next/image";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { GlobalSearch } from "@/components/ui/GlobalSearch";
 import { HeaderSessionPanel } from "@/components/dashboard/HeaderSessionPanel";
@@ -159,7 +160,7 @@ export function Header({
 
         <div className="pl-2 border-l border-st-border">
           {user?.avatar ? (
-            <img src={user.avatar} alt="" className="w-9 h-9 rounded-lg border border-st-border shadow-sm object-cover" />
+            <Image src={user.avatar} alt="" width={36} height={36} className="w-9 h-9 rounded-lg border border-st-border shadow-sm object-cover" />
           ) : (
             <div className="w-9 h-9 rounded-lg bg-st-accent/20 border border-st-border flex items-center justify-center text-sm font-semibold text-st-accent">
               {user?.name?.charAt(0)?.toUpperCase() || "U"}

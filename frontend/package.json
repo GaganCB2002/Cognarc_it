@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "build:dev": "next build",
-    "start": "next start",
+    "dev": "env-cmd -f ../env.frontend next dev",
+    "build": "env-cmd -f ../env.frontend next build",
+    "build:dev": "env-cmd -f ../env.frontend next build",
+    "start": "env-cmd -f ../env.frontend next start",
     "lint": "eslint"
   },
   "dependencies": {

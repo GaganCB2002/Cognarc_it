@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 import {
   FileText, ArrowLeft, Sparkles, Save, Loader2, Maximize2,
   Minimize2, Trash2, Palette, Highlighter,
@@ -144,7 +144,7 @@ export default function PDFViewerPage() {
     if (docText) return docText;
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${id}/text`,
+        `${API_URL}/upload/${id}/text`,
         { headers: { Authorization: `Bearer ${api.getToken()}` } }
       );
       if (!res.ok) throw new Error("Failed to extract text");
@@ -154,7 +154,7 @@ export default function PDFViewerPage() {
     } catch { return null; }
   }, [id, docText]);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
 
   const fetchDocBinary = useCallback(async (): Promise<Blob | null> => {
     const token = api.getToken();
@@ -178,8 +178,8 @@ export default function PDFViewerPage() {
     };
 
     const endpoints = [
-      `${apiBase}/upload/${id}/download`,
-      `${apiBase}/upload/${id}`,
+      `${API_URL}/upload/${id}/download`,
+      `${API_URL}/upload/${id}`,
     ];
 
     for (const ep of endpoints) {
@@ -189,7 +189,7 @@ export default function PDFViewerPage() {
       } catch { /* try next */ }
     }
     return null;
-  }, [id, apiBase]);
+  }, [id, API_URL]);
 
   const fetchDoc = useCallback(async () => {
     try {
@@ -251,7 +251,7 @@ export default function PDFViewerPage() {
   };
 
   const handleDownloadDirect = () => {
-    window.open(`${apiBase}/upload/${id}/download`, "_blank");
+    window.open(`${API_URL}/upload/${id}/download`, "_blank");
   };
 
   const handleCreateNote = async () => {

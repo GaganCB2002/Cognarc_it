@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float, PerspectiveCamera, Environment, MeshDistortMaterial } from "@react-three/drei";
 import * as THREE from "three";
@@ -10,24 +10,28 @@ function AnimatedSphere() {
 
   useFrame((state) => {
     if (meshRef.current) {
-      meshRef.current.rotation.x = state.clock.getElapsedTime() * 0.2;
-      meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.3;
+      meshRef.current.rotation.x = state.clock.getElapsedTime() * 0.15;
+      meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.25;
     }
   });
 
+  const color = useMemo(() => new THREE.Color("#A8C5DA"), []);
+  const emissive = useMemo(() => new THREE.Color("#C4B5D4"), []);
+
   return (
-    <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-      <mesh ref={meshRef} scale={2.8}>
-        <icosahedronGeometry args={[1, 30]} />
+    <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.8}>
+      <mesh ref={meshRef} scale={2.5}>
+        <icosahedronGeometry args={[1, 20]} />
         <MeshDistortMaterial
-          color="#FFFFFF"
-          emissive="#7DD3FC"
-          emissiveIntensity={0.2}
-          attach="material"
-          distort={0.3}
-          speed={1.5}
-          roughness={0.1}
-          metalness={0.5}
+          color={color}
+          emissive={emissive}
+          emissiveIntensity={0.15}
+          distort={0.25}
+          speed={1.2}
+          roughness={0.15}
+          metalness={0.3}
+          transparent
+          opacity={0.8}
         />
       </mesh>
     </Float>
@@ -36,12 +40,12 @@ function AnimatedSphere() {
 
 export default function Hero3D() {
   return (
-    <div className="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-70 mix-blend-screen">
-      <Canvas>
+    <div className="absolute inset-0 w-full h-full pointer-events-none z-10 opacity-60">
+      <Canvas dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}>
         <PerspectiveCamera makeDefault position={[0, 0, 5]} fov={45} />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 5]} intensity={1} color="#ffffff" />
-        <directionalLight position={[-10, -10, -5]} intensity={0.5} color="#ABC8E2" />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 10, 5]} intensity={0.8} color="#A8C5DA" />
+        <directionalLight position={[-10, -10, -5]} intensity={0.3} color="#C4B5D4" />
         <AnimatedSphere />
         <Environment preset="city" />
       </Canvas>

@@ -219,3 +219,105 @@ export const careerChat = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ success: false, message: "Failed to process career chat" });
   }
 };
+
+export const documentQA = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const file = req.file;
+    const { question } = req.body;
+
+    if (!file) {
+      return res.status(400).json({ success: false, message: "File is required" });
+    }
+    if (!question) {
+      return res.status(400).json({ success: false, message: "Question is required" });
+    }
+
+    const formData = new FormData();
+    formData.append("file", new Blob([file.buffer as BlobPart], { type: file.mimetype }), file.originalname);
+    formData.append("question", question);
+
+    const pythonServiceUrl = process.env.PYTHON_AI_SERVICE_URL || "http://localhost:8000";
+    const response = await fetch(`${pythonServiceUrl}/api/doc-qa`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Python AI service returned ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Document QA error:", error);
+    res.status(500).json({ success: false, message: "Failed to process Document QA via Python service" });
+  }
+};
+
+export const audioAnalysis = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: "File is required" });
+    }
+
+    const formData = new FormData();
+    formData.append("file", new Blob([file.buffer as BlobPart], { type: file.mimetype }), file.originalname);
+
+    const pythonServiceUrl = process.env.PYTHON_AI_SERVICE_URL || "http://localhost:8000";
+    const response = await fetch(`${pythonServiceUrl}/api/audio-analyze`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Python AI service returned ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Audio Analysis error:", error);
+    res.status(500).json({ success: false, message: "Failed to process Audio Analysis via Python service" });
+  }
+};
+
+export const videoAnalysis = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, message: "File is required" });
+    }
+
+    const formData = new FormData();
+    formData.append("file", new Blob([file.buffer as BlobPart], { type: file.mimetype }), file.originalname);
+
+    const pythonServiceUrl = process.env.PYTHON_AI_SERVICE_URL || "http://localhost:8000";
+    const response = await fetch(`${pythonServiceUrl}/api/video-analyze`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Python AI service returned ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("Video Analysis error:", error);
+    res.status(500).json({ success: false, message: "Failed to process Video Analysis via Python service" });
+  }
+};

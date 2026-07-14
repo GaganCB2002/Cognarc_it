@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 import { UploadModal } from "@/components/dashboard/UploadModal";
 import { ImageViewer } from "@/components/dashboard/ImageViewer";
 import { VideoViewer } from "@/components/dashboard/VideoViewer";
@@ -189,7 +189,7 @@ export default function KnowledgeVaultPage() {
   const [confirmDelete, setConfirmDelete] = useState<FileItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+  const BASE = API_URL;
 
   const fetchFiles = async () => {
     setLoading(true);

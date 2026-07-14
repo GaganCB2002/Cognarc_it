@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 import {
   FileText, Upload, MessageSquare, Sparkles, BookOpen, HelpCircle,
   Brain, Lightbulb, Search, FileSearch, Loader2,
@@ -118,7 +118,7 @@ export default function PDFIntelligencePage() {
     setAiResult(null);
     try {
       const fileRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${selectedDoc.id}/text`,
+        `${API_URL}/upload/${selectedDoc.id}/text`,
         { headers: { Authorization: `Bearer ${api.getToken()}` } }
       );
       if (!fileRes.ok) throw new Error("Failed to extract text from document");
@@ -341,7 +341,7 @@ export default function PDFIntelligencePage() {
                     <Button variant="ghost" size="sm" onClick={() => router.push(`/pdf-intelligence/view/${selectedDoc.id}`)}>
                       <ExternalLink className="w-4 h-4 mr-1" />Open Viewer
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api"}/upload/${selectedDoc.id}`, "_blank")}>
+                    <Button variant="ghost" size="sm" onClick={() => window.open(`${API_URL}/upload/${selectedDoc.id}`, "_blank")}>
                       <FileText className="w-4 h-4 mr-1" />Download
                     </Button>
                   </div>

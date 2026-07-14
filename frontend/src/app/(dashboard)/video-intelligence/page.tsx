@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import api from "@/lib/api";
+import api, { API_URL } from "@/lib/api";
 import { VideoViewer } from "@/components/dashboard/VideoViewer";
 import { ConfirmDialog } from "@/components/crud/ConfirmDialog";
 import Image from "next/image";
@@ -103,7 +103,7 @@ export default function VideoIntelligencePage() {
   const [activeTab, setActiveTab] = useState<"summary" | "notes" | "quiz">("summary");
   const [videoViewer, setVideoViewer] = useState<{ src: string; filename: string; mimeType: string } | null>(null);
 
-  const BASE = process.env.NEXT_PUBLIC_API_URL || "https://cognarc-it-1.onrender.com/api";
+  const BASE = API_URL;
 
   const fetchVideos = useCallback(async () => {
     setLoading(true);

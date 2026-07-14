@@ -1,6 +1,6 @@
 import { toast } from "react-hot-toast";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+import { API_URL as BASE } from "@/lib/api";
 
 export async function downloadFile(fileId: string, filename: string) {
   if (typeof window === "undefined") return;

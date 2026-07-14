@@ -613,21 +613,20 @@ export const startMockInterview = async (req: AuthRequest, res: Response) => {
     const { type, difficulty } = req.body;
     const sessionType = type || "technical";
 
-    // Gather user context: resume, job description, notes, documents
-    const [profile, notes, documents] = await Promise.all([
-      prisma.profile.findUnique({ where: { userId } }),
+    // Gather user context: notes, documents
+    const [notes, documents] = await Promise.all([
       prisma.note.findMany({ where: { userId }, orderBy: { updatedAt: "desc" }, take: 10 }),
       prisma.document.findMany({ where: { userId, status: "READY" }, orderBy: { createdAt: "desc" }, take: 10 }),
     ]);
 
     const userContext = {
-      resume: profile?.resume || null,
-      jobDescription: profile?.jobDescription || null,
-      targetRole: profile?.targetRole || null,
-      currentLevel: profile?.currentLevel || null,
-      skills: profile?.skills || null,
-      notes: notes.map(n => ({ title: n.title, content: n.content?.substring(0, 2000) })),
-      documents: documents.map(d => ({ name: d.originalName, type: d.mimeType })),
+      resume: null,
+      jobDescription: null,
+      targetRole: null,
+      currentLevel: null,
+      skills: null,
+      notes: notes.map((n: { title: string; content?: string | null }) => ({ title: n.title, content: n.content?.substring(0, 2000) })),
+      documents: documents.map((d: { originalName: string; mimeType: string }) => ({ name: d.originalName, type: d.mimeType })),
     };
 
     const category = sessionType === "hr" ? "HR & Behavioral" : sessionType === "system-design" ? "System Design" : "Technical";

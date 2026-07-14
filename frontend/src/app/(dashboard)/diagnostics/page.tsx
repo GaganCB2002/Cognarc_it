@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { api, API_URL, getBackendOrigin } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
-import { useAuth } from "@/lib/auth-context";
 import { io as socketIO, Socket } from "socket.io-client";
 import {
   Activity, Server, Database, Globe, Monitor, ShieldCheck,
@@ -146,7 +145,6 @@ function ServiceCard({
 }
 
 export default function DiagnosticsPage() {
-  const { user } = useAuth();
   const [backend, setBackend] = useState<ServiceState>(initialService);
   const [database, setDatabase] = useState<ServiceState>(initialService);
   const [socket, setSocket] = useState<ServiceState>(initialService);
@@ -160,7 +158,7 @@ export default function DiagnosticsPage() {
   const checkBackend = useCallback(async () => {
     const start = Date.now();
     try {
-      const res = await fetch(`${API_URL.replace('/api', '')}/health`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(5000) });
       const data = await res.json();
       setBackend({
         status: res.ok ? "connected" : "error",
@@ -272,7 +270,7 @@ export default function DiagnosticsPage() {
     } catch {
       // Telemetry endpoint may 401 if not authenticated properly
     }
-  }, [user?.id]);
+  }, []);
 
   const pollAll = useCallback(async () => {
     if (pollingRef.current) return;

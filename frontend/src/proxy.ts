@@ -2,25 +2,43 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
-  '/',
-  '/login(.*)',
-  '/register(.*)',
-  '/forgot-password(.*)',
-  '/reset-password(.*)',
-  '/api(.*)'
+  "/",
+  "/login(.*)",
+  "/register(.*)",
+  "/api(.*)",
 ]);
 
-export default clerkMiddleware((auth, request) => {
-  // Let the client-side layout handle protection for /student/dashboard etc.
-  // We just need the middleware to sync the session cookies.
+const isDashboardRoute = createRouteMatcher([
+  "/(.*)/dashboard(.*)"
+]);
+
+export default clerkMiddleware(async (auth, req) => {
+  const { userId, sessionClaims } = await auth();
+  const url = req.nextUrl.clone();
+
+  if (userId && (url.pathname === '/login' || url.pathname === '/register' || url.pathname === '/')) {
+    const role = (sessionClaims?.metadata as Record<string, unknown>)?.role || 'student';
+    return NextResponse.redirect(new URL(`/${role}/dashboard`, req.url));
+  }
+
+  if (isDashboardRoute(req)) {
+    if (!userId) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+    const role = (sessionClaims?.metadata as Record<string, unknown>)?.role || 'student';
+    const requestedRole = url.pathname.split('/')[1];
+    if (requestedRole !== role && requestedRole !== 'api' && requestedRole !== 'uploads') {
+      return NextResponse.redirect(new URL(`/${role}/dashboard`, req.url));
+    }
+  }
+
+  if (!isPublicRoute(req) && !userId) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
+
   return NextResponse.next();
 });
 
 export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
-  ],
+  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
 };

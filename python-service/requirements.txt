@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+transformers
+torch
+torchvision
+Pillow
+pytesseract
+librosa
+soundfile
+opencv-python-headless
+moviepy

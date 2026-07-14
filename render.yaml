@@ -38,6 +38,8 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
+      - key: PYTHON_AI_SERVICE_URL
+        value: https://ai-python-service.onrender.com
 
   - type: web
     name: studytrack-web
@@ -51,6 +53,17 @@ services:
         sync: false
       - key: CLERK_SECRET_KEY
         sync: false
+
+  - type: web
+    name: ai-python-service
+    env: docker
+    region: oregon
+    dockerfilePath: ./python-service/Dockerfile
+    plan: standard
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
 
 databases:
   - name: studytrack-db

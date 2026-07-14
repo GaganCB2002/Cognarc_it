@@ -24,7 +24,7 @@ function extractToken(req: Request): string | null {
 
 export const authenticate = (req: Request, res: Response, next: NextFunction) => {
   // First try using Clerk authentication
-  ClerkExpressRequireAuth()(req, res, (err: any) => {
+  ClerkExpressRequireAuth()(req as any, res as any, (err: any) => {
     // If Clerk successfully authenticated the user
     if (!err && req.auth && req.auth.userId) {
       req.user = { userId: req.auth.userId };
@@ -47,7 +47,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
 };
 
 export const optionalAuth = (req: Request, res: Response, next: NextFunction) => {
-  ClerkExpressWithAuth()(req, res, (err: any) => {
+  ClerkExpressWithAuth()(req as any, res as any, (err: any) => {
     // If Clerk authenticated
     if (!err && req.auth && req.auth.userId) {
       req.user = { userId: req.auth.userId };

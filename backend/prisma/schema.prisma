@@ -9,119 +9,37 @@ datasource db {
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
+  password      String
   name          String
-  password      String?
-  avatar        String?
-  role          Role      @default(STUDENT)
-  isApproved   Boolean    @default(false)
+  role          String    @default("STUDENT")
+  isApproved    Boolean   @default(false)
   emailVerified DateTime?
-  otpCode      String?
-  faceData     String?
-  provider     AuthProvider @default(LOCAL)
-  providerId    String?
+  otpCode       String?
+  otpExpiresAt  DateTime?
+  avatar        String?
   refreshToken  String?
-  settings      Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  sessions             Session[]
-  loginHistory         LoginHistory[]
-  profile              Profile?
-  learningStreak       LearningStreak?
-  studySessions        StudySession[]
-  tasks                Task[]
-  notes                Note[]
-  resources            Resource[]
-  documents            Document[]
-  collections          Collection[]
-  notifications        Notification[]
-  notificationPrefs    NotificationPreference[]
-  activityLogs         ActivityLog[]
-  activityEvents       ActivityEvent[]
-  trackingSessions     TrackingSession[]
-  calendarEvents       CalendarEvent[]
-  reports              Report[]
-  exportLogs           ExportLog[]
-  browserEvents        BrowserTelemetry[]
-  desktopEvents        DesktopTelemetry[]
-  otps                 Otp[]
-  
-  // AI Integration
-  aiConversations      AIConversation[]
-  dailySummaries       DailySummary[]
-  
-  // Interview Hub
-  interviewQuestions        InterviewQuestion[]
-  companyQuestions          CompanyQuestion[]
-  aiInterviewConversations  AIInterviewConversation[]
-  savedItems                UserSavedItem[]
-  bookmarks                 UserBookmark[]
-  mcqs                      MCQ[]
-  mcqAttempts               MCQAttempt[]
-  codingProblems            CodingProblem[]
-  codingSubmissions         CodingSubmission[]
-  interviewSessions         InterviewSession[]
-  interviewNotes            InterviewNote[]
-  interviewProgress         UserInterviewProgress?
-  interviewRecommendations  InterviewRecommendation[]
-  interviewSearchLogs       InterviewSearchLog[]
-}
-
-model Session {
-  id        String   @id @default(uuid())
-  userId    String
-  token     String   @unique
-  device    String?
-  ip        String?
-  lastActive DateTime @default(now())
-  expiresAt DateTime
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model LoginHistory {
-  id        String   @id @default(uuid())
-  userId    String
-  device    String?
-  ip        String?
-  browser   String?
-  os        String?
-  location  String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile       Profile?
+  learningStreak LearningStreak?
 }
 
 model Profile {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  bio         String?
-  targetRole  String?
-  currentLevel String?
-  weeklyHours Int?
-  careerGoals String?
-  skills      Json?
-  timezone    String?
-  githubUrl   String?
-  linkedinUrl String?
-  portfolioUrl String?
-  resume       String?
+  id             String  @id @default(uuid())
+  userId         String  @unique
+  bio            String?
+  targetRole     String?
+  currentLevel   String?
+  weeklyHours    Int?
+  timezone       String?
+  skills         Json?
+  careerGoals    String?
+  githubUrl      String?
+  linkedinUrl    String?
+  portfolioUrl   String?
+  resume         String?
   jobDescription String?
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Otp {
-  id        String   @id @default(uuid())
-  userId    String
-  email     String
-  code      String
-  type      String   @default("LOGIN")  // LOGIN, PASSWORD_RESET
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, type])
-  @@index([email])
-  @@index([createdAt])
+  user           User    @relation(fields: [userId], references: [id])
 }
 
 model LearningStreak {
@@ -130,33 +48,32 @@ model LearningStreak {
   currentStreak  Int      @default(0)
   longestStreak  Int      @default(0)
   lastActiveDate DateTime?
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id])
 }
 
 model StudySession {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   userId    String
   topic     String
-  duration  Int      // in seconds
+  duration  Int // in seconds
   type      SessionType @default(GENERAL)
   notes     String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
 }
 
 model Task {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   userId      String
   title       String
   description String?
-  priority    Priority @default(MEDIUM)
+  priority    Priority   @default(MEDIUM)
   status      TaskStatus @default(TODO)
   dueDate     DateTime?
   category    String?
   checklist   Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@index([userId, status])
   @@index([userId, priority])
@@ -173,8 +90,7 @@ model Note {
   isPinned  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   // AI Integration
   intelligence NoteIntelligence?
 
@@ -184,23 +100,23 @@ model Note {
 }
 
 model Resource {
-  id           String     @id @default(uuid())
+  id           String       @id @default(uuid())
   userId       String
   title        String
   type         ResourceType
   url          String?
   fileKey      String?
-  fileSize     Int?       // in bytes
-  mimeType     String?    // MIME type of the file
+  fileSize     Int? // in bytes
+  mimeType     String? // MIME type of the file
   tags         String[]
   collectionId String?
-  isFavorite   Boolean    @default(false)
-  isUpload     Boolean    @default(false) // true if this is an uploaded file
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-  document     Document?  // link to Document for uploaded files
+  isFavorite   Boolean      @default(false)
+  isUpload     Boolean      @default(false) // true if this is an uploaded file
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  document   Document? // link to Document for uploaded files
 
   @@index([userId])
   @@index([userId, type])
@@ -216,20 +132,19 @@ model Collection {
   icon        String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resources   Resource[]
+
+  resources Resource[]
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
   title     String
   body      String
   type      NotificationType
-  isRead    Boolean  @default(false)
+  isRead    Boolean          @default(false)
   actionUrl String?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, isRead])
@@ -244,7 +159,6 @@ model ActivityLog {
   entityId  String
   metadata  Json?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum TrackingSessionStatus {
@@ -317,22 +231,22 @@ enum NotificationChannel {
 }
 
 model TrackingSession {
-  id            String                @id @default(uuid())
-  userId        String
-  status        TrackingSessionStatus @default(ACTIVE)
-  deviceId      String?               // client-generated device identifier
-  deviceName    String?               // "Chrome on Windows", "Safari on iPhone", etc.
-  projectName   String?               // optional project context
-  startTime     DateTime
-  endTime       DateTime?
-  pausedAt      DateTime?
-  totalPauseMs  Int                   @default(0) // accumulated pause duration in ms
-  lastActivity  DateTime              @default(now())
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activities    ActivityEvent[]
-  reports       Report[]
+  id           String                @id @default(uuid())
+  userId       String
+  status       TrackingSessionStatus @default(ACTIVE)
+  deviceId     String? // client-generated device identifier
+  deviceName   String? // "Chrome on Windows", "Safari on iPhone", etc.
+  projectName  String? // optional project context
+  startTime    DateTime
+  endTime      DateTime?
+  pausedAt     DateTime?
+  totalPauseMs Int                   @default(0) // accumulated pause duration in ms
+  lastActivity DateTime              @default(now())
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  activities       ActivityEvent[]
+  reports          Report[]
   browserTelemetry BrowserTelemetry[]
   desktopTelemetry DesktopTelemetry[]
 
@@ -343,19 +257,19 @@ model TrackingSession {
 }
 
 model ActivityEvent {
-  id              String       @id @default(uuid())
+  id                String        @id @default(uuid())
   trackingSessionId String
-  userId          String
-  eventType       String       // PAGE_VIEW, TASK_DONE, NOTE_CREATED, VIDEO_WATCHED, etc.
-  category        EventCategory @default(OTHER)
-  module          String?      // "dashboard", "curriculum", "tasks", "notes", etc.
-  entityId        String?      // UUID of related entity (task id, note id, etc.)
-  entityType      String?      // "Task", "Note", "StudySession", etc.
-  label           String?      // human-readable description
-  duration        Int          @default(0) // time spent in seconds
-  metadata        Json?        // arbitrary event-specific data
-  createdAt       DateTime     @default(now())
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  eventType         String // PAGE_VIEW, TASK_DONE, NOTE_CREATED, VIDEO_WATCHED, etc.
+  category          EventCategory @default(OTHER)
+  module            String? // "dashboard", "curriculum", "tasks", "notes", etc.
+  entityId          String? // UUID of related entity (task id, note id, etc.)
+  entityType        String? // "Task", "Note", "StudySession", etc.
+  label             String? // human-readable description
+  duration          Int           @default(0) // time spent in seconds
+  metadata          Json? // arbitrary event-specific data
+  createdAt         DateTime      @default(now())
+
   trackingSession TrackingSession @relation(fields: [trackingSessionId], references: [id], onDelete: Cascade)
 
   @@index([trackingSessionId])
@@ -367,26 +281,25 @@ model ActivityEvent {
 }
 
 model CalendarEvent {
-  id            String          @id @default(uuid())
-  userId        String
-  title         String
-  description   String?
-  eventType     String          // "LEARNING", "CODING", "TASK", "MEETING", "REVISION", "GOAL", etc.
-  color         String?         // hex color for display
-  startTime     DateTime
-  endTime       DateTime?
-  isAllDay      Boolean         @default(false)
-  isRecurring   Boolean         @default(false)
+  id             String          @id @default(uuid())
+  userId         String
+  title          String
+  description    String?
+  eventType      String // "LEARNING", "CODING", "TASK", "MEETING", "REVISION", "GOAL", etc.
+  color          String? // hex color for display
+  startTime      DateTime
+  endTime        DateTime?
+  isAllDay       Boolean         @default(false)
+  isRecurring    Boolean         @default(false)
   recurrenceType RecurrenceType?
-  recurrenceRule Json?          // RFC 5545 RRULE or custom JSON
+  recurrenceRule Json? // RFC 5545 RRULE or custom JSON
   recurrenceEnd  DateTime?
-  timezone      String?         // IANA timezone (e.g. "America/New_York")
-  location      String?
-  tags          String[]
-  metadata      Json?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timezone       String? // IANA timezone (e.g. "America/New_York")
+  location       String?
+  tags           String[]
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([userId])
   @@index([userId, startTime])
@@ -395,23 +308,23 @@ model CalendarEvent {
 }
 
 model Report {
-  id            String     @id @default(uuid())
-  userId        String
+  id                String     @id @default(uuid())
+  userId            String
   trackingSessionId String? // null for daily/weekly/monthly reports
-  type          ReportType
-  title         String
-  summary       String?    // natural-language AI summary
-  durationSeconds Int      @default(0)
+  type              ReportType
+  title             String
+  summary           String? // natural-language AI summary
+  durationSeconds   Int        @default(0)
   productivityScore Float? // 0-100
-  focusScore    Float?     // 0-100
-  metrics       Json?      // { learningTime, codingTime, taskTime, etc. }
-  chartData     Json?      // pre-computed chart data
-  recommendations Json?   // AI-generated recommendations
-  insights      Json?      // AI-generated insights
-  technologies  String[]   // technologies covered
-  topics        String[]   // topics learned
-  createdAt     DateTime   @default(now())
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusScore        Float? // 0-100
+  metrics           Json? // { learningTime, codingTime, taskTime, etc. }
+  chartData         Json? // pre-computed chart data
+  recommendations   Json? // AI-generated recommendations
+  insights          Json? // AI-generated insights
+  technologies      String[] // technologies covered
+  topics            String[] // topics learned
+  createdAt         DateTime   @default(now())
+
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
 
   @@index([userId])
@@ -420,34 +333,32 @@ model Report {
 }
 
 model ExportLog {
-  id            String       @id @default(uuid())
-  userId        String
-  format        ExportFormat
-  entityType    String       // "report", "activity", "calendar", etc.
-  entityId      String?
-  fileName      String
-  fileSize      Int?
-  storageKey    String?      // path to exported file
-  createdAt     DateTime     @default(now())
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String       @id @default(uuid())
+  userId     String
+  format     ExportFormat
+  entityType String // "report", "activity", "calendar", etc.
+  entityId   String?
+  fileName   String
+  fileSize   Int?
+  storageKey String? // path to exported file
+  createdAt  DateTime     @default(now())
 
   @@index([userId])
   @@index([userId, createdAt])
 }
 
 model NotificationPreference {
-  id            String               @id @default(uuid())
-  userId        String               @unique
-  studyReminders Boolean             @default(true)
-  revisionReminders Boolean          @default(true)
-  taskReminders  Boolean             @default(true)
-  meetingReminders Boolean           @default(true)
-  goalReminders  Boolean             @default(true)
-  channels      NotificationChannel[] @default([IN_APP])
-  quietHoursStart String?            // "22:00" format
-  quietHoursEnd  String?             // "07:00" format
-  timezone      String?
-  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String                @id @default(uuid())
+  userId            String                @unique
+  studyReminders    Boolean               @default(true)
+  revisionReminders Boolean               @default(true)
+  taskReminders     Boolean               @default(true)
+  meetingReminders  Boolean               @default(true)
+  goalReminders     Boolean               @default(true)
+  channels          NotificationChannel[] @default([IN_APP])
+  quietHoursStart   String? // "22:00" format
+  quietHoursEnd     String? // "07:00" format
+  timezone          String?
 }
 
 enum Role {
@@ -514,27 +425,27 @@ enum DocumentStatus {
 }
 
 model Document {
-  id              String         @id @default(uuid())
+  id              String          @id @default(uuid())
   userId          String
   originalName    String
   mimeType        String
-  size            Int            // in bytes
+  size            Int // in bytes
   storageProvider StorageProvider @default(LOCAL)
-  storageKey      String         @unique // relative path or S3 key
-  publicUrl       String?        // cached public URL if available
+  storageKey      String          @unique // relative path or S3 key
+  publicUrl       String? // cached public URL if available
   resourceType    ResourceType
-  status          DocumentStatus @default(READY)
-  folder          String?        // user-defined folder path
+  status          DocumentStatus  @default(READY)
+  folder          String? // user-defined folder path
   tags            String[]
-  metadata        Json?          // EXIF, PDF page count, video duration, etc.
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  resourceId      String?        @unique
-  resource        Resource?      @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  metadata        Json? // EXIF, PDF page count, video duration, etc.
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  resourceId String?   @unique
+  resource   Resource? @relation(fields: [resourceId], references: [id], onDelete: SetNull)
 
   // AI Integration
-  intelligence    DocumentIntelligence?
+  intelligence DocumentIntelligence?
 
   @@index([userId])
   @@index([userId, resourceType])
@@ -549,16 +460,16 @@ enum NotificationType {
 }
 
 model BrowserTelemetry {
-  id        String   @id @default(uuid())
-  userId    String
+  id                String   @id @default(uuid())
+  userId            String
   trackingSessionId String?
-  url       String
-  title     String?
-  domain    String
-  duration  Int      // in seconds
-  category  String?  // e.g. Documentation, Programming, Social Media
-  timestamp DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url               String
+  title             String?
+  domain            String
+  duration          Int // in seconds
+  category          String? // e.g. Documentation, Programming, Social Media
+  timestamp         DateTime @default(now())
+
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
 
   @@index([trackingSessionId, userId, timestamp])
@@ -567,17 +478,17 @@ model BrowserTelemetry {
 }
 
 model DesktopTelemetry {
-  id          String   @id @default(uuid())
-  userId      String
+  id                String   @id @default(uuid())
+  userId            String
   trackingSessionId String?
-  activeApp   String
-  windowTitle String
-  processName String?
-  duration    Int      // in seconds
-  isIdle      Boolean  @default(false)
-  category    String?  // e.g. IDE, Terminal
-  timestamp   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeApp         String
+  windowTitle       String
+  processName       String?
+  duration          Int // in seconds
+  isIdle            Boolean  @default(false)
+  category          String? // e.g. IDE, Terminal
+  timestamp         DateTime @default(now())
+
   trackingSession TrackingSession? @relation(fields: [trackingSessionId], references: [id], onDelete: SetNull)
 
   @@index([trackingSessionId, userId, timestamp])
@@ -590,35 +501,34 @@ model DesktopTelemetry {
 // -----------------------------------------------------------------------------
 
 model AIConversation {
-  id          String       @id @default(uuid())
-  userId      String
-  title       String       @default("New Chat")
-  documentId  String?      // Optional link to a specific document being discussed
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    AIMessage[]
+  id         String   @id @default(uuid())
+  userId     String
+  title      String   @default("New Chat")
+  documentId String? // Optional link to a specific document being discussed
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages AIMessage[]
 
   @@index([userId])
   @@index([documentId])
 }
 
 model AIMessage {
-  id             String         @id @default(uuid())
+  id             String   @id @default(uuid())
   conversationId String
-  role           String         // "user" or "model"
+  role           String // "user" or "model"
   content        String
-  createdAt      DateTime       @default(now())
-  
-  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
 }
 
 model DocumentIntelligence {
-  id                 String    @id @default(uuid())
-  documentId         String    @unique
+  id                 String   @id @default(uuid())
+  documentId         String   @unique
   summary            String?
   chapterSummaries   Json?
   keyConcepts        Json?
@@ -628,21 +538,21 @@ model DocumentIntelligence {
   flashcards         Json?
   mindMapData        Json?
   revisionChecklist  Json?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  
-  document           Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model NoteIntelligence {
-  id          String   @id @default(uuid())
-  noteId      String   @unique
-  summary     String?
-  keywords    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  noteId    String   @unique
+  summary   String?
+  keywords  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
 }
 
 model DailySummary {
@@ -653,8 +563,6 @@ model DailySummary {
   recommendations Json?
   metrics         Json?
   createdAt       DateTime @default(now())
-  
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@index([userId])
@@ -671,16 +579,15 @@ model InterviewQuestion {
   answer           String
   explanation      String?
   difficulty       String   @default("Intermediate") // Beginner, Intermediate, Advanced, Expert
-  category         String   // Java, Python, React, JavaScript, etc.
+  category         String // Java, Python, React, JavaScript, etc.
   type             String   @default("Theory") // Theory, Practical, Scenario, Coding, Debugging, Architecture, SQL, MCQ
   tags             String[]
-  companyFrequency Json?    // [{company: "Google", frequency: "High"}]
-  similarQuestions Json?    // [{question: "Q?", answer: "A"}]
+  companyFrequency Json? // [{company: "Google", frequency: "High"}]
+  similarQuestions Json? // [{question: "Q?", answer: "A"}]
   relatedTopics    String[]
   isAIGenerated    Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([category])
@@ -691,9 +598,9 @@ model InterviewQuestion {
 model CompanyQuestion {
   id          String   @id @default(uuid())
   userId      String
-  company     String   // Google, Microsoft, Amazon, etc.
-  role        String?  // SDE, Frontend, Backend, etc.
-  experience  String?  // Fresher, 1-3 years, 3-5 years, etc.
+  company     String // Google, Microsoft, Amazon, etc.
+  role        String? // SDE, Frontend, Backend, etc.
+  experience  String? // Fresher, 1-3 years, 3-5 years, etc.
   question    String
   answer      String
   explanation String?
@@ -702,7 +609,6 @@ model CompanyQuestion {
   tags        String[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([company])
@@ -710,26 +616,26 @@ model CompanyQuestion {
 }
 
 model AIInterviewConversation {
-  id        String               @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  title     String               @default("New Interview Chat")
-  type      String               @default("qa") // qa, mock-interview, resume-review
-  isPinned  Boolean              @default(false)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  AIInterviewMessage[]
+  title     String   @default("New Interview Chat")
+  type      String   @default("qa") // qa, mock-interview, resume-review
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AIInterviewMessage[]
 
   @@index([userId])
   @@index([userId, type])
 }
 
 model AIInterviewMessage {
-  id             String                @id @default(uuid())
+  id             String                  @id @default(uuid())
   conversationId String
-  role           String                // "user" or "model"
+  role           String // "user" or "model"
   content        String
-  createdAt      DateTime              @default(now())
+  createdAt      DateTime                @default(now())
   conversation   AIInterviewConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
@@ -738,12 +644,11 @@ model AIInterviewMessage {
 model UserSavedItem {
   id        String   @id @default(uuid())
   userId    String
-  itemType  String   // question, answer, mcq, coding-problem, chat, note, company-question
-  itemId    String   // UUID of the referenced item
+  itemType  String // question, answer, mcq, coding-problem, chat, note, company-question
+  itemId    String // UUID of the referenced item
   label     String?
   metadata  Json?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, itemType, itemId])
   @@index([userId])
@@ -753,12 +658,11 @@ model UserSavedItem {
 model UserBookmark {
   id        String   @id @default(uuid())
   userId    String
-  itemType  String   // question, mcq, coding, conversation, note
+  itemType  String // question, mcq, coding, conversation, note
   itemId    String
   label     String?
   tags      String[]
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, itemType, itemId])
   @@index([userId])
@@ -769,17 +673,17 @@ model MCQ {
   id            String   @id @default(uuid())
   userId        String
   question      String
-  options       Json     // ["A", "B", "C", "D"]
-  correctAnswer Int      // index of correct option
+  options       Json // ["A", "B", "C", "D"]
+  correctAnswer Int // index of correct option
   explanation   String?
-  category      String   // Technical, Aptitude, Logical, Verbal, HR
+  category      String // Technical, Aptitude, Logical, Verbal, HR
   topic         String?
   difficulty    String   @default("Medium")
   tags          String[]
-  timeLimit     Int?     // seconds
+  timeLimit     Int? // seconds
   createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attempts      MCQAttempt[]
+
+  attempts MCQAttempt[]
 
   @@index([userId])
   @@index([category])
@@ -787,15 +691,15 @@ model MCQ {
 }
 
 model MCQAttempt {
-  id         String   @id @default(uuid())
-  userId     String
-  mcqId      String
+  id             String   @id @default(uuid())
+  userId         String
+  mcqId          String
   selectedAnswer Int?
-  isCorrect  Boolean?
-  timeTaken  Int?     // seconds
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mcq        MCQ      @relation(fields: [mcqId], references: [id], onDelete: Cascade)
+  isCorrect      Boolean?
+  timeTaken      Int? // seconds
+  createdAt      DateTime @default(now())
+
+  mcq MCQ @relation(fields: [mcqId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([mcqId])
@@ -806,20 +710,20 @@ model CodingProblem {
   userId          String
   title           String
   description     String
-  examples        Json?    // [{input: "...", output: "...", explanation: "..."}]
+  examples        Json? // [{input: "...", output: "...", explanation: "..."}]
   constraints     String?
   difficulty      String   @default("Medium")
-  category        String?  // "Algorithms", "Data Structures", "SQL", etc.
+  category        String? // "Algorithms", "Data Structures", "SQL", etc.
   tags            String[]
-  sampleTestCases Json?    // [{input: "...", output: "..."}]
-  hiddenTestCases Json?    // [{input: "...", output: "..."}]
-  timeLimit       Int?     // ms
-  memoryLimit     Int?     // MB
+  sampleTestCases Json? // [{input: "...", output: "..."}]
+  hiddenTestCases Json? // [{input: "...", output: "..."}]
+  timeLimit       Int? // ms
+  memoryLimit     Int? // MB
   isAIGenerated   Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  submissions     CodingSubmission[]
+
+  submissions CodingSubmission[]
 
   @@index([userId])
   @@index([difficulty])
@@ -827,20 +731,20 @@ model CodingProblem {
 }
 
 model CodingSubmission {
-  id            String   @id @default(uuid())
-  userId        String
-  problemId     String
-  language      String   // Java, Python, JavaScript, C++, C#, Go, Rust
-  code          String
-  status        String   // Accepted, Wrong Answer, Time Limit Exceeded, Runtime Error, Compilation Error
-  passedTests   Int      @default(0)
-  totalTests    Int      @default(0)
-  runtime       Int?     // ms
-  memory        Int?     // MB
-  aiReview      Json?    // {feedback: "...", complexity: "...", suggestions: [...]}
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  problem       CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  problemId   String
+  language    String // Java, Python, JavaScript, C++, C#, Go, Rust
+  code        String
+  status      String // Accepted, Wrong Answer, Time Limit Exceeded, Runtime Error, Compilation Error
+  passedTests Int      @default(0)
+  totalTests  Int      @default(0)
+  runtime     Int? // ms
+  memory      Int? // MB
+  aiReview    Json? // {feedback: "...", complexity: "...", suggestions: [...]}
+  createdAt   DateTime @default(now())
+
+  problem CodingProblem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([problemId])
@@ -848,28 +752,27 @@ model CodingSubmission {
 }
 
 model InterviewSession {
-  id                 String   @id @default(uuid())
-  userId             String
-  type               String   // mock, technical, hr, resume, behavioral
-  status             String   @default("in-progress") // in-progress, completed, cancelled
-  difficulty         String   @default("Intermediate")
-  questions          Json?    // [{question: "...", answer: "...", userAnswer: "...", score: Int, feedback: "..."}]
-  currentQuestionIndex Int    @default(0)
-  totalQuestions     Int      @default(0)
-  context            String?  // user context (resume, JD, notes) used for this session
-  timeLimit          Int?     // total time in minutes
-  timeTaken          Int?     // actual time taken in minutes
-  technicalScore     Float?   // 0-100
-  communicationScore Float?   // 0-100
-  confidenceScore    Float?   // 0-100
-  overallScore       Float?   // 0-100
-  feedback           String?
+  id                     String    @id @default(uuid())
+  userId                 String
+  type                   String // mock, technical, hr, resume, behavioral
+  status                 String    @default("in-progress") // in-progress, completed, cancelled
+  difficulty             String    @default("Intermediate")
+  questions              Json? // [{question: "...", answer: "...", userAnswer: "...", score: Int, feedback: "..."}]
+  currentQuestionIndex   Int       @default(0)
+  totalQuestions         Int       @default(0)
+  context                String? // user context (resume, JD, notes) used for this session
+  timeLimit              Int? // total time in minutes
+  timeTaken              Int? // actual time taken in minutes
+  technicalScore         Float? // 0-100
+  communicationScore     Float? // 0-100
+  confidenceScore        Float? // 0-100
+  overallScore           Float? // 0-100
+  feedback               String?
   improvementSuggestions Json? // ["suggestion 1", "suggestion 2"]
-  startedAt          DateTime @default(now())
-  completedAt        DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt              DateTime  @default(now())
+  completedAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([userId])
   @@index([userId, type])
@@ -877,18 +780,17 @@ model InterviewSession {
 }
 
 model InterviewNote {
-  id          String   @id @default(uuid())
-  userId      String
-  title       String
-  content     String   // markdown
-  type        String   @default("general") // general, study, revision, flashcard, cheat-sheet, interview
-  tags        String[]
-  isPinned    Boolean  @default(false)
-  sourceType  String?  // ai-generated, manual, pdf-import
-  sourceId    String?  // reference to original source
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  userId     String
+  title      String
+  content    String // markdown
+  type       String   @default("general") // general, study, revision, flashcard, cheat-sheet, interview
+  tags       String[]
+  isPinned   Boolean  @default(false)
+  sourceType String? // ai-generated, manual, pdf-import
+  sourceId   String? // reference to original source
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId])
   @@index([userId, type])
@@ -896,37 +798,35 @@ model InterviewNote {
 }
 
 model UserInterviewProgress {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  questionsSolved     Int      @default(0)
-  mcqsCompleted       Int      @default(0)
-  codingProblemsSolved Int     @default(0)
-  interviewSessions   Int      @default(0)
-  averageScore        Float?   // 0-100
-  weakTopics          Json?    // [{topic: "...", score: 0}]
-  strongTopics        Json?    // [{topic: "...", score: 100}]
-  dailyProgress       Json?    // [{date: "2024-01-01", questionsSolved: 5, mcqsCompleted: 10}]
-  weeklyProgress      Json?    // [{week: "2024-W01", ...}]
-  monthlyProgress     Json?    // [{month: "2024-01", ...}]
-  learningStreak      Int      @default(0)
-  longestStreak       Int      @default(0)
-  lastActiveDate      DateTime?
-  totalStudyTime      Int      @default(0) // minutes
-  updatedAt           DateTime @updatedAt
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  questionsSolved      Int       @default(0)
+  mcqsCompleted        Int       @default(0)
+  codingProblemsSolved Int       @default(0)
+  interviewSessions    Int       @default(0)
+  averageScore         Float? // 0-100
+  weakTopics           Json? // [{topic: "...", score: 0}]
+  strongTopics         Json? // [{topic: "...", score: 100}]
+  dailyProgress        Json? // [{date: "2024-01-01", questionsSolved: 5, mcqsCompleted: 10}]
+  weeklyProgress       Json? // [{week: "2024-W01", ...}]
+  monthlyProgress      Json? // [{month: "2024-01", ...}]
+  learningStreak       Int       @default(0)
+  longestStreak        Int       @default(0)
+  lastActiveDate       DateTime?
+  totalStudyTime       Int       @default(0) // minutes
+  updatedAt            DateTime  @updatedAt
 }
 
 model InterviewRecommendation {
   id          String   @id @default(uuid())
   userId      String
-  type        String   // topic, weak-area, revision, interview-plan, coding-challenge, mcq, article, video
+  type        String // topic, weak-area, revision, interview-plan, coding-challenge, mcq, article, video
   title       String
   description String?
   priority    Int      @default(0) // 0-10
   reason      String?
   isCompleted Boolean  @default(false)
   createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, type])
@@ -937,12 +837,10 @@ model InterviewSearchLog {
   id        String   @id @default(uuid())
   userId    String
   query     String
-  category  String?  // questions, companies, topics, tags
+  category  String? // questions, companies, topics, tags
   results   Int      @default(0)
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, createdAt])
 }
-
