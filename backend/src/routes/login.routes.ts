@@ -48,7 +48,7 @@ router.get("/login/history", authenticate, async (req: Request, res: Response) =
 
     const result = await getLoginHistory(userId, limit, offset);
 
-    res.json({ success: true, ...result });
+    res.json({ success: true, data: result });
   } catch (error: any) {
     console.error("[Login] Failed to get history:", error.message);
     res.status(500).json({ success: false, message: "Failed to get login history" });

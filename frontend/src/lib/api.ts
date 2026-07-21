@@ -58,7 +58,6 @@ class ApiClient {
     };
 
     if (this.accessToken) {
-      // Skip auth for health/diagnostics endpoints
       const isPublicEndpoint = endpoint === '/health' || endpoint.startsWith('/database/') || endpoint.startsWith('/socket/') || endpoint.startsWith('/backend/') || endpoint.startsWith('/tracking/status');
       if (!isPublicEndpoint) {
         headers["Authorization"] = `Bearer ${this.accessToken}`;
@@ -81,6 +80,9 @@ class ApiClient {
       }
     }
 
+    const isGet = !options.method || options.method.toUpperCase() === "GET";
+    const cacheKey = `api_cache_${endpoint}`;
+
     let response: Response;
     try {
       response = await fetch(`${API_URL}${endpoint}`, {
@@ -90,6 +92,10 @@ class ApiClient {
         signal: controller?.signal ?? options.signal,
       });
     } catch (fetchError) {
+      if (isGet && typeof window !== "undefined") {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) return JSON.parse(cached) as T;
+      }
       if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
         throw new Error("Request timed out. Please try again.");
       }
@@ -118,7 +124,15 @@ class ApiClient {
             signal: controller?.signal ?? options.signal,
           });
           if (retryResponse.ok) {
-            return retryResponse.json();
+            const retryJson = await retryResponse.json();
+            let retryData = retryJson as T;
+            if (retryJson && typeof retryJson === "object" && retryJson.success === true && "data" in retryJson) {
+              retryData = retryJson.data as T;
+            }
+            if (isGet && typeof window !== "undefined") {
+              sessionStorage.setItem(cacheKey, JSON.stringify(retryData));
+            }
+            return retryData;
           }
         }
       } catch {
@@ -126,6 +140,11 @@ class ApiClient {
       }
       this.setToken(null);
       if (this.onUnauthorized) this.onUnauthorized();
+      
+      if (isGet && typeof window !== "undefined") {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) return JSON.parse(cached) as T;
+      }
       const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
       throw new Error(errorData.message || errorData.error || "Authentication required");
     }
@@ -133,21 +152,35 @@ class ApiClient {
     if (response.status === 401) {
       this.setToken(null);
       if (this.onUnauthorized) this.onUnauthorized();
+      if (isGet && typeof window !== "undefined") {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) return JSON.parse(cached) as T;
+      }
       const errorData = await response.json().catch(() => ({ message: "Authentication required" })) as { message?: string; error?: string };
       throw new Error(errorData.message || errorData.error || "Authentication required");
     }
 
     if (!response.ok) {
+      if (isGet && typeof window !== "undefined") {
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) return JSON.parse(cached) as T;
+      }
       const error = await response.json().catch(() => ({ message: "Request failed" })) as { message?: string; error?: string };
       const errMsg = error.message || error.error || `HTTP ${response.status}`;
       throw new Error(errMsg);
     }
 
     const json = await response.json();
+    let resultData = json as T;
     if (json && typeof json === "object" && json.success === true && "data" in json) {
-      return json.data as T;
+      resultData = json.data as T;
     }
-    return json as T;
+    
+    if (isGet && typeof window !== "undefined") {
+      sessionStorage.setItem(cacheKey, JSON.stringify(resultData));
+    }
+    
+    return resultData;
   }
 
   get<T>(endpoint: string) {

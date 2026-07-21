@@ -162,7 +162,7 @@ export async function pinNote(req: Request, res: Response): Promise<void> {
     const existing = existingResult.rows[0];
     if (!existing) { res.status(404).json({ success: false, message: 'Note not found' }); return; }
 
-    const result = await pool.query('UPDATE "Note" SET "isPinned" = NOT "isPinned" WHERE "id" = $1 RETURNING *', [id]);
+    const result = await pool.query('UPDATE "Note" SET "isPinned" = NOT "isPinned" WHERE "id" = $1 AND "userId" = $2 RETURNING *', [id, userId]);
     const note = result.rows[0];
 
     res.json({ success: true, data: note });

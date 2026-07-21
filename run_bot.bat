@@ -53,17 +53,9 @@ if not exist "frontend\node_modules" (
 )
 echo.
 
-:: --- Step 3: Generate Prisma Client ---
-echo [3/5] Generating Prisma Client...
-cd backend
-call npx prisma generate
-if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Prisma generation failed.
-    pause
-    exit /b 1
-)
-cd ..
+:: --- Step 3: (Skipped) Prisma is no longer used ---
 echo.
+
 
 :: --- Step 4: Clean up existing processes on required ports ---
 echo [4/6] Cleaning up existing processes...

@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const { hostname } = new URL(url);
         domainEl.textContent = hostname;
-      } catch (_e) {
+      } catch {
         domainEl.textContent = 'Unknown';
       }
     }

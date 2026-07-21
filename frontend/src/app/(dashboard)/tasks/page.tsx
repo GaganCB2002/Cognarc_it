@@ -42,8 +42,8 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const res = await api.get<Task[]>('/tasks');
-      if (Array.isArray(res)) setTasks(res);
+      const res = await api.get<{ tasks: Task[] }>('/tasks');
+      if (res && Array.isArray(res.tasks)) setTasks(res.tasks);
     } catch (err) {
       console.error("Failed to fetch tasks", err);
       toast.error("Failed to load tasks");

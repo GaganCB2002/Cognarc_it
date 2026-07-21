@@ -187,7 +187,7 @@ export default function CalendarPage() {
         endTime: updates.end instanceof Date ? updates.end.toISOString() : new Date(updates.end || '').toISOString(),
         eventType: (updates.type || '').toUpperCase(),
         color,
-        notes: updates.notes,
+        description: updates.notes,
       });
 
       setEvents((prev) => prev.map(e => e.id === eventId ? { ...e, ...updates, color, start: new Date(updates.start || e.start), end: new Date(updates.end || e.end) } : e));

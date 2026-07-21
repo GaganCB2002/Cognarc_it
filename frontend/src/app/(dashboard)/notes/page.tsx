@@ -61,15 +61,10 @@ export default function NotesPage() {
     const fetchNotes = async () => {
       try {
         setLoading(true);
-        const res = await api.get<Note[]>('/notes');
-        if (Array.isArray(res)) {
-          const mapped = res.map((n: Note) => ({ ...n, folderId: n.folderId || null }));
+        const res = await api.get<{ notes: Note[] }>('/notes');
+        if (res && Array.isArray(res.notes)) {
+          const mapped = res.notes.map((n: Note) => ({ ...n, folderId: n.folderId || null }));
           setNotes(mapped);
-          if (mapped.length > 0 && !selectedNote) {
-            setSelectedNote(mapped[0]);
-            setNoteContent(mapped[0].content);
-            setNoteTitle(mapped[0].title);
-          }
         }
       } catch (err) {
         console.error("Failed to fetch notes", err);
@@ -79,8 +74,15 @@ export default function NotesPage() {
       }
     };
     fetchNotes();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (notes.length > 0 && !selectedNote) {
+      setSelectedNote(notes[0]);
+      setNoteContent(notes[0].content);
+      setNoteTitle(notes[0].title);
+    }
+  }, [notes, selectedNote]);
 
   const handleSelectNote = (note: Note) => {
     setSelectedNote(note);

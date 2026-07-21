@@ -35,8 +35,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   userKey: number;
-  login: (email: string, code: string, captchaKey: string, captchaAnswer: string, isOtp?: boolean, isFace?: boolean) => Promise<void>;
-  register: (name: string, email: string, password: string, captchaKey: string, captchaAnswer: string) => Promise<void>;
+  login: () => Promise<void>;
+  register: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }

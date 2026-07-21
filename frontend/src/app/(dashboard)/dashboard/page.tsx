@@ -46,16 +46,16 @@ export default function DashboardPage() {
         const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
         const [taskItems, calItems, notesItems, sessionsData] = await Promise.all([
-          api.get<{ id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[]>('/tasks'),
+          api.get<{ tasks: { id?: string; title: string; status: string; priority: string; dueDate?: string; category?: string }[] }>('/tasks'),
           api.get<{ id?: string; title: string; eventType: string; startTime: string; endTime?: string }[]>(`/calendar?start=${start}&end=${end}`),
-          api.get<unknown[]>('/notes'),
-          api.get<{ sessions?: { duration: number }[]; data?: { duration: number }[] }>('/tracking/sessions')
+          api.get<{ notes: unknown[] }>('/notes'),
+          api.get<{ sessions: { duration: number }[] }>('/tracking/sessions')
         ]);
 
-        if (Array.isArray(taskItems)) setTasks(taskItems);
+        if (taskItems && Array.isArray(taskItems.tasks)) setTasks(taskItems.tasks);
         if (Array.isArray(calItems)) setEvents(calItems);
-        if (Array.isArray(notesItems)) setNotesCount(notesItems.length);
-        const sessionList = sessionsData?.sessions || sessionsData?.data || [];
+        if (notesItems && Array.isArray(notesItems.notes)) setNotesCount(notesItems.notes.length);
+        const sessionList = sessionsData?.sessions || [];
         if (Array.isArray(sessionList) && sessionList.length > 0) {
           const totalSecs = (sessionList as { duration: number }[]).reduce((acc: number, s: { duration: number }) => acc + (s.duration || 0), 0);
           setTotalStudyHours(+(totalSecs / 3600).toFixed(1));
@@ -76,10 +76,10 @@ export default function DashboardPage() {
   };
 
   const quickActions = [
-    { name: "Start Study", icon: BookOpen, href: "/curriculum", color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    { name: "New Task", icon: CheckCircle2, href: "/tasks", color: "text-blue-400", bg: "bg-blue-500/10" },
-    { name: "Upload PDF", icon: Upload, href: "/knowledge-vault", color: "text-purple-400", bg: "bg-purple-500/10" },
-    { name: "AI Chat", icon: Brain, href: "/ai-assistant", color: "text-st-accent", bg: "bg-st-accent/10" },
+    { name: "Start Study", icon: BookOpen, href: "/curriculum" },
+    { name: "New Task", icon: CheckCircle2, href: "/tasks" },
+    { name: "Upload PDF", icon: Upload, href: "/knowledge-vault" },
+    { name: "AI Chat", icon: Brain, href: "/ai-assistant" },
   ];
 
   const todaysTasks = tasks
@@ -121,8 +121,8 @@ export default function DashboardPage() {
           <Link key={action.name} href={action.href}>
             <Card className="p-4 hover:border-st-accent/20 transition-all duration-200 cursor-pointer group">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${action.bg} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
-                  <action.icon className={`w-5 h-5 ${action.color}`} />
+                <div className="w-10 h-10 rounded-lg bg-st-accent-soft flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                  <action.icon className="w-5 h-5 text-st-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="font-medium text-sm text-st-text-primary block truncate">{action.name}</span>
@@ -137,43 +137,28 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Link href="/tracking">
-          <Card className="p-4 bg-gradient-to-br from-emerald-500/[0.07] to-emerald-500/[0.02] border-emerald-500/10 hover:border-emerald-500/30 transition-all duration-200 cursor-pointer group">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Clock className="w-3.5 h-3.5 text-emerald-400" />
-              <p className="text-xs font-medium text-emerald-400">Study Hours</p>
-            </div>
-            <p className="text-2xl font-bold text-st-text-primary tracking-tight">{totalStudyHours} <span className="text-xs font-normal text-st-text-tertiary">total</span></p>
-          </Card>
-        </Link>
-        <Link href="/tasks">
-          <Card className="p-4 bg-gradient-to-br from-blue-500/[0.07] to-blue-500/[0.02] border-blue-500/10 hover:border-blue-500/30 transition-all duration-200 cursor-pointer group">
-            <div className="flex items-center gap-2 mb-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-              <p className="text-xs font-medium text-blue-400">Tasks Done</p>
-            </div>
-            <p className="text-2xl font-bold text-st-text-primary tracking-tight">{completedTasksCount}/{tasks.length}</p>
-          </Card>
-        </Link>
-        <Link href="/productivity">
-          <Card className="p-4 bg-gradient-to-br from-purple-500/[0.07] to-purple-500/[0.02] border-purple-500/10 hover:border-purple-500/30 transition-all duration-200 cursor-pointer group">
-            <div className="flex items-center gap-2 mb-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-purple-400" />
-              <p className="text-xs font-medium text-purple-400">Productivity</p>
-            </div>
-            <p className="text-2xl font-bold text-st-text-primary tracking-tight">--%</p>
-          </Card>
-        </Link>
-        <Link href="/analytics">
-          <Card className="p-4 bg-gradient-to-br from-rose-500/[0.07] to-rose-500/[0.02] border-rose-500/10 hover:border-rose-500/30 transition-all duration-200 cursor-pointer group">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Zap className="w-3.5 h-3.5 text-rose-400" />
-              <p className="text-xs font-medium text-rose-400">Focus Score</p>
-            </div>
-            <p className="text-2xl font-bold text-st-text-primary tracking-tight">--</p>
-          </Card>
-        </Link>
-        <Card className="p-4 bg-gradient-to-br from-st-accent/[0.08] to-st-accent/[0.03] border-st-accent/15 group">
+        {[
+          { label: "Study Hours", icon: Clock, value: `${totalStudyHours}`, suffix: "total", href: "/tracking", accent: "text-st-success" },
+          { label: "Tasks Done", icon: CheckCircle2, value: `${completedTasksCount}/${tasks.length}`, suffix: "", href: "/tasks", accent: "text-st-info" },
+          { label: "Productivity", icon: TrendingUp, value: "--%", suffix: "", href: "/productivity", accent: "text-st-accent" },
+          { label: "Focus Score", icon: Zap, value: "--", suffix: "", href: "/analytics", accent: "text-st-warning" },
+        ].map((stat) => (
+          <Link key={stat.label} href={stat.href}>
+            <Card className="p-4 hover:border-st-border/30 transition-all duration-200 cursor-pointer group relative overflow-hidden">
+              <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-white to-transparent" />
+              <div className="flex items-center gap-2 mb-1.5">
+                <stat.icon className={`w-3.5 h-3.5 ${stat.accent}`} />
+                <p className={`text-xs font-medium ${stat.accent}`}>{stat.label}</p>
+              </div>
+              <p className="text-2xl font-bold text-st-text-primary tracking-tight">
+                {stat.value}
+                {stat.suffix && <span className="text-xs font-normal text-st-text-tertiary ml-1">{stat.suffix}</span>}
+              </p>
+            </Card>
+          </Link>
+        ))}
+        <Card className="p-4 group relative overflow-hidden">
+          <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-white to-transparent" />
           <div className="flex justify-between items-center mb-1.5">
             <p className="text-xs font-medium text-st-accent">Pomodoro</p>
             <div className="flex gap-1">
@@ -257,8 +242,8 @@ export default function DashboardPage() {
                         style={{
                           width: `${pct}%`,
                           background: pct > 0
-                            ? `linear-gradient(90deg, ${pct > 50 ? '#22C55E' : '#FFCF70'}, ${pct > 75 ? '#16A34A' : '#E5B254'})`
-                            : '#1E1E1E'
+                            ? `linear-gradient(90deg, ${pct > 50 ? 'var(--color-st-success)' : 'var(--color-st-warning)'}, ${pct > 75 ? '#2DD4A0' : '#D49520'})`
+                            : 'var(--color-st-bg-elevated)'
                         }}
                       />
                     </div>

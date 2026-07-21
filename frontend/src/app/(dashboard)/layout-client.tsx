@@ -19,17 +19,17 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 const typeColors: Record<string, string> = {
-  REMINDER: "text-blue-400 bg-blue-500/10",
-  ACHIEVEMENT: "text-emerald-400 bg-emerald-500/10",
-  SYSTEM: "text-st-accent bg-st-accent/10",
-  MENTOR: "text-amber-400 bg-amber-500/10",
+  REMINDER: "text-st-info bg-st-info-bg",
+  ACHIEVEMENT: "text-st-success bg-st-success-bg",
+  SYSTEM: "text-st-accent bg-st-accent-soft",
+  MENTOR: "text-st-warning bg-st-warning-bg",
 };
 
 const typeBorderColors: Record<string, string> = {
-  REMINDER: "border-l-blue-500/30",
-  ACHIEVEMENT: "border-l-emerald-500/30",
+  REMINDER: "border-l-st-info/30",
+  ACHIEVEMENT: "border-l-st-success/30",
   SYSTEM: "border-l-st-accent/30",
-  MENTOR: "border-l-amber-500/30",
+  MENTOR: "border-l-st-warning/30",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -91,7 +91,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div className="flex h-screen bg-gradient-to-b from-st-bg-primary via-st-bg-primary to-st-bg-secondary items-center justify-center">
+        <p className="text-xs text-st-text-muted">Redirecting to login...</p>
+      </div>
+    );
   }
 
   return (

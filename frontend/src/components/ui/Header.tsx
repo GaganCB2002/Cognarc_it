@@ -88,10 +88,10 @@ export function Header({
 
   const quickActions = [
     { name: "Upload", icon: Upload, onClick: () => toast("Upload dialog opened") },
-    { name: "New Note", icon: FileText, onClick: () => { window.location.href = "/notes"; } },
-    { name: "New Task", icon: CheckSquare, onClick: () => { window.location.href = "/tasks"; } },
+    { name: "New Note", icon: FileText, onClick: () => router.push("/notes") },
+    { name: "New Task", icon: CheckSquare, onClick: () => router.push("/tasks") },
     { name: "AI Chat", icon: MessageSquare, onClick: () => toast("AI Chat opened") },
-    { name: "Event", icon: Calendar, onClick: () => { window.location.href = "/calendar"; } },
+    { name: "Event", icon: Calendar, onClick: () => router.push("/calendar") },
   ];
 
   return (

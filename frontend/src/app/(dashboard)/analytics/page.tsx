@@ -229,15 +229,15 @@ export default function AnalyticsPage() {
     const fetchData = async () => {
       try {
         const [dashboardRes, trendsRes, categoriesRes] = await Promise.allSettled([
-          api.get<{ data: { deepHours?: string; focusScore?: number; sessionsCompleted?: number } }>('/analytics/dashboard'),
-          api.get<{ data: { date: string; durationMinutes: number; sessions: number }[] }>('/analytics/weekly-trends'),
-          api.get<{ data: { category: string; duration: number }[] }>('/analytics/category-breakdown'),
+          api.get<{ deepHours?: string; focusScore?: number; sessionsCompleted?: number }>('/analytics/dashboard'),
+          api.get<{ date: string; durationMinutes: number; sessions: number }[]>('/analytics/weekly-trends'),
+          api.get<{ category: string; duration: number }[]>('/analytics/category-breakdown'),
         ]);
 
         if (cancelled) return;
 
-        if (dashboardRes.status === 'fulfilled' && dashboardRes.value?.data) {
-          const d = dashboardRes.value.data;
+        if (dashboardRes.status === 'fulfilled' && dashboardRes.value) {
+          const d = dashboardRes.value;
           setKpis(prev => {
             const newKpis = [...prev];
             if (d.deepHours !== undefined) newKpis[0] = { ...newKpis[0], value: parseFloat(d.deepHours) };
@@ -247,10 +247,10 @@ export default function AnalyticsPage() {
           });
         }
 
-        if (trendsRes.status === 'fulfilled' && trendsRes.value?.data && trendsRes.value.data.length > 0) {
+        if (trendsRes.status === 'fulfilled' && Array.isArray(trendsRes.value) && trendsRes.value.length > 0) {
           const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           const dayMap: Record<string, { durationMinutes: number; sessions: number }> = {};
-          for (const item of trendsRes.value.data) {
+          for (const item of trendsRes.value) {
             const date = new Date(item.date);
             const dayName = days[date.getDay()];
             dayMap[dayName] = { durationMinutes: item.durationMinutes, sessions: item.sessions };
@@ -282,10 +282,10 @@ export default function AnalyticsPage() {
           setFocusScoreData(scoreData);
         }
 
-        if (categoriesRes.status === 'fulfilled' && categoriesRes.value?.data && categoriesRes.value.data.length > 0) {
+        if (categoriesRes.status === 'fulfilled' && Array.isArray(categoriesRes.value) && categoriesRes.value.length > 0) {
           const colors = ["#8B5CF6", "#10B981", "#F59E0B", "#06B6D4", "#EF4444", "#EC4899", "#6366F1"];
-          const totalDur = categoriesRes.value.data.reduce((s: number, c: { category: string; duration: number }) => s + c.duration, 0) || 1;
-          const dist = categoriesRes.value.data.map((c: { category: string; duration: number }, i: number) => ({
+          const totalDur = categoriesRes.value.reduce((s: number, c: { category: string; duration: number }) => s + c.duration, 0) || 1;
+          const dist = categoriesRes.value.map((c: { category: string; duration: number }, i: number) => ({
             name: c.category.charAt(0).toUpperCase() + c.category.slice(1),
             value: Math.round((c.duration / totalDur) * 100),
             color: colors[i % colors.length],

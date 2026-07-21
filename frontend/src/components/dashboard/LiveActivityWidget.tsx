@@ -56,10 +56,10 @@ export function LiveActivityWidget() {
   }, [user?.id]);
 
   return (
-    <Card className="p-5 border-st-accent/20 relative overflow-hidden">
+    <Card className="p-5 relative overflow-hidden">
       <div className="absolute top-0 right-0 p-3">
         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium border ${
-          isConnected ? 'bg-st-success/10 text-st-success border-st-success/20' : 'bg-st-text-muted/10 text-st-text-muted border-st-text-muted/20'
+          isConnected ? 'bg-st-success-bg text-st-success border-st-success/20' : 'bg-st-text-muted/10 text-st-text-muted border-st-text-muted/20'
         }`}>
           <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-st-success animate-pulse' : 'bg-st-text-muted'}`} />
           {isConnected ? 'LIVE' : 'OFFLINE'}
@@ -68,7 +68,7 @@ export function LiveActivityWidget() {
       
       <div className="flex items-center gap-2 mb-4">
         <Activity className="w-5 h-5 text-st-accent" />
-        <h3 className="font-bold text-st-text-primary">Current Activity</h3>
+        <h3 className="font-semibold text-st-text-primary text-sm">Current Activity</h3>
       </div>
 
       {!latestEvent ? (

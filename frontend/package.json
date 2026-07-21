@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "env-cmd -f ../env.frontend next dev",
+    "dev": "next dev",
     "build": "next build",
-    "build:dev": "env-cmd -f ../env.frontend next build",
+    "build:dev": "next build",
     "start": "next start",
     "lint": "eslint"
   },

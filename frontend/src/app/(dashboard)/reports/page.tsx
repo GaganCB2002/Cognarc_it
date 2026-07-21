@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { api } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import toast from "react-hot-toast";
 import { BarChart3, Download, Calendar, FileText, Clock, Target, Code, BookOpen, Brain, Zap, TrendingUp, Coffee, Loader2 } from "lucide-react";
 
@@ -86,7 +86,7 @@ export default function ReportsPage() {
       });
 
       if (res && res.id) {
-        const downloadUrl = `/api/reports/${res.id}/pdf`;
+        const downloadUrl = `${API_URL}/reports/${res.id}/pdf`;
         window.open(downloadUrl, '_blank');
       }
     } catch (err) {
@@ -98,7 +98,7 @@ export default function ReportsPage() {
   };
 
   const handleDownload = (sessId: string) => {
-    const downloadUrl = `/api/tracking/sessions/${sessId}/pdf`;
+    const downloadUrl = `${API_URL}/tracking/sessions/${sessId}/pdf`;
     window.open(downloadUrl, '_blank');
   };
 

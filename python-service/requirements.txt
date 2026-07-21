@@ -9,4 +9,4 @@ pytesseract
 librosa
 soundfile
 opencv-python-headless
-moviepy
+moviepy>=1.0.3,<2.0.0

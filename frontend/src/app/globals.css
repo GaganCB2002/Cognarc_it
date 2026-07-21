@@ -1,31 +1,31 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Dashboard (st-) - Professional Dark Glass ───────────────────── */
-  --color-st-bg-primary: #0C0C14;
-  --color-st-bg-secondary: #11111B;
-  --color-st-bg-sidebar: rgba(10, 10, 22, 0.9);
-  --color-st-bg-card: rgba(22, 22, 40, 0.65);
-  --color-st-bg-elevated: rgba(28, 28, 50, 0.8);
-  --color-st-border: rgba(99, 102, 241, 0.12);
-  --color-st-border-light: rgba(255, 255, 255, 0.06);
-  --color-st-accent: #818CF8;
-  --color-st-accent-hover: #A5B4FC;
-  --color-st-accent-secondary: #6366F1;
-  --color-st-accent-soft: rgba(129, 140, 248, 0.08);
-  --color-st-accent-glow: rgba(129, 140, 248, 0.12);
-  --color-st-text-primary: #F1F1F6;
-  --color-st-text-secondary: #A1A1B5;
-  --color-st-text-tertiary: #7C7C94;
-  --color-st-text-muted: #52527A;
-  --color-st-success: #34D399;
-  --color-st-success-bg: rgba(52, 211, 153, 0.1);
-  --color-st-warning: #FBBF24;
-  --color-st-warning-bg: rgba(251, 191, 36, 0.1);
+  /* ── Dashboard (st-) - Refined Dark Slate ──────────────────────── */
+  --color-st-bg-primary: #0A0C14;
+  --color-st-bg-secondary: #10121C;
+  --color-st-bg-sidebar: rgba(7, 9, 16, 0.96);
+  --color-st-bg-card: rgba(24, 27, 44, 0.72);
+  --color-st-bg-elevated: rgba(32, 36, 54, 0.85);
+  --color-st-border: rgba(255, 255, 255, 0.045);
+  --color-st-border-light: rgba(255, 255, 255, 0.02);
+  --color-st-accent: #5B7FFF;
+  --color-st-accent-hover: #7B9AFF;
+  --color-st-accent-secondary: #4A6AE0;
+  --color-st-accent-soft: rgba(91, 127, 255, 0.07);
+  --color-st-accent-glow: rgba(91, 127, 255, 0.1);
+  --color-st-text-primary: #E4E6F0;
+  --color-st-text-secondary: #8E92A6;
+  --color-st-text-tertiary: #5F6480;
+  --color-st-text-muted: #3B405C;
+  --color-st-success: #2DD4A0;
+  --color-st-success-bg: rgba(45, 212, 160, 0.08);
+  --color-st-warning: #F5A623;
+  --color-st-warning-bg: rgba(245, 166, 35, 0.08);
   --color-st-danger: #F87171;
-  --color-st-danger-bg: rgba(248, 113, 113, 0.1);
+  --color-st-danger-bg: rgba(248, 113, 113, 0.08);
   --color-st-info: #60A5FA;
-  --color-st-info-bg: rgba(96, 165, 250, 0.1);
+  --color-st-info-bg: rgba(96, 165, 250, 0.08);
 
   /* ── Landing Page (lp-) - Professional Pastel Palette ────────────── */
   --color-lp-bg-primary: #FAF8F5;

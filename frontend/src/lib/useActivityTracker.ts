@@ -126,10 +126,12 @@ export function useActivityTracker({ sessionId, isActive }: TrackerProps) {
 
     const handleBeforeUnload = () => {
       if (eventQueue.current.length > 0) {
-        navigator.sendBeacon(
-          `${API_URL}/tracking/sessions/batch-activities`,
-          new Blob([JSON.stringify({ events: eventQueue.current })], { type: 'application/json' })
-        );
+        fetch(`${API_URL}/tracking/sessions/batch-activities`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.getToken()}` },
+          body: JSON.stringify({ events: eventQueue.current }),
+          keepalive: true,
+        }).catch(() => {});
       }
     };
 
