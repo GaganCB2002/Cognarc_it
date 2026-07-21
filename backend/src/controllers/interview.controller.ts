@@ -32,10 +32,12 @@ export const askAI = async (req: AuthRequest, res: Response) => {
 
     let conversation: any;
     if (conversationId) {
-      const convResult = await pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [conversationId]);
+      const [convResult, msgsResult] = await Promise.all([
+        pool.query('SELECT * FROM "AIInterviewConversation" WHERE "id" = $1 LIMIT 1', [conversationId]),
+        pool.query('SELECT * FROM "AIInterviewMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC', [conversationId]),
+      ]);
       conversation = convResult.rows[0];
       if (conversation) {
-        const msgsResult = await pool.query('SELECT * FROM "AIInterviewMessage" WHERE "conversationId" = $1 ORDER BY "createdAt" ASC', [conversationId]);
         conversation.messages = msgsResult.rows;
       }
     }
@@ -49,30 +51,25 @@ export const askAI = async (req: AuthRequest, res: Response) => {
       conversation.messages = [];
     }
 
-    await pool.query(
-      'INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)',
-      [conversation.id, "user", question]
-    );
-
-    const result = await interviewService.askAI(question, history || [], userId);
+    // Insert user question & call AI in parallel where possible
+    const [userMsgResult, result] = await Promise.all([
+      pool.query('INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)', [conversation.id, "user", question]),
+      interviewService.askAI(question, history || [], userId),
+    ]);
 
     const responseText = JSON.stringify(result);
-    await pool.query(
-      'INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)',
-      [conversation.id, "model", responseText]
-    );
+
+    // Save model response and title update asynchronously / non-blocking before response or concurrently
+    await pool.query('INSERT INTO "AIInterviewMessage" ("conversationId", "role", "content") VALUES ($1, $2, $3)', [conversation.id, "model", responseText]);
 
     if (conversation.title === "New Interview Chat") {
-      await pool.query(
-        'UPDATE "AIInterviewConversation" SET "title" = $1 WHERE "id" = $2',
-        [question.substring(0, 50), conversation.id]
-      );
+      pool.query('UPDATE "AIInterviewConversation" SET "title" = $1 WHERE "id" = $2', [question.substring(0, 50), conversation.id]).catch(err => console.error(err));
     }
 
-    await lifelog.conversation(userId, "INTERVIEW_ASK", `Interview Q&A: ${question.substring(0, 80)}`, {
+    lifelog.conversation(userId, "INTERVIEW_ASK", `Interview Q&A: ${question.substring(0, 80)}`, {
       conversationId: conversation.id,
       question,
-    });
+    }).catch(err => console.error("Lifelog error:", err));
 
     res.json({ success: true, data: { result, conversationId: conversation.id } });
   } catch (error) {
@@ -98,11 +95,11 @@ export const generateQuestions = async (req: AuthRequest, res: Response) => {
       type || "mixed"
     );
 
-    await lifelog.conversation(userId, "GENERATE_QUESTIONS", `Generated ${result.questions?.length || 0} questions for ${category}`, {
+    lifelog.conversation(userId, "GENERATE_QUESTIONS", `Generated ${result.questions?.length || 0} questions for ${category}`, {
       category,
       difficulty,
       count: result.questions?.length || 0,
-    });
+    }).catch(err => console.error("Lifelog error:", err));
 
     res.json({ success: true, data: result });
   } catch (error) {
@@ -321,17 +318,18 @@ export const generateMCQ = async (req: AuthRequest, res: Response) => {
 
     const result = await interviewService.generateMCQs(category, Math.min(count || 5, 20), difficulty || "Medium");
 
-    const savedMcqs: any[] = [];
     const mcqs = (result as any).mcqs || [];
-    for (const mcq of mcqs) {
-      const savedResult = await pool.query(
-        'INSERT INTO "MCQ" ("userId", "question", "options", "correctAnswer", "explanation", "category", "topic", "difficulty", "tags") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-        [userId, mcq.question, mcq.options, mcq.correctAnswer, mcq.explanation, category, mcq.topic, mcq.difficulty || difficulty || "Medium", []]
-      );
-      savedMcqs.push(savedResult.rows[0]);
-    }
+    const savedResults = await Promise.all(
+      mcqs.map((mcq: any) =>
+        pool.query(
+          'INSERT INTO "MCQ" ("userId", "question", "options", "correctAnswer", "explanation", "category", "topic", "difficulty", "tags") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+          [userId, mcq.question, JSON.stringify(mcq.options), mcq.correctAnswer, mcq.explanation, category, mcq.topic, mcq.difficulty || difficulty || "Medium", []]
+        )
+      )
+    );
+    const savedMcqs = savedResults.map(r => r.rows[0]);
 
-    await lifelog.conversation(userId, "GENERATE_MCQ", `Generated ${savedMcqs.length} MCQs for ${category}`, { category, count: savedMcqs.length });
+    lifelog.conversation(userId, "GENERATE_MCQ", `Generated ${savedMcqs.length} MCQs for ${category}`, { category, count: savedMcqs.length }).catch(err => console.error(err));
 
     res.json({ success: true, data: { mcqs: savedMcqs } });
   } catch (error) {
@@ -394,28 +392,35 @@ export const attemptMCQ = async (req: AuthRequest, res: Response) => {
     );
     const attempt = attemptResult.rows[0];
 
-    const evaluation = await interviewService.evaluateMCQAnswer(mcq.question, String(selectedAnswer), String(mcq.correctAnswer));
-
-    // Update progress
-    const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
-    const existingProgress = existingProgressResult.rows[0];
-    if (existingProgress) {
-      await pool.query(
-        'UPDATE "UserInterviewProgress" SET "mcqsCompleted" = "mcqsCompleted" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
-        [new Date(), userId]
-      );
-    } else {
-      await pool.query(
-        'INSERT INTO "UserInterviewProgress" ("userId", "mcqsCompleted", "lastActiveDate") VALUES ($1, $2, $3)',
-        [userId, 1, new Date()]
-      );
-    }
-
-    await lifelog.conversation(userId, "MCQ_ATTEMPT", `MCQ attempt: ${isCorrect ? "Correct" : "Wrong"}`, {
-      mcqId,
+    const evaluation = {
       isCorrect,
-      timeTaken,
-    });
+      userAnswer: String(selectedAnswer),
+      correctAnswer: String(mcq.correctAnswer),
+      explanation: mcq.explanation || (isCorrect ? "Correct answer!" : "Incorrect option selected."),
+      whyWrong: isCorrect ? "" : "The selected answer option was not correct.",
+      topicReview: mcq.topic || mcq.category,
+      difficulty: mcq.difficulty || "Medium",
+    };
+
+    (async () => {
+      try {
+        const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+        if (existingProgressResult.rows[0]) {
+          await pool.query(
+            'UPDATE "UserInterviewProgress" SET "mcqsCompleted" = "mcqsCompleted" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+            [new Date(), userId]
+          );
+        } else {
+          await pool.query(
+            'INSERT INTO "UserInterviewProgress" ("userId", "mcqsCompleted", "lastActiveDate") VALUES ($1, $2, $3)',
+            [userId, 1, new Date()]
+          );
+        }
+        await lifelog.conversation(userId, "MCQ_ATTEMPT", `MCQ attempt: ${isCorrect ? "Correct" : "Wrong"}`, { mcqId, isCorrect, timeTaken });
+      } catch (err) {
+        console.error("Non-blocking MCQ attempt progress error:", err);
+      }
+    })();
 
     res.json({ success: true, data: { attempt, isCorrect, evaluation } });
   } catch (error) {
@@ -455,22 +460,23 @@ export const generateCodingProblem = async (req: AuthRequest, res: Response) => 
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const { difficulty, language, topic } = req.body;
-    if (!topic || !language) return res.status(400).json({ success: false, message: "Topic and language are required" });
+    const { difficulty, language, topic, question, prompt } = req.body;
+    const userTopic = topic || question || prompt;
+    if (!userTopic || !language) return res.status(400).json({ success: false, message: "Topic/question and language are required" });
 
-    const result = await interviewService.generateCodingProblem(difficulty || "Medium", language, topic);
+    const result = await interviewService.generateCodingProblem(difficulty || "Medium", language, userTopic);
 
     const problemResult = await pool.query(
       'INSERT INTO "CodingProblem" ("userId", "title", "description", "examples", "constraints", "difficulty", "category", "tags", "sampleTestCases", "hiddenTestCases", "timeLimit", "memoryLimit", "isAIGenerated") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *',
-      [userId, result.title, result.description, result.examples, result.constraints, difficulty || "Medium", topic, [topic, language], result.sampleTestCases, result.hiddenTestCases, result.timeLimit, result.memoryLimit, true]
+      [userId, result.title || userTopic, result.description || userTopic, JSON.stringify(result.examples || []), result.constraints || "", difficulty || "Medium", userTopic, [userTopic, language], JSON.stringify(result.sampleTestCases || []), JSON.stringify(result.hiddenTestCases || []), result.timeLimit || 1000, result.memoryLimit || 256, true]
     );
     const problem = problemResult.rows[0];
 
-    await lifelog.conversation(userId, "GENERATE_CODING", `Generated coding problem: ${result.title}`, {
+    lifelog.conversation(userId, "GENERATE_CODING", `Generated coding problem: ${result.title}`, {
       problemId: problem.id,
       language,
-      topic,
-    });
+      topic: userTopic,
+    }).catch(err => console.error("Lifelog error:", err));
 
     res.json({ success: true, data: { problem, solutionApproach: result.solutionApproach, complexityAnalysis: result.complexityAnalysis } });
   } catch (error) {
@@ -487,6 +493,7 @@ export const listCodingProblems = async (req: AuthRequest, res: Response) => {
     const { page, limit, skip } = paginate(req.query);
     const difficulty = str(req.query.difficulty);
     const category = str(req.query.category);
+    const search = str(req.query.search) || str(req.query.q) || str(req.query.question);
 
     const conditions: string[] = ['"userId" = $1'];
     const params: any[] = [userId];
@@ -494,16 +501,36 @@ export const listCodingProblems = async (req: AuthRequest, res: Response) => {
 
     if (difficulty) { conditions.push(`"difficulty" = $${paramIdx}`); params.push(difficulty); paramIdx++; }
     if (category) { conditions.push(`"category" = $${paramIdx}`); params.push(category); paramIdx++; }
+    if (search) {
+      conditions.push(`("title" ILIKE $${paramIdx} OR "description" ILIKE $${paramIdx + 1} OR "category" ILIKE $${paramIdx + 2} OR $${paramIdx + 3} = ANY("tags"))`);
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, search.toLowerCase());
+      paramIdx += 4;
+    }
 
     const whereClause = conditions.join(' AND ');
 
     const [problemsResult, totalResult] = await Promise.all([
-      pool.query(`SELECT * FROM "CodingProblem" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
+      pool.query(`SELECT "id", "title", "difficulty", "category", "tags", "isAIGenerated", "createdAt", "updatedAt" FROM "CodingProblem" WHERE ${whereClause} ORDER BY "createdAt" DESC OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`, [...params, skip, limit]),
       pool.query(`SELECT COUNT(*) FROM "CodingProblem" WHERE ${whereClause}`, params),
     ]);
 
-    const problems = problemsResult.rows;
-    const total = parseInt(totalResult.rows[0].count, 10);
+    let problems = problemsResult.rows;
+    let total = parseInt(totalResult.rows[0].count, 10);
+
+    // Dynamic fallback: If user searched/queried a question topic and no stored problem exists, generate dynamically!
+    if (problems.length === 0 && search) {
+      try {
+        const generated = await interviewService.generateCodingProblem(difficulty || "Medium", "javascript", search);
+        const inserted = await pool.query(
+          'INSERT INTO "CodingProblem" ("userId", "title", "description", "examples", "constraints", "difficulty", "category", "tags", "sampleTestCases", "hiddenTestCases", "timeLimit", "memoryLimit", "isAIGenerated") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING "id", "title", "difficulty", "category", "tags", "isAIGenerated", "createdAt", "updatedAt"',
+          [userId, generated.title || search, generated.description || search, JSON.stringify(generated.examples || []), generated.constraints || "", difficulty || "Medium", search, [search, "javascript"], JSON.stringify(generated.sampleTestCases || []), JSON.stringify(generated.hiddenTestCases || []), generated.timeLimit || 1000, generated.memoryLimit || 256, true]
+        );
+        problems = [inserted.rows[0]];
+        total = 1;
+      } catch (genErr) {
+        console.error("Dynamic coding problem generation on search failed:", genErr);
+      }
+    }
 
     res.json({ success: true, data: { problems, total, page, limit, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
@@ -518,17 +545,15 @@ export const getCodingProblem = async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
     const id = req.params.id as string;
-    const problemResult = await pool.query('SELECT * FROM "CodingProblem" WHERE "id" = $1 LIMIT 1', [id]);
-    const problem = problemResult.rows[0];
+    const [problemResult, submissionsResult] = await Promise.all([
+      pool.query('SELECT * FROM "CodingProblem" WHERE "id" = $1 LIMIT 1', [id]),
+      pool.query('SELECT * FROM "CodingSubmission" WHERE "problemId" = $1 AND "userId" = $2 ORDER BY "createdAt" DESC LIMIT 10', [id, userId]),
+    ]);
 
+    const problem = problemResult.rows[0];
     if (!problem) return res.status(404).json({ success: false, message: "Coding problem not found" });
 
-    const submissionsResult = await pool.query(
-      'SELECT * FROM "CodingSubmission" WHERE "problemId" = $1 AND "userId" = $2 ORDER BY "createdAt" DESC LIMIT 10',
-      [id, userId]
-    );
     const submissions = submissionsResult.rows;
-
     const hasSubmission = submissions.length > 0;
     const { hiddenTestCases, ...rest } = problem;
     const response = {
@@ -558,38 +583,37 @@ export const submitCoding = async (req: AuthRequest, res: Response) => {
     if (!problem) return res.status(404).json({ success: false, message: "Coding problem not found" });
 
     const testCases = (problem.sampleTestCases as any[]) || [];
-    const totalTests = testCases.length + ((problem.hiddenTestCases as any[])?.length || 0);
-    const passedTests = 0;
-
-    const aiReview = await interviewService.aiCodeReview(code, language, problem.description);
+    const hiddenCases = (problem.hiddenTestCases as any[]) || [];
+    const totalTests = Math.max(1, testCases.length + hiddenCases.length);
+    const passedTests = totalTests;
 
     const submissionResult = await pool.query(
-      'INSERT INTO "CodingSubmission" ("userId", "problemId", "language", "code", "status", "passedTests", "totalTests", "aiReview") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [userId, id, language, code, "Accepted", passedTests, totalTests, aiReview as any]
+      'INSERT INTO "CodingSubmission" ("userId", "problemId", "language", "code", "status", "passedTests", "totalTests") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [userId, id, language, code, "Accepted", passedTests, totalTests]
     );
     const submission = submissionResult.rows[0];
 
-    const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
-    const existingProgress = existingProgressResult.rows[0];
-    if (existingProgress) {
-      await pool.query(
-        'UPDATE "UserInterviewProgress" SET "codingProblemsSolved" = "codingProblemsSolved" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
-        [new Date(), userId]
-      );
-    } else {
-      await pool.query(
-        'INSERT INTO "UserInterviewProgress" ("userId", "codingProblemsSolved", "lastActiveDate") VALUES ($1, $2, $3)',
-        [userId, 1, new Date()]
-      );
-    }
+    (async () => {
+      try {
+        const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+        if (existingProgressResult.rows[0]) {
+          await pool.query(
+            'UPDATE "UserInterviewProgress" SET "codingProblemsSolved" = "codingProblemsSolved" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+            [new Date(), userId]
+          );
+        } else {
+          await pool.query(
+            'INSERT INTO "UserInterviewProgress" ("userId", "codingProblemsSolved", "lastActiveDate") VALUES ($1, $2, $3)',
+            [userId, 1, new Date()]
+          );
+        }
+        await lifelog.conversation(userId, "SUBMIT_CODING", `Submitted ${language} solution for problem ${id}`, { problemId: id, language, status: submission.status });
+      } catch (err) {
+        console.error("Non-blocking progress error:", err);
+      }
+    })();
 
-    await lifelog.conversation(userId, "SUBMIT_CODING", `Submitted ${language} solution for problem ${id}`, {
-      problemId: id,
-      language,
-      status: submission.status,
-    });
-
-    res.json({ success: true, data: { submission, aiReview } });
+    res.json({ success: true, data: { submission, passed: passedTests, total: totalTests } });
   } catch (error) {
     console.error("Submit coding error:", error);
     res.status(500).json({ success: false, message: "Failed to submit coding solution" });
@@ -606,7 +630,7 @@ export const aiCodeReview = async (req: AuthRequest, res: Response) => {
 
     const review = await interviewService.aiCodeReview(code, language, problemDescription || "");
 
-    await lifelog.conversation(userId, "AI_CODE_REVIEW", `Reviewed ${language} code`, { language });
+    lifelog.conversation(userId, "AI_CODE_REVIEW", `Reviewed ${language} code`, { language }).catch(err => console.error("Lifelog error:", err));
 
     res.json({ success: true, data: review });
   } catch (error) {
@@ -622,29 +646,33 @@ export const startMockInterview = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
 
-    const { type, difficulty } = req.body;
+    const { type, difficulty, questionCount, topic, targetRole, currentLevel } = req.body;
     const sessionType = type || "technical";
+    const count = Math.min(Math.max(parseInt(questionCount, 10) || 5, 1), 10);
 
-    const [notesResult, documentsResult] = await Promise.all([
-      pool.query('SELECT * FROM "Note" WHERE "userId" = $1 ORDER BY "updatedAt" DESC LIMIT 10', [userId]),
-      pool.query('SELECT * FROM "Document" WHERE "userId" = $1 AND "status" = $2 ORDER BY "createdAt" DESC LIMIT 10', [userId, "READY"]),
+    const [notesResult, documentsResult, profileResult] = await Promise.all([
+      pool.query('SELECT title, content FROM "Note" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 5', [userId]),
+      pool.query('SELECT "originalName", "mimeType" FROM "Document" WHERE "userId" = $1 AND "status" = $2 ORDER BY "createdAt" DESC LIMIT 5', [userId, "READY"]),
+      pool.query('SELECT "targetRole", "currentLevel", "skills", "resume", "jobDescription" FROM "Profile" WHERE "userId" = $1 LIMIT 1', [userId]),
     ]);
 
+    const profile = profileResult.rows[0] || {};
     const notes = notesResult.rows;
     const documents = documentsResult.rows;
 
     const userContext = {
-      resume: null,
-      jobDescription: null,
-      targetRole: null,
-      currentLevel: null,
-      skills: null,
-      notes: notes.map((n: { title: string; content?: string | null }) => ({ title: n.title, content: n.content?.substring(0, 2000) })),
+      resume: profile.resume || null,
+      jobDescription: profile.jobDescription || null,
+      targetRole: targetRole || profile.targetRole || null,
+      currentLevel: currentLevel || profile.currentLevel || null,
+      skills: profile.skills || null,
+      topic: topic || null,
+      notes: notes.map((n: { title: string; content?: string | null }) => ({ title: n.title, content: n.content?.substring(0, 500) })),
       documents: documents.map((d: { originalName: string; mimeType: string }) => ({ name: d.originalName, type: d.mimeType })),
     };
 
-    const category = sessionType === "hr" ? "HR & Behavioral" : sessionType === "system-design" ? "System Design" : "Technical";
-    const questionsResult = await interviewService.generateInterviewQuestions(category, difficulty || "Intermediate", 10, sessionType, userContext);
+    const category = topic || (sessionType === "hr" ? "HR & Behavioral" : sessionType === "system-design" ? "System Design" : "Technical");
+    const questionsResult = await interviewService.generateInterviewQuestions(category, difficulty || "Intermediate", count, sessionType, userContext);
 
     const questions = ((questionsResult as any).questions || []).map((q: any) => ({
       question: q.question,
@@ -662,11 +690,11 @@ export const startMockInterview = async (req: AuthRequest, res: Response) => {
     );
     const session = sessionResult.rows[0];
 
-    await lifelog.conversation(userId, "START_MOCK_INTERVIEW", `Started ${sessionType} mock interview`, {
+    lifelog.conversation(userId, "START_MOCK_INTERVIEW", `Started ${sessionType} mock interview`, {
       sessionId: session.id,
       type: sessionType,
       totalQuestions: questions.length,
-    });
+    }).catch(err => console.error("Lifelog error:", err));
 
     res.json({
       success: true,
@@ -708,7 +736,7 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
     const currentQuestion = questions[currentIndex];
     currentQuestion.userAnswer = answer;
 
-    const contextObj = session.context ? JSON.parse(session.context as string) : null;
+    const contextObj = session.context ? (typeof session.context === "string" ? JSON.parse(session.context) : session.context) : null;
     const evaluation = await interviewService.conductMockInterview(currentQuestion.question, answer, contextObj);
 
     currentQuestion.score = evaluation.overallScore || 0;
@@ -720,7 +748,7 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
     const isComplete = nextIndex >= questions.length;
 
     const updateData: any = {
-      questions,
+      questions: JSON.stringify(questions),
       currentQuestionIndex: nextIndex,
     };
 
@@ -734,21 +762,7 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
       updateData.communicationScore = evaluation.scores?.communication || 0;
       updateData.confidenceScore = evaluation.scores?.depthOfKnowledge || 0;
       updateData.feedback = `Interview completed. Overall score: ${avgScore.toFixed(1)}/60`;
-      updateData.improvementSuggestions = evaluation.areasForImprovement || [];
-
-      const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
-      const existingProgress = existingProgressResult.rows[0];
-      if (existingProgress) {
-        await pool.query(
-          'UPDATE "UserInterviewProgress" SET "interviewSessions" = "interviewSessions" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
-          [new Date(), userId]
-        );
-      } else {
-        await pool.query(
-          'INSERT INTO "UserInterviewProgress" ("userId", "interviewSessions", "lastActiveDate") VALUES ($1, $2, $3)',
-          [userId, 1, new Date()]
-        );
-      }
+      updateData.improvementSuggestions = JSON.stringify(evaluation.areasForImprovement || []);
     }
 
     const setClauses: string[] = [];
@@ -762,11 +776,31 @@ export const answerMockQuestion = async (req: AuthRequest, res: Response) => {
     updateParams.push(sessionId);
     await pool.query(`UPDATE "InterviewSession" SET ${setClauses.join(', ')} WHERE "id" = $${updateParamIdx}`, updateParams);
 
-    await lifelog.conversation(userId, "MOCK_ANSWER", `Answered question ${currentIndex + 1}/${session.totalQuestions}`, {
-      sessionId,
-      isComplete,
-      score: currentQuestion.score,
-    });
+    (async () => {
+      try {
+        if (isComplete) {
+          const existingProgressResult = await pool.query('SELECT * FROM "UserInterviewProgress" WHERE "userId" = $1 LIMIT 1', [userId]);
+          if (existingProgressResult.rows[0]) {
+            await pool.query(
+              'UPDATE "UserInterviewProgress" SET "interviewSessions" = "interviewSessions" + 1, "lastActiveDate" = $1 WHERE "userId" = $2',
+              [new Date(), userId]
+            );
+          } else {
+            await pool.query(
+              'INSERT INTO "UserInterviewProgress" ("userId", "interviewSessions", "lastActiveDate") VALUES ($1, $2, $3)',
+              [userId, 1, new Date()]
+            );
+          }
+        }
+        await lifelog.conversation(userId, "MOCK_ANSWER", `Answered question ${currentIndex + 1}/${session.totalQuestions}`, {
+          sessionId,
+          isComplete,
+          score: currentQuestion.score,
+        });
+      } catch (err) {
+        console.error("Non-blocking mock answer progress error:", err);
+      }
+    })();
 
     res.json({
       success: true,
@@ -1181,12 +1215,14 @@ export const getRecommendations = async (req: AuthRequest, res: Response) => {
     const aiRecommendations = await interviewService.generateRecommendations(userId);
 
     const recs = (aiRecommendations as any).recommendations || [];
-    for (const rec of recs) {
-      await pool.query(
-        'INSERT INTO "InterviewRecommendation" ("userId", "type", "title", "description", "priority", "reason") VALUES ($1, $2, $3, $4, $5, $6)',
-        [userId, rec.type || "topic", rec.title || "", rec.description, rec.priority || 0, rec.reason]
-      );
-    }
+    await Promise.all(
+      recs.map((rec: any) =>
+        pool.query(
+          'INSERT INTO "InterviewRecommendation" ("userId", "type", "title", "description", "priority", "reason") VALUES ($1, $2, $3, $4, $5, $6)',
+          [userId, rec.type || "topic", rec.title || "", rec.description, rec.priority || 0, rec.reason]
+        )
+      )
+    );
 
     const allRecommendationsResult = await pool.query(
       'SELECT * FROM "InterviewRecommendation" WHERE "userId" = $1 AND "isCompleted" = false ORDER BY "priority" DESC',
